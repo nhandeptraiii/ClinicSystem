@@ -3,9 +3,12 @@ package vn.project.ClinicSystem.service;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.stereotype.Service;
+
 import vn.project.ClinicSystem.model.User;
 import vn.project.ClinicSystem.repository.UserRepository;
 
+@Service
 public class UserService {
     private final UserRepository userRepository;
 

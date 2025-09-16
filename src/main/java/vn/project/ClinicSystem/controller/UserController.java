@@ -11,11 +11,13 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
 
 import vn.project.ClinicSystem.model.User;
 import vn.project.ClinicSystem.service.UserService;
 import vn.project.ClinicSystem.util.error.IdInvalidException;
 
+@RestController
 public class UserController {
     private final UserService userService;
 
@@ -41,7 +43,7 @@ public class UserController {
     public ResponseEntity<String> deleteUserById(
             @PathVariable("id") Long id) throws IdInvalidException {
         if (id <= 0) {
-            throw new IdInvalidException("Invalid khonh nho hon 1");
+            throw new IdInvalidException("Invalid khong nho hon 1");
         }
         this.userService.handleDeleteUserById(id);
         return ResponseEntity.status(HttpStatus.OK).body("delete user by id");
