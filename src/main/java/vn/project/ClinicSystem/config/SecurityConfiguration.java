@@ -56,7 +56,6 @@ public class SecurityConfiguration {
                 .formLogin(f -> f.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
         return http.build();
-
     }
 
     @Bean
