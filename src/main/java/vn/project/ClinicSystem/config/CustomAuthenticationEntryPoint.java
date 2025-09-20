@@ -35,7 +35,7 @@ public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint 
 
         RestResponse<Object> res = new RestResponse<Object>();
         res.setStatusCode(HttpStatus.UNAUTHORIZED.value());
-        String errorMessage = Optional.ofNullable(authException.getCause())
+        String errorMessage = Optional.ofNullable(authException.getCause()) // null
                 .map(Throwable::getMessage)
                 .orElse(authException.getMessage());
         res.setError(errorMessage);
