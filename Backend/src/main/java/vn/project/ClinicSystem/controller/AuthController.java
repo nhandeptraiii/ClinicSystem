@@ -1,8 +1,8 @@
 package vn.project.ClinicSystem.controller;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,11 +16,11 @@ import vn.project.ClinicSystem.util.SecurityUtil;
 
 @RestController
 public class AuthController {
-    private final AuthenticationManagerBuilder authenticationManagerBuilder;
+    private final AuthenticationManager authenticationManager;
     private final SecurityUtil securityUtil;
 
-    public AuthController(AuthenticationManagerBuilder authenticationManagerBuilder, SecurityUtil securityUtil) {
-        this.authenticationManagerBuilder = authenticationManagerBuilder;
+    public AuthController(AuthenticationManager authenticationManager, SecurityUtil securityUtil) {
+        this.authenticationManager = authenticationManager;
         this.securityUtil = securityUtil;
     }
 
@@ -31,7 +31,7 @@ public class AuthController {
                 loginDTO.getUsername(), loginDTO.getPassword());
 
         // xác thực người dùng => cần viết hàm loadUserByUsername
-        Authentication authentication = authenticationManagerBuilder.getObject().authenticate(authenticationToken);
+        Authentication authentication = authenticationManager.authenticate(authenticationToken);
 
         String access_token = this.securityUtil.createToken(authentication);
         SecurityContextHolder.getContext().setAuthentication(authentication);
