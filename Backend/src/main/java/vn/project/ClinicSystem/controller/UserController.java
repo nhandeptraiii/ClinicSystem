@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,7 +29,7 @@ public class UserController {
         this.passwordEncoder = passwordEncoder;
     }
 
-    // @GetMapping("/user/create")
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/users/create")
     public ResponseEntity<User> createNewUser(
             @RequestBody User postManUser) {
@@ -39,6 +40,7 @@ public class UserController {
         return ResponseEntity.status(HttpStatus.CREATED).body(newUser);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/users/{id}")
     public ResponseEntity<String> deleteUserById(
             @PathVariable("id") Long id) throws IdInvalidException {
@@ -55,14 +57,19 @@ public class UserController {
         return ResponseEntity.status(HttpStatus.OK).body(fetchUser);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/users")
     public ResponseEntity<List<User>> getAllUsers() {
         return ResponseEntity.status(HttpStatus.OK).body(this.userService.fetchGetAllUsers());
     }
 
-    @PutMapping("/users")
-    public ResponseEntity<User> updateUser(@RequestBody User user) {
-        User updatedUser = this.userService.handleUpdateUserById(user);
+    @PutMapping("/users/{id}")
+    public ResponseEntity<User> updateUser(@PathVariable("id") Long id, @RequestBody User user) {
+        user.setId(id);
+        if (user.getPassword() != null && !user.getPassword().isBlank()) {
+            user.setPassword(passwordEncoder.encode(user.getPassword()));
+        }
+        User updatedUser = this.userService.handleUpdateUserById(id, user);
         return ResponseEntity.status(HttpStatus.OK).body(updatedUser);
     }
 
