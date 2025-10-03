@@ -1,6 +1,7 @@
 package vn.project.ClinicSystem.service;
 
-import java.util.Collections;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -19,13 +20,17 @@ public class UserDetailsCustom implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        vn.project.ClinicSystem.model.User user = userService.handlegetUserbyUsername(username);
+        vn.project.ClinicSystem.model.User user = userService.handleGetUserByUsername(username);
         if (user == null) {
             throw new UsernameNotFoundException("User/ password không hợp lệ");
         }
-        return new User(
-                user.getEmail(),
-                user.getPassword(),
-                Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")));
+        Set<SimpleGrantedAuthority> authorities = user.getRoles().stream()
+                .map(role -> new SimpleGrantedAuthority("ROLE_" + role.getName().toUpperCase()))
+                .collect(Collectors.toSet());
+        if (authorities.isEmpty()) {
+            authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
+        }
+        return new User(user.getEmail(), user.getPassword(), authorities);
+
     }
 }
