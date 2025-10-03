@@ -9,6 +9,7 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -40,7 +41,7 @@ public class User {
     @Column(length = 150)
     private String fullName;
 
-    @Email(message = "Email không hợp lệ")
+    @Email(message = "Email không hợp lệ")
     @Column(length = 120, nullable = false, unique = true)
     private String email;
 
@@ -70,7 +71,7 @@ public class User {
     private Set<Role> roles = new HashSet<>();
 
     @JsonIgnore
-    @OneToOne(mappedBy = "account")
+    @OneToOne(mappedBy = "account", cascade = CascadeType.REMOVE, orphanRemoval = true)
     private Doctor doctorProfile;
 
     @PrePersist

@@ -13,6 +13,7 @@ import jakarta.validation.Validator;
 import vn.project.ClinicSystem.model.Doctor;
 import vn.project.ClinicSystem.model.Role;
 import vn.project.ClinicSystem.model.User;
+import vn.project.ClinicSystem.model.dto.DoctorCreateRequest;
 import vn.project.ClinicSystem.repository.DoctorRepository;
 import vn.project.ClinicSystem.repository.RoleRepository;
 import vn.project.ClinicSystem.repository.UserRepository;
@@ -59,25 +60,24 @@ public class DoctorService {
     }
 
     @Transactional
-    public Doctor create(Doctor doctor) {
-        if (doctor == null) {
+    public Doctor createForUser(DoctorCreateRequest request) {
+        if (request == null) {
             throw new IllegalArgumentException("Thông tin bác sĩ không được null");
         }
-        doctor.setLicenseNumber(normalizeLicense(doctor.getLicenseNumber()));
-        doctor.setSpecialty(normalizeText(doctor.getSpecialty()));
+        Doctor doctor = new Doctor();
+        doctor.setSpecialty(normalizeText(request.getSpecialty()));
+        doctor.setLicenseNumber(normalizeLicense(request.getLicenseNumber()));
+        doctor.setExaminationRoom(request.getExaminationRoom());
+        doctor.setBiography(request.getBiography());
 
         validateBean(doctor);
         ensureLicenseUnique(doctor.getLicenseNumber(), null);
 
-        if (doctor.getAccount() != null && doctor.getAccount().getId() != null) {
-            Long accountId = doctor.getAccount().getId();
-            ensureAccountAvailable(accountId, null);
-            User account = loadUser(accountId);
-            doctor.setAccount(account);
-            attachDoctorRole(account);
-        } else {
-            doctor.setAccount(null);
-        }
+        Long accountId = request.getUserId();
+        ensureAccountAvailable(accountId, null);
+        User account = loadUser(accountId);
+        doctor.setAccount(account);
+        attachDoctorRole(account);
 
         return doctorRepository.save(doctor);
     }
@@ -119,23 +119,6 @@ public class DoctorService {
 
         validateBean(existing);
         return doctorRepository.save(existing);
-    }
-
-    @Transactional
-    public Doctor assignAccount(Long doctorId, Long userId) {
-        Doctor doctor = getById(doctorId);
-        ensureAccountAvailable(userId, doctorId);
-        User account = loadUser(userId);
-        doctor.setAccount(account);
-        attachDoctorRole(account);
-        return doctorRepository.save(doctor);
-    }
-
-    @Transactional
-    public Doctor detachAccount(Long doctorId) {
-        Doctor doctor = getById(doctorId);
-        doctor.setAccount(null);
-        return doctorRepository.save(doctor);
     }
 
     @Transactional

@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
 import vn.project.ClinicSystem.model.Doctor;
-import vn.project.ClinicSystem.model.dto.DoctorAccountAssignmentRequest;
+import vn.project.ClinicSystem.model.dto.DoctorCreateRequest;
 import vn.project.ClinicSystem.service.DoctorService;
 
 @RestController
@@ -31,8 +31,8 @@ public class DoctorController {
 
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
-    public ResponseEntity<Doctor> createDoctor(@Valid @RequestBody Doctor doctor) {
-        Doctor created = doctorService.create(doctor);
+    public ResponseEntity<Doctor> createDoctor(@Valid @RequestBody DoctorCreateRequest request) {
+        Doctor created = doctorService.createForUser(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
@@ -42,36 +42,21 @@ public class DoctorController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Doctor> getDoctorById(@PathVariable Long id) {
+    public ResponseEntity<Doctor> getDoctorById(@PathVariable("id") Long id) {
         return ResponseEntity.ok(doctorService.getById(id));
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
-    public ResponseEntity<Doctor> updateDoctor(@PathVariable Long id, @Valid @RequestBody Doctor doctor) {
+    public ResponseEntity<Doctor> updateDoctor(@PathVariable("id") Long id, @Valid @RequestBody Doctor doctor) {
         Doctor updated = doctorService.update(id, doctor);
         return ResponseEntity.ok(updated);
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteDoctor(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteDoctor(@PathVariable("id") Long id) {
         doctorService.delete(id);
         return ResponseEntity.noContent().build();
-    }
-
-    @PreAuthorize("hasRole('ADMIN')")
-    @PostMapping("/{id}/assign-account")
-    public ResponseEntity<Doctor> assignAccount(@PathVariable Long id,
-            @Valid @RequestBody DoctorAccountAssignmentRequest request) {
-        Doctor doctor = doctorService.assignAccount(id, request.getUserId());
-        return ResponseEntity.ok(doctor);
-    }
-
-    @PreAuthorize("hasRole('ADMIN')")
-    @PostMapping("/{id}/detach-account")
-    public ResponseEntity<Doctor> detachAccount(@PathVariable Long id) {
-        Doctor doctor = doctorService.detachAccount(id);
-        return ResponseEntity.ok(doctor);
     }
 }

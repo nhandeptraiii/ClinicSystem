@@ -4,7 +4,6 @@ import java.util.List;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-
 import org.springframework.stereotype.Service;
 
 import jakarta.persistence.EntityExistsException;
@@ -31,13 +30,14 @@ public class UserService {
     }
 
     public List<User> fetchGetAllUsers(Pageable pageable) {
-        Page<User> pageUser = this.userRepository.findAll(pageable);
-
+        Page<User> pageUser = userRepository.findAll(pageable);
         return pageUser.getContent();
     }
 
     public void handleDeleteUserById(Long id) {
-        this.userRepository.deleteById(id);
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy người dùng với id: " + id));
+        userRepository.delete(user);
     }
 
     public User handleUpdateUserById(Long id, User changes) {
@@ -69,11 +69,11 @@ public class UserService {
     }
 
     public User handleGetUserById(Long id) {
-        return this.userRepository.findById(id).orElse(null);
+        return userRepository.findById(id).orElse(null);
     }
 
     public User handleGetUserByUsername(String username) {
-        return this.userRepository.findByEmail(username).orElse(null);
+        return userRepository.findByEmail(username).orElse(null);
     }
 
     private void validateBean(User user) {
@@ -93,5 +93,4 @@ public class UserService {
             }
         });
     }
-
 }
