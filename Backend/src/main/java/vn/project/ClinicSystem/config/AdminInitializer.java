@@ -25,17 +25,15 @@ public class AdminInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        Role adminRole = roleService.createRole("ADMIN", "ToĂ n quyá»n há»‡ thá»‘ng");
+        Role adminRole = roleService.ensureRole("ADMIN", "Toan quyen he thong");
+
         userRepository.findByEmail("admin@clinicsystem.com").orElseGet(() -> {
             User admin = new User();
             admin.setFullName("System Administrator");
             admin.setEmail("admin@clinicsystem.com");
             admin.setPassword(passwordEncoder.encode("Admin@123"));
             admin.setStatus("ACTIVE");
-            if (adminRole != null) {
-                admin.getRoles().add(adminRole);
-            }
-
+            admin.getRoles().add(adminRole);
             return userRepository.save(admin);
         });
     }
