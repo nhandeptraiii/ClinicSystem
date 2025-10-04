@@ -10,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -22,9 +23,11 @@ public class ClinicRoom {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @NotBlank(message = "Mã phòng không được để trống")
     @Column(nullable = false, length = 80, unique = true)
     private String code;
 
+    @NotBlank(message = "Tên phòng không được để trống")
     @Column(length = 120)
     private String name;
 
