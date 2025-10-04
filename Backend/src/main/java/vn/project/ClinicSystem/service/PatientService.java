@@ -5,6 +5,8 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.Validator;
 import jakarta.persistence.EntityNotFoundException;
 import vn.project.ClinicSystem.model.Patient;
 import vn.project.ClinicSystem.repository.PatientRepository;
@@ -13,9 +15,11 @@ import vn.project.ClinicSystem.repository.PatientRepository;
 @Transactional(readOnly = true)
 public class PatientService {
     private final PatientRepository patientRepository;
+    private final Validator validator;
 
-    public PatientService(PatientRepository patientRepository) {
+    public PatientService(PatientRepository patientRepository, Validator validator) {
         this.patientRepository = patientRepository;
+        this.validator = validator;
     }
 
     public List<Patient> findAll() {
@@ -26,43 +30,48 @@ public class PatientService {
         if (keyword == null || keyword.isBlank()) {
             return findAll();
         }
-        return patientRepository.findByFullNameContainingIgnoreCase(keyword.trim());
+        String normalized = keyword.trim();
+        List<Patient> patients = patientRepository.findByFullNameContainingIgnoreCase(normalized);
+        if (patients.isEmpty()) {
+            throw new EntityNotFoundException("Không tìm thấy bệnh nhân với từ khóa: " + normalized);
+        }
+        return patients;
     }
 
     public Patient getById(Long id) {
         return patientRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Patient not found with id: " + id));
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy bệnh nhân với id: " + id));
     }
 
     public Patient getByCode(String code) {
         String normalizedCode = normalizeCode(code);
         return patientRepository.findByCode(normalizedCode)
-                .orElseThrow(() -> new EntityNotFoundException("Patient not found with code: " + normalizedCode));
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy bệnh nhân với mã: " + normalizedCode));
     }
 
     @Transactional
     public Patient create(Patient patient) {
         if (patient == null) {
-            throw new IllegalArgumentException("Patient payload must not be null");
+            throw new IllegalArgumentException("Thông tin bệnh nhân không được để trống");
         }
-        validatePatientCode(patient.getCode(), null);
         patient.setCode(normalizeCode(patient.getCode()));
+        validateBean(patient);
+        validateUniqueCode(patient.getCode(), null);
         return patientRepository.save(patient);
     }
 
     @Transactional
     public Patient update(Long id, Patient changes) {
         if (changes == null) {
-            throw new IllegalArgumentException("Patient payload must not be null");
+            throw new IllegalArgumentException("Thông tin bệnh nhân không được null");
         }
         Patient existing = getById(id);
 
-        if (changes.getCode() != null
-                && !normalizeCode(changes.getCode()).equalsIgnoreCase(existing.getCode())) {
-            validatePatientCode(changes.getCode(), id);
-            existing.setCode(normalizeCode(changes.getCode()));
+        if (changes.getCode() != null && !normalizeCode(changes.getCode()).equalsIgnoreCase(existing.getCode())) {
+            String normalized = normalizeCode(changes.getCode());
+            validateUniqueCode(normalized, existing.getId());
+            existing.setCode(normalized);
         }
-
         if (changes.getFullName() != null) {
             existing.setFullName(changes.getFullName());
         }
@@ -81,40 +90,44 @@ public class PatientService {
         if (changes.getAddress() != null) {
             existing.setAddress(changes.getAddress());
         }
-        if (changes.getInsuranceNumber() != null) {
-            existing.setInsuranceNumber(changes.getInsuranceNumber());
-        }
+        // if (changes.getInsuranceNumber() != null) {
+        // existing.setInsuranceNumber(changes.getInsuranceNumber());
+        // }
         if (changes.getNote() != null) {
             existing.setNote(changes.getNote());
         }
 
+        validateBean(existing);
         return patientRepository.save(existing);
     }
 
     @Transactional
     public void delete(Long id) {
         if (!patientRepository.existsById(id)) {
-            throw new EntityNotFoundException("Patient not found with id: " + id);
+            throw new EntityNotFoundException("Không tìm thấy bệnh nhân với id: " + id);
         }
         patientRepository.deleteById(id);
     }
 
-    private void validatePatientCode(String code, Long currentId) {
-        if (code == null || code.isBlank()) {
-            throw new IllegalArgumentException("Patient code must not be blank");
-        }
-        String normalized = normalizeCode(code);
-        patientRepository.findByCode(normalized).ifPresent(existing -> {
-            boolean isSameRecord = currentId != null && existing.getId().equals(currentId);
-            if (!isSameRecord) {
-                throw new IllegalStateException("Patient code already exists: " + normalized);
+    private void validateUniqueCode(String code, Long currentId) {
+        patientRepository.findByCode(code).ifPresent(existing -> {
+            boolean sameRecord = currentId != null && existing.getId().equals(currentId);
+            if (!sameRecord) {
+                throw new IllegalStateException("Mã bệnh nhân đã tồn tại: " + code);
             }
         });
     }
 
+    private void validateBean(Patient patient) {
+        var violations = validator.validate(patient);
+        if (!violations.isEmpty()) {
+            throw new ConstraintViolationException(violations);
+        }
+    }
+
     private String normalizeCode(String code) {
         if (code == null) {
-            throw new IllegalArgumentException("Patient code must not be null");
+            throw new IllegalArgumentException("Mã bệnh nhân không được null");
         }
         return code.trim().toUpperCase();
     }
