@@ -1,7 +1,9 @@
 package vn.project.ClinicSystem.controller;
 
+import java.time.LocalDate;
 import java.util.List;
 
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -64,4 +66,14 @@ public class PatientController {
         patientService.delete(id);
         return ResponseEntity.noContent().build();
     }
+
+    @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
+    @GetMapping("/search")
+    public ResponseEntity<List<Patient>> searchPatients(
+            @RequestParam(value = "fullName", required = false) String fullName,
+            @RequestParam(value = "dateOfBirth", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateOfBirth,
+            @RequestParam(value = "phone", required = false) String phone) {
+        return ResponseEntity.ok(patientService.searchPatients(fullName, dateOfBirth, phone));
+    }
+
 }

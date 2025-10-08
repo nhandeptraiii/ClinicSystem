@@ -1,5 +1,6 @@
 package vn.project.ClinicSystem.service;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -131,4 +132,23 @@ public class PatientService {
         }
         return code.trim().toUpperCase();
     }
+
+    public List<Patient> searchPatients(String keyword, LocalDate dateOfBirth, String phone) {
+        String normalizedKeyword = keyword != null ? keyword.trim() : null;
+        String normalizedPhone = phone != null ? phone.trim() : null;
+
+        boolean hasKeyword = normalizedKeyword != null && !normalizedKeyword.isEmpty();
+        boolean hasDob = dateOfBirth != null;
+        boolean hasPhone = normalizedPhone != null && !normalizedPhone.isEmpty();
+
+        if (!hasKeyword && !hasDob && !hasPhone) {
+            throw new IllegalArgumentException("Cần cung cấp ít nhất một tiêu chí tìm kiếm");
+        }
+
+        return patientRepository.searchPatients(
+                hasKeyword ? normalizedKeyword : null,
+                dateOfBirth,
+                hasPhone ? normalizedPhone : null);
+    }
+
 }
