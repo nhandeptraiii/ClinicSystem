@@ -11,13 +11,16 @@ import vn.project.ClinicSystem.model.enums.AppointmentStatus;
 
 @Repository
 public interface AppointmentRepository extends JpaRepository<Appointment, Long> {
-    List<Appointment> findByDoctorId(Long doctorId);
 
-    List<Appointment> findByDoctorIdAndScheduledAtBetween(Long doctorId, LocalDateTime start, LocalDateTime end);
+    List<Appointment> findByDoctorIdOrderByScheduledAtAsc(Long doctorId);
 
     List<Appointment> findByPatientIdOrderByScheduledAtDesc(Long patientId);
 
     List<Appointment> findByStatus(AppointmentStatus status);
 
-    List<Appointment> findByClinicRoomIdAndScheduledAtBetween(Long clinicRoomId, LocalDateTime start, LocalDateTime end);
+    List<Appointment> findByDoctorIdAndScheduledAtBetween(Long doctorId,
+            LocalDateTime start, LocalDateTime end);
+
+    List<Appointment> findByClinicRoomIdAndScheduledAtBetween(Long clinicRoomId,
+            LocalDateTime start, LocalDateTime end);
 }

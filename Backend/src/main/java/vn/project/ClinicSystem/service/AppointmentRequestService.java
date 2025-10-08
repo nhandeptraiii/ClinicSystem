@@ -1,114 +1,143 @@
 package vn.project.ClinicSystem.service;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.Validator;
 import vn.project.ClinicSystem.model.Appointment;
 import vn.project.ClinicSystem.model.AppointmentRequest;
-import vn.project.ClinicSystem.model.AppointmentRequest.RequestStatus;
+import vn.project.ClinicSystem.model.MedicalService;
+import vn.project.ClinicSystem.model.Patient;
 import vn.project.ClinicSystem.model.User;
+import vn.project.ClinicSystem.model.dto.AppointmentRequestApproveRequest;
+import vn.project.ClinicSystem.model.dto.AppointmentRequestCreateRequest;
+import vn.project.ClinicSystem.model.dto.AppointmentRequestRejectRequest;
+import vn.project.ClinicSystem.model.enums.AppointmentRequestStatus;
 import vn.project.ClinicSystem.repository.AppointmentRequestRepository;
+import vn.project.ClinicSystem.repository.MedicalServiceRepository;
+import vn.project.ClinicSystem.repository.PatientRepository;
 import vn.project.ClinicSystem.repository.UserRepository;
 
 @Service
 @Transactional(readOnly = true)
 public class AppointmentRequestService {
+
     private final AppointmentRequestRepository appointmentRequestRepository;
+    private final MedicalServiceRepository medicalServiceRepository;
+    private final PatientRepository patientRepository;
     private final UserRepository userRepository;
     private final AppointmentService appointmentService;
+    private final Validator validator;
 
     public AppointmentRequestService(AppointmentRequestRepository appointmentRequestRepository,
+            MedicalServiceRepository medicalServiceRepository,
+            PatientRepository patientRepository,
             UserRepository userRepository,
-            AppointmentService appointmentService) {
+            AppointmentService appointmentService,
+            Validator validator) {
         this.appointmentRequestRepository = appointmentRequestRepository;
+        this.medicalServiceRepository = medicalServiceRepository;
+        this.patientRepository = patientRepository;
         this.userRepository = userRepository;
         this.appointmentService = appointmentService;
+        this.validator = validator;
+    }
+
+    public AppointmentRequest getById(Long id) {
+        return appointmentRequestRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy yêu cầu đặt lịch với id: " + id));
     }
 
     public List<AppointmentRequest> findAll() {
         return appointmentRequestRepository.findAllByOrderByCreatedAtDesc();
     }
 
-    public List<AppointmentRequest> getPendingRequests() {
-        return appointmentRequestRepository.findByStatusOrderByCreatedAtAsc(RequestStatus.PENDING);
-    }
-
-    public AppointmentRequest getById(Long id) {
-        return appointmentRequestRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Appointment request not found with id: " + id));
+    public List<AppointmentRequest> findByStatus(AppointmentRequestStatus status) {
+        return appointmentRequestRepository.findByStatusOrderByCreatedAtAsc(status);
     }
 
     @Transactional
-    public AppointmentRequest create(AppointmentRequest request) {
-        if (request == null) {
-            throw new IllegalArgumentException("Appointment request payload must not be null");
+    public AppointmentRequest create(AppointmentRequestCreateRequest request) {
+        AppointmentRequest entity = new AppointmentRequest();
+        entity.setFullName(request.getFullName());
+        entity.setPhone(request.getPhone());
+        entity.setEmail(request.getEmail());
+        entity.setDateOfBirth(request.getDateOfBirth());
+        entity.setPreferredAt(request.getPreferredAt());
+        entity.setSymptomDescription(request.getSymptomDescription());
+        entity.setStatus(AppointmentRequestStatus.PENDING);
+
+        MedicalService medicalService = medicalServiceRepository.findById(request.getMedicalServiceId())
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy dịch vụ với id: "
+                        + request.getMedicalServiceId()));
+        entity.setMedicalService(medicalService);
+
+        validateBean(entity);
+        return appointmentRequestRepository.save(entity);
+    }
+
+    @Transactional
+    public AppointmentRequest approve(Long id, AppointmentRequestApproveRequest approveRequest, Long staffUserId) {
+        AppointmentRequest request = appointmentRequestRepository
+                .findByIdAndStatus(id, AppointmentRequestStatus.PENDING)
+                .orElseThrow(() -> new EntityNotFoundException("Yêu cầu không tồn tại hoặc đã xử lý"));
+
+        Patient patient = patientRepository.findById(approveRequest.getPatientId())
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy bệnh nhân với id: "
+                        + approveRequest.getPatientId()));
+        request.setPatient(patient);
+
+        Appointment appointment = appointmentService.createFromRequest(request,
+                approveRequest.getPatientId(),
+                approveRequest.getDoctorId(),
+                approveRequest.getScheduledAt(),
+                approveRequest.getClinicRoomId(),
+                staffUserId);
+
+        request.setAppointment(appointment);
+        request.setStatus(AppointmentRequestStatus.CONFIRMED);
+        request.setStaffNote(approveRequest.getStaffNote());
+        request.setProcessedAt(Instant.now());
+
+        if (staffUserId != null) {
+            User staff = loadUser(staffUserId);
+            request.setProcessedBy(staff);
         }
-        request.setStatus(RequestStatus.PENDING);
+
         return appointmentRequestRepository.save(request);
     }
 
     @Transactional
-    public AppointmentRequest updateStatus(Long requestId, RequestStatus status, Long processedByUserId, String note) {
-        if (status == null) {
-            throw new IllegalArgumentException("Status must not be null");
+    public AppointmentRequest reject(Long id, AppointmentRequestRejectRequest rejectRequest, Long staffUserId) {
+        AppointmentRequest request = appointmentRequestRepository
+                .findByIdAndStatus(id, AppointmentRequestStatus.PENDING)
+                .orElseThrow(() -> new EntityNotFoundException("Yêu cầu không tồn tại hoặc đã xử lý"));
+
+        request.setStatus(AppointmentRequestStatus.REJECTED);
+        request.setStaffNote(rejectRequest.getStaffNote());
+        request.setProcessedAt(Instant.now());
+
+        if (staffUserId != null) {
+            request.setProcessedBy(loadUser(staffUserId));
         }
-        AppointmentRequest request = getById(requestId);
-        request.setStatus(status);
-        if (processedByUserId != null) {
-            request.setProcessedBy(loadUser(processedByUserId));
-        }
-        if (note != null) {
-            request.setStaffNote(note);
-        }
+
         return appointmentRequestRepository.save(request);
     }
 
-    @Transactional
-    public Appointment approveAndSchedule(Long requestId,
-            Long patientId,
-            Long doctorId,
-            Long clinicRoomId,
-            LocalDateTime scheduledAt,
-            Long processedByUserId,
-            String staffNote) {
-        AppointmentRequest request = getById(requestId);
-        Appointment appointment = appointmentService.scheduleAppointment(patientId, doctorId, clinicRoomId,
-                processedByUserId, scheduledAt, request.getSymptomDescription(), staffNote);
-        request.setStatus(RequestStatus.CONFIRMED);
-        request.setPreferredAt(scheduledAt);
-        request.setStaffNote(staffNote);
-        if (processedByUserId != null) {
-            request.setProcessedBy(loadUser(processedByUserId));
+    private void validateBean(AppointmentRequest appointmentRequest) {
+        var violations = validator.validate(appointmentRequest);
+        if (!violations.isEmpty()) {
+            throw new ConstraintViolationException(violations);
         }
-        appointmentRequestRepository.save(request);
-        return appointment;
-    }
-
-    @Transactional
-    public AppointmentRequest reject(Long requestId, Long processedByUserId, String reason) {
-        AppointmentRequest request = getById(requestId);
-        request.setStatus(RequestStatus.REJECTED);
-        request.setStaffNote(reason);
-        if (processedByUserId != null) {
-            request.setProcessedBy(loadUser(processedByUserId));
-        }
-        return appointmentRequestRepository.save(request);
-    }
-
-    @Transactional
-    public void delete(Long requestId) {
-        if (!appointmentRequestRepository.existsById(requestId)) {
-            throw new EntityNotFoundException("Appointment request not found with id: " + requestId);
-        }
-        appointmentRequestRepository.deleteById(requestId);
     }
 
     private User loadUser(Long userId) {
         return userRepository.findById(userId)
-                .orElseThrow(() -> new EntityNotFoundException("User not found with id: " + userId));
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy người dùng với id: " + userId));
     }
 }

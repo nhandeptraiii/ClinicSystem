@@ -3,7 +3,7 @@ package vn.project.ClinicSystem.model;
 import java.time.Instant;
 import java.time.LocalDateTime;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -15,9 +15,12 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 import vn.project.ClinicSystem.model.enums.AppointmentStatus;
@@ -27,42 +30,57 @@ import vn.project.ClinicSystem.model.enums.AppointmentStatus;
 @Entity
 @Table(name = "appointments")
 public class Appointment {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "patient_id")
+    @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
     private Patient patient;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "doctor_id")
+    @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
     private Doctor doctor;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "medical_service_id")
+    @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
+    private MedicalService medicalService;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "clinic_room_id")
+    @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
     private ClinicRoom clinicRoom;
 
-    @Column(nullable = false)
+    @NotNull(message = "Thời gian khám không được bỏ trống")
     private LocalDateTime scheduledAt;
 
     @Enumerated(EnumType.STRING)
     @Column(length = 30, nullable = false)
-    private AppointmentStatus status = AppointmentStatus.REQUESTED;
+    private AppointmentStatus status = AppointmentStatus.CONFIRMED;
 
-    @Column(length = 255)
+    @Size(max = 500)
+    @Column(length = 500)
     private String reason;
 
+    @Size(max = 500)
     @Column(length = 500)
     private String notes;
 
-    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")
+    @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
     private User createdBy;
 
-    private Instant createdAt;
+    @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
+    @OneToOne
+    @JoinColumn(name = "request_id")
+    private AppointmentRequest request;
 
+    private Instant createdAt;
     private Instant updatedAt;
 
     @PrePersist
