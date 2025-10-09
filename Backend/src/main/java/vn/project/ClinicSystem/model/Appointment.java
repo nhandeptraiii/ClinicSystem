@@ -1,7 +1,6 @@
 package vn.project.ClinicSystem.model;
 
 import java.time.Instant;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -72,9 +71,6 @@ public class Appointment {
     @Column(nullable = false)
     private Integer duration = 30;
 
-    @Column(name = "patient_date_of_birth")
-    private LocalDate patientDateOfBirth;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")
     @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
@@ -96,9 +92,6 @@ public class Appointment {
         if (this.duration == null || this.duration <= 0) {
             this.duration = 30;
         }
-        if (this.patientDateOfBirth == null && this.patient != null) {
-            this.patientDateOfBirth = this.patient.getDateOfBirth();
-        }
     }
 
     @PreUpdate
@@ -106,9 +99,6 @@ public class Appointment {
         this.updatedAt = Instant.now();
         if (this.duration == null || this.duration <= 0) {
             this.duration = 30;
-        }
-        if (this.patientDateOfBirth == null && this.patient != null) {
-            this.patientDateOfBirth = this.patient.getDateOfBirth();
         }
     }
 }

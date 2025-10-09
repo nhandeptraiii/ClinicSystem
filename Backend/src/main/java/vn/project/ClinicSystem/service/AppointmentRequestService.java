@@ -11,6 +11,7 @@ import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
 import vn.project.ClinicSystem.model.Appointment;
 import vn.project.ClinicSystem.model.AppointmentRequest;
+import vn.project.ClinicSystem.model.Patient;
 import vn.project.ClinicSystem.model.User;
 import vn.project.ClinicSystem.model.dto.AppointmentRequestApproveRequest;
 import vn.project.ClinicSystem.model.dto.AppointmentRequestCreateRequest;
@@ -24,15 +25,18 @@ import vn.project.ClinicSystem.repository.UserRepository;
 public class AppointmentRequestService {
 
     private final AppointmentRequestRepository appointmentRequestRepository;
+    private final PatientService patientService;
     private final UserRepository userRepository;
     private final AppointmentService appointmentService;
     private final Validator validator;
 
     public AppointmentRequestService(AppointmentRequestRepository appointmentRequestRepository,
+            PatientService patientService,
             UserRepository userRepository,
             AppointmentService appointmentService,
             Validator validator) {
         this.appointmentRequestRepository = appointmentRequestRepository;
+        this.patientService = patientService;
         this.userRepository = userRepository;
         this.appointmentService = appointmentService;
         this.validator = validator;
@@ -72,8 +76,11 @@ public class AppointmentRequestService {
                 .findByIdAndStatus(id, AppointmentRequestStatus.PENDING)
                 .orElseThrow(() -> new EntityNotFoundException("Yêu cầu không tồn tại hoặc đã xử lý"));
 
+        Patient patient = resolvePatient(request, approveRequest.getPatientId());
+        request.setPatient(patient);
+
         Appointment appointment = appointmentService.createFromRequest(request,
-                approveRequest.getPatientId(),
+                patient.getId(),
                 approveRequest.getDoctorId(),
                 approveRequest.getScheduledAt(),
                 approveRequest.getClinicRoomId(),
@@ -120,5 +127,12 @@ public class AppointmentRequestService {
     private User loadUser(Long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy người dùng với id: " + userId));
+    }
+
+    private Patient resolvePatient(AppointmentRequest request, Long patientId) {
+        if (patientId != null) {
+            return patientService.getById(patientId);
+        }
+        return patientService.createFromAppointmentRequest(request);
     }
 }

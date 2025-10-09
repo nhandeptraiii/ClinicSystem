@@ -2,6 +2,7 @@ package vn.project.ClinicSystem.service;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -9,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
 import jakarta.persistence.EntityNotFoundException;
+import vn.project.ClinicSystem.model.AppointmentRequest;
 import vn.project.ClinicSystem.model.Patient;
 import vn.project.ClinicSystem.repository.PatientRepository;
 
@@ -110,6 +112,24 @@ public class PatientService {
         patientRepository.deleteById(id);
     }
 
+    @Transactional
+    public Patient createFromAppointmentRequest(AppointmentRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("Yêu cầu đặt lịch không được null");
+        }
+        Patient patient = new Patient();
+        patient.setCode(generateUniqueCode());
+        patient.setFullName(request.getFullName());
+        patient.setDateOfBirth(request.getDateOfBirth());
+        String normalizedPhone = normalizePhone(request.getPhone());
+        if (normalizedPhone != null) {
+            patient.setPhone(normalizedPhone);
+        }
+        patient.setEmail(request.getEmail());
+        patient.setNote(buildAutoNote(request));
+        return create(patient);
+    }
+
     private void validateUniqueCode(String code, Long currentId) {
         patientRepository.findByCode(code).ifPresent(existing -> {
             boolean sameRecord = currentId != null && existing.getId().equals(currentId);
@@ -131,6 +151,32 @@ public class PatientService {
             throw new IllegalArgumentException("Mã bệnh nhân không được null");
         }
         return code.trim().toUpperCase();
+    }
+
+    private String generateUniqueCode() {
+        String code;
+        do {
+            code = "BN" + UUID.randomUUID().toString().replaceAll("-", "").substring(0, 8).toUpperCase();
+        } while (patientRepository.existsByCodeIgnoreCase(code));
+        return code;
+    }
+
+    private String normalizePhone(String phone) {
+        if (phone == null) {
+            return null;
+        }
+        String digits = phone.replaceAll("\\D", "");
+        if (digits.length() == 10) {
+            return digits;
+        }
+        return null;
+    }
+
+    private String buildAutoNote(AppointmentRequest request) {
+        if (request.getId() != null) {
+            return "Tạo từ yêu cầu đặt lịch #" + request.getId();
+        }
+        return "Tạo từ yêu cầu đặt lịch";
     }
 
     public List<Patient> searchPatients(String keyword, LocalDate dateOfBirth, String phone) {

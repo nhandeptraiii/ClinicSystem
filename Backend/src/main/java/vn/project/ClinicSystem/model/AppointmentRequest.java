@@ -69,6 +69,11 @@ public class AppointmentRequest {
     private AppointmentRequestStatus status = AppointmentRequestStatus.PENDING;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "patient_id")
+    @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
+    private Patient patient;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "processed_by")
     @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
     private User processedBy;

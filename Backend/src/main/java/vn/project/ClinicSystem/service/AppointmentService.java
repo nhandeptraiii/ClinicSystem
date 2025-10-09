@@ -85,7 +85,6 @@ public class AppointmentService {
         appointment.setDuration(resolveDuration(request.getDuration()));
         appointment.setReason(request.getReason());
         appointment.setNotes(request.getNotes());
-        appointment.setPatientDateOfBirth(patient.getDateOfBirth());
         appointment.setStatus(AppointmentStatus.CONFIRMED);
 
         if (createdByUserId != null) {
@@ -117,11 +116,6 @@ public class AppointmentService {
         appointment.setScheduledAt(scheduledAt);
         appointment.setDuration(resolveDuration(duration));
         appointment.setReason(requestEntity.getSymptomDescription());
-        if (patient.getDateOfBirth() != null) {
-            appointment.setPatientDateOfBirth(patient.getDateOfBirth());
-        } else {
-            appointment.setPatientDateOfBirth(requestEntity.getDateOfBirth());
-        }
         appointment.setStatus(AppointmentStatus.CONFIRMED);
         appointment.setRequest(requestEntity);
 
@@ -140,7 +134,6 @@ public class AppointmentService {
 
         if (request.getPatientId() != null && !request.getPatientId().equals(appointment.getPatient().getId())) {
             appointment.setPatient(loadPatient(request.getPatientId()));
-            appointment.setPatientDateOfBirth(appointment.getPatient().getDateOfBirth());
         }
 
         if (request.getDoctorId() != null && !request.getDoctorId().equals(appointment.getDoctor().getId())) {

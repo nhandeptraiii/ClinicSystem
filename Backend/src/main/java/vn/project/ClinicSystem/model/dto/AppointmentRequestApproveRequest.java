@@ -11,7 +11,7 @@ import lombok.Setter;
 @Setter
 public class AppointmentRequestApproveRequest {
 
-    @NotNull(message = "Cần gán bệnh nhân cho yêu cầu")
+    @Positive(message = "Mã bệnh nhân không hợp lệ")
     private Long patientId;
 
     @NotNull(message = "Cần chỉ định bác sĩ khám")
