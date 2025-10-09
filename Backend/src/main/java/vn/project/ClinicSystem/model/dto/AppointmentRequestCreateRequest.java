@@ -4,9 +4,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PastOrPresent;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
@@ -29,9 +28,6 @@ public class AppointmentRequestCreateRequest {
 
     private LocalDateTime preferredAt;
 
-    @Size(max = 500)
+    @Size(max = 1000)
     private String symptomDescription;
-
-    @NotNull(message = "Cần chọn dịch vụ khám")
-    private Long medicalServiceId;
 }

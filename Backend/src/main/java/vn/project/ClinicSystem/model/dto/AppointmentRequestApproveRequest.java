@@ -3,6 +3,7 @@ package vn.project.ClinicSystem.model.dto;
 import java.time.LocalDateTime;
 
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -19,7 +20,11 @@ public class AppointmentRequestApproveRequest {
     @NotNull(message = "Cần chọn thời gian khám")
     private LocalDateTime scheduledAt;
 
-    private Long clinicRoomId; // nếu null sẽ dùng phòng mặc định của dịch vụ
+    @NotNull(message = "Cần chọn phòng khám")
+    private Long clinicRoomId;
+
+    @Positive(message = "Thời lượng khám phải lớn hơn 0")
+    private Integer duration;
 
     private String staffNote;
 }

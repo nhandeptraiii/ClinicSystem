@@ -56,8 +56,8 @@ public class AppointmentRequest {
 
     private LocalDateTime preferredAt;
 
-    @Size(max = 500)
-    @Column(length = 500)
+    @Size(max = 1000)
+    @Column(length = 1000)
     private String symptomDescription;
 
     @Size(max = 255)
@@ -67,16 +67,6 @@ public class AppointmentRequest {
     @Enumerated(EnumType.STRING)
     @Column(length = 30, nullable = false)
     private AppointmentRequestStatus status = AppointmentRequestStatus.PENDING;
-
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "medical_service_id")
-    @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
-    private MedicalService medicalService;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "patient_id")
-    @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
-    private Patient patient;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "processed_by")

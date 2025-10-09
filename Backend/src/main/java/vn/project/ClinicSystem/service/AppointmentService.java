@@ -13,7 +13,6 @@ import vn.project.ClinicSystem.model.Appointment;
 import vn.project.ClinicSystem.model.AppointmentRequest;
 import vn.project.ClinicSystem.model.ClinicRoom;
 import vn.project.ClinicSystem.model.Doctor;
-import vn.project.ClinicSystem.model.MedicalService;
 import vn.project.ClinicSystem.model.Patient;
 import vn.project.ClinicSystem.model.User;
 import vn.project.ClinicSystem.model.dto.AppointmentCreateRequest;
@@ -23,7 +22,6 @@ import vn.project.ClinicSystem.model.enums.AppointmentStatus;
 import vn.project.ClinicSystem.repository.AppointmentRepository;
 import vn.project.ClinicSystem.repository.ClinicRoomRepository;
 import vn.project.ClinicSystem.repository.DoctorRepository;
-import vn.project.ClinicSystem.repository.MedicalServiceRepository;
 import vn.project.ClinicSystem.repository.PatientRepository;
 import vn.project.ClinicSystem.repository.UserRepository;
 
@@ -34,7 +32,6 @@ public class AppointmentService {
     private final AppointmentRepository appointmentRepository;
     private final PatientRepository patientRepository;
     private final DoctorRepository doctorRepository;
-    private final MedicalServiceRepository medicalServiceRepository;
     private final ClinicRoomRepository clinicRoomRepository;
     private final UserRepository userRepository;
     private final Validator validator;
@@ -42,14 +39,12 @@ public class AppointmentService {
     public AppointmentService(AppointmentRepository appointmentRepository,
             PatientRepository patientRepository,
             DoctorRepository doctorRepository,
-            MedicalServiceRepository medicalServiceRepository,
             ClinicRoomRepository clinicRoomRepository,
             UserRepository userRepository,
             Validator validator) {
         this.appointmentRepository = appointmentRepository;
         this.patientRepository = patientRepository;
         this.doctorRepository = doctorRepository;
-        this.medicalServiceRepository = medicalServiceRepository;
         this.clinicRoomRepository = clinicRoomRepository;
         this.userRepository = userRepository;
         this.validator = validator;
@@ -81,17 +76,16 @@ public class AppointmentService {
         Appointment appointment = new Appointment();
         Patient patient = loadPatient(request.getPatientId());
         Doctor doctor = loadDoctor(request.getDoctorId());
-        MedicalService medicalService = loadMedicalService(request.getMedicalServiceId());
-
-        ClinicRoom clinicRoom = resolveClinicRoom(request.getClinicRoomId(), medicalService);
+        ClinicRoom clinicRoom = loadClinicRoom(request.getClinicRoomId());
 
         appointment.setPatient(patient);
         appointment.setDoctor(doctor);
-        appointment.setMedicalService(medicalService);
         appointment.setClinicRoom(clinicRoom);
         appointment.setScheduledAt(request.getScheduledAt());
+        appointment.setDuration(resolveDuration(request.getDuration()));
         appointment.setReason(request.getReason());
         appointment.setNotes(request.getNotes());
+        appointment.setPatientDateOfBirth(patient.getDateOfBirth());
         appointment.setStatus(AppointmentStatus.CONFIRMED);
 
         if (createdByUserId != null) {
@@ -109,20 +103,25 @@ public class AppointmentService {
             Long doctorId,
             LocalDateTime scheduledAt,
             Long clinicRoomId,
-            Long staffUserId) {
+            Long staffUserId,
+            Integer duration) {
 
         Patient patient = loadPatient(patientId);
         Doctor doctor = loadDoctor(doctorId);
-        MedicalService medicalService = requestEntity.getMedicalService();
-        ClinicRoom clinicRoom = resolveClinicRoom(clinicRoomId, medicalService);
+        ClinicRoom clinicRoom = loadClinicRoom(clinicRoomId);
 
         Appointment appointment = new Appointment();
         appointment.setPatient(patient);
         appointment.setDoctor(doctor);
-        appointment.setMedicalService(medicalService);
         appointment.setClinicRoom(clinicRoom);
         appointment.setScheduledAt(scheduledAt);
+        appointment.setDuration(resolveDuration(duration));
         appointment.setReason(requestEntity.getSymptomDescription());
+        if (patient.getDateOfBirth() != null) {
+            appointment.setPatientDateOfBirth(patient.getDateOfBirth());
+        } else {
+            appointment.setPatientDateOfBirth(requestEntity.getDateOfBirth());
+        }
         appointment.setStatus(AppointmentStatus.CONFIRMED);
         appointment.setRequest(requestEntity);
 
@@ -141,27 +140,26 @@ public class AppointmentService {
 
         if (request.getPatientId() != null && !request.getPatientId().equals(appointment.getPatient().getId())) {
             appointment.setPatient(loadPatient(request.getPatientId()));
+            appointment.setPatientDateOfBirth(appointment.getPatient().getDateOfBirth());
         }
 
         if (request.getDoctorId() != null && !request.getDoctorId().equals(appointment.getDoctor().getId())) {
             appointment.setDoctor(loadDoctor(request.getDoctorId()));
         }
 
-        if (request.getMedicalServiceId() != null
-                && !request.getMedicalServiceId().equals(appointment.getMedicalService().getId())) {
-            MedicalService medicalService = loadMedicalService(request.getMedicalServiceId());
-            appointment.setMedicalService(medicalService);
-            if (request.getClinicRoomId() == null) {
-                appointment.setClinicRoom(resolveClinicRoom(null, medicalService));
-            }
-        }
-
         if (request.getClinicRoomId() != null) {
-            appointment.setClinicRoom(resolveClinicRoom(request.getClinicRoomId(), appointment.getMedicalService()));
+            if (appointment.getClinicRoom() == null
+                    || !request.getClinicRoomId().equals(appointment.getClinicRoom().getId())) {
+                appointment.setClinicRoom(loadClinicRoom(request.getClinicRoomId()));
+            }
         }
 
         if (request.getScheduledAt() != null) {
             appointment.setScheduledAt(request.getScheduledAt());
+        }
+
+        if (request.getDuration() != null) {
+            appointment.setDuration(resolveDuration(request.getDuration()));
         }
 
         if (request.getReason() != null) {
@@ -196,22 +194,30 @@ public class AppointmentService {
     }
 
     private void ensureAvailability(Appointment appointment, Long ignoreId) {
-        LocalDateTime start = appointment.getScheduledAt().minusMinutes(1);
-        LocalDateTime end = appointment.getScheduledAt().plusMinutes(1);
+        LocalDateTime start = appointment.getScheduledAt();
+        LocalDateTime end = start.plusMinutes(resolveDuration(appointment.getDuration()));
+        LocalDateTime dayStart = start.toLocalDate().atStartOfDay();
+        LocalDateTime dayEnd = dayStart.plusDays(1);
 
         boolean doctorBusy = appointmentRepository
-                .findByDoctorIdAndScheduledAtBetween(appointment.getDoctor().getId(), start, end)
+                .findByDoctorIdAndScheduledAtBetween(appointment.getDoctor().getId(), dayStart, dayEnd)
                 .stream()
-                .anyMatch(a -> ignoreId == null || !a.getId().equals(ignoreId));
+                .filter(a -> ignoreId == null || !a.getId().equals(ignoreId))
+                .anyMatch(existing -> isOverlapping(start, end,
+                        existing.getScheduledAt(),
+                        existing.getScheduledAt().plusMinutes(resolveDuration(existing.getDuration()))));
 
         if (doctorBusy) {
             throw new IllegalStateException("Bác sĩ đã có lịch trong khoảng thời gian này");
         }
 
         boolean roomBusy = appointmentRepository
-                .findByClinicRoomIdAndScheduledAtBetween(appointment.getClinicRoom().getId(), start, end)
+                .findByClinicRoomIdAndScheduledAtBetween(appointment.getClinicRoom().getId(), dayStart, dayEnd)
                 .stream()
-                .anyMatch(a -> ignoreId == null || !a.getId().equals(ignoreId));
+                .filter(a -> ignoreId == null || !a.getId().equals(ignoreId))
+                .anyMatch(existing -> isOverlapping(start, end,
+                        existing.getScheduledAt(),
+                        existing.getScheduledAt().plusMinutes(resolveDuration(existing.getDuration()))));
 
         if (roomBusy) {
             throw new IllegalStateException("Phòng khám đã được đặt trong khoảng thời gian này");
@@ -225,12 +231,21 @@ public class AppointmentService {
         }
     }
 
-    private ClinicRoom resolveClinicRoom(Long clinicRoomId, MedicalService medicalService) {
-        if (clinicRoomId != null) {
-            return clinicRoomRepository.findById(clinicRoomId)
-                    .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy phòng với id: " + clinicRoomId));
+    private boolean isOverlapping(LocalDateTime start1, LocalDateTime end1,
+            LocalDateTime start2, LocalDateTime end2) {
+        return start1.isBefore(end2) && start2.isBefore(end1);
+    }
+
+    private int resolveDuration(Integer duration) {
+        if (duration == null || duration <= 0) {
+            return 30;
         }
-        return medicalService.getClinicRoom();
+        return duration;
+    }
+
+    private ClinicRoom loadClinicRoom(Long clinicRoomId) {
+        return clinicRoomRepository.findById(clinicRoomId)
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy phòng với id: " + clinicRoomId));
     }
 
     private Patient loadPatient(Long patientId) {
@@ -241,11 +256,6 @@ public class AppointmentService {
     private Doctor loadDoctor(Long doctorId) {
         return doctorRepository.findById(doctorId)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy bác sĩ với id: " + doctorId));
-    }
-
-    private MedicalService loadMedicalService(Long serviceId) {
-        return medicalServiceRepository.findById(serviceId)
-                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy dịch vụ với id: " + serviceId));
     }
 
     private User loadUser(Long userId) {

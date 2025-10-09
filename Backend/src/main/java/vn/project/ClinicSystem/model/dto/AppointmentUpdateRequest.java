@@ -11,9 +11,9 @@ public class AppointmentUpdateRequest {
 
     private Long patientId;
     private Long doctorId;
-    private Long medicalServiceId;
     private Long clinicRoomId;
     private LocalDateTime scheduledAt;
     private String reason;
     private String notes;
+    private Integer duration;
 }

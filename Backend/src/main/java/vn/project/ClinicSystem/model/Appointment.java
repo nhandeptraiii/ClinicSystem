@@ -1,6 +1,7 @@
 package vn.project.ClinicSystem.model;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -20,6 +21,7 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
@@ -46,11 +48,6 @@ public class Appointment {
     private Doctor doctor;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "medical_service_id")
-    @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
-    private MedicalService medicalService;
-
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "clinic_room_id")
     @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
     private ClinicRoom clinicRoom;
@@ -70,6 +67,14 @@ public class Appointment {
     @Column(length = 500)
     private String notes;
 
+    @NotNull(message = "Thời lượng khám không được để trống")
+    @Positive(message = "Thời lượng khám phải lớn hơn 0")
+    @Column(nullable = false)
+    private Integer duration = 30;
+
+    @Column(name = "patient_date_of_birth")
+    private LocalDate patientDateOfBirth;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")
     @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
@@ -88,10 +93,22 @@ public class Appointment {
         Instant now = Instant.now();
         this.createdAt = now;
         this.updatedAt = now;
+        if (this.duration == null || this.duration <= 0) {
+            this.duration = 30;
+        }
+        if (this.patientDateOfBirth == null && this.patient != null) {
+            this.patientDateOfBirth = this.patient.getDateOfBirth();
+        }
     }
 
     @PreUpdate
     public void handleBeforeUpdate() {
         this.updatedAt = Instant.now();
+        if (this.duration == null || this.duration <= 0) {
+            this.duration = 30;
+        }
+        if (this.patientDateOfBirth == null && this.patient != null) {
+            this.patientDateOfBirth = this.patient.getDateOfBirth();
+        }
     }
 }
