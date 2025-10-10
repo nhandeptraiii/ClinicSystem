@@ -20,21 +20,23 @@ public class DoctorScheduleController {
     }
 
     @PreAuthorize("hasRole('ADMIN')")
-    @PostMapping("/doctor/{doctorId}")
-    public ResponseEntity<DoctorSchedule> createSchedule(@PathVariable Long doctorId,
+    @PostMapping("/doctor/{doctorId}/room/{clinicRoomId}")
+    public ResponseEntity<DoctorSchedule> createSchedule(
+            @PathVariable("doctorId") Long doctorId,
+            @PathVariable("clinicRoomId") Long clinicRoomId,
             @Valid @RequestBody DoctorSchedule schedule) {
-        DoctorSchedule createdSchedule = scheduleService.createSchedule(doctorId, schedule);
+        DoctorSchedule createdSchedule = scheduleService.createSchedule(doctorId, clinicRoomId, schedule);
         return new ResponseEntity<>(createdSchedule, HttpStatus.CREATED);
     }
 
     @GetMapping("/doctor/{doctorId}")
-    public ResponseEntity<List<DoctorSchedule>> getSchedules(@PathVariable Long doctorId) {
+    public ResponseEntity<List<DoctorSchedule>> getSchedules(@PathVariable("doctorId") Long doctorId) {
         return ResponseEntity.ok(scheduleService.getSchedulesForDoctor(doctorId));
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{scheduleId}")
-    public ResponseEntity<Void> deleteSchedule(@PathVariable Long scheduleId) {
+    public ResponseEntity<Void> deleteSchedule(@PathVariable("scheduleId") Long scheduleId) {
         scheduleService.deleteSchedule(scheduleId);
         return ResponseEntity.noContent().build();
     }

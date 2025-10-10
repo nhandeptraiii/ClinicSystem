@@ -3,11 +3,10 @@ package vn.project.ClinicSystem.model;
 import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.util.Set;
-
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import jakarta.persistence.ElementCollection;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -37,8 +36,11 @@ public class DoctorSchedule {
     @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
     private Doctor doctor;
 
-    // Sử dụng @ElementCollection để lưu một tập hợp các ngày trong tuần cho lịch
-    // này
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "clinic_room_id")
+    @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
+    private ClinicRoom clinicRoom;
+
     @Enumerated(EnumType.STRING)
     @ElementCollection(targetClass = DayOfWeek.class, fetch = FetchType.EAGER)
     @CollectionTable(name = "schedule_days", joinColumns = @JoinColumn(name = "schedule_id"))
