@@ -12,6 +12,7 @@ public class ServiceOrderCreateRequest {
     @NotNull(message = "Cần chọn dịch vụ chuyên khoa")
     private Long medicalServiceId;
 
+    @NotNull(message = "Cần chọn bác sĩ phụ trách")
     private Long assignedDoctorId;
 
     @Size(max = 500)

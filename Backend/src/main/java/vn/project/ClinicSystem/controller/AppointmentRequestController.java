@@ -20,6 +20,7 @@ import vn.project.ClinicSystem.model.dto.AppointmentRequestCreateRequest;
 import vn.project.ClinicSystem.model.dto.AppointmentRequestRejectRequest;
 import vn.project.ClinicSystem.model.enums.AppointmentRequestStatus;
 import vn.project.ClinicSystem.service.AppointmentRequestService;
+import vn.project.ClinicSystem.util.SecurityUtil;
 
 @RestController
 @RequestMapping("/appointment-requests")
@@ -58,9 +59,10 @@ public class AppointmentRequestController {
     @PostMapping("/{id}/approve")
     public ResponseEntity<AppointmentRequest> approveAppointmentRequest(
             @PathVariable("id") Long id,
-            @Valid @RequestBody AppointmentRequestApproveRequest request,
-            @RequestParam(value = "staffUserId", required = false) Long staffUserId) {
-        AppointmentRequest approved = appointmentRequestService.approve(id, request, staffUserId);
+            @Valid @RequestBody AppointmentRequestApproveRequest request) {
+        String staffUsername = SecurityUtil.getCurrentUserLogin()
+                .orElseThrow(() -> new IllegalStateException("Không thể xác định người dùng đang đăng nhập"));
+        AppointmentRequest approved = appointmentRequestService.approve(id, request, staffUsername);
         return ResponseEntity.ok(approved);
     }
 
@@ -68,9 +70,10 @@ public class AppointmentRequestController {
     @PostMapping("/{id}/reject")
     public ResponseEntity<AppointmentRequest> rejectAppointmentRequest(
             @PathVariable("id") Long id,
-            @Valid @RequestBody AppointmentRequestRejectRequest request,
-            @RequestParam(value = "staffUserId", required = false) Long staffUserId) {
-        AppointmentRequest rejected = appointmentRequestService.reject(id, request, staffUserId);
+            @Valid @RequestBody AppointmentRequestRejectRequest request) {
+        String staffUsername = SecurityUtil.getCurrentUserLogin()
+                .orElseThrow(() -> new IllegalStateException("Không thể xác định người dùng đang đăng nhập"));
+        AppointmentRequest rejected = appointmentRequestService.reject(id, request, staffUsername);
         return ResponseEntity.ok(rejected);
     }
 }

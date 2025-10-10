@@ -23,6 +23,7 @@ import vn.project.ClinicSystem.model.dto.AppointmentStatusUpdateRequest;
 import vn.project.ClinicSystem.model.dto.AppointmentUpdateRequest;
 import vn.project.ClinicSystem.model.enums.AppointmentStatus;
 import vn.project.ClinicSystem.service.AppointmentService;
+import vn.project.ClinicSystem.util.SecurityUtil;
 
 @RestController
 @RequestMapping("/appointments")
@@ -37,9 +38,10 @@ public class AppointmentController {
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public ResponseEntity<Appointment> createAppointment(
-            @Valid @RequestBody AppointmentCreateRequest request,
-            @RequestParam(value = "staffUserId", required = false) Long staffUserId) {
-        Appointment created = appointmentService.createAppointment(request, staffUserId);
+            @Valid @RequestBody AppointmentCreateRequest request) {
+        String staffUsername = SecurityUtil.getCurrentUserLogin()
+                .orElseThrow(() -> new IllegalStateException("Không thể xác định người dùng đang đăng nhập"));
+        Appointment created = appointmentService.createAppointment(request, staffUsername);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 

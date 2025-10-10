@@ -106,6 +106,18 @@ public class VisitService {
     @Transactional
     public PatientVisit updateStatus(Long visitId, PatientVisitStatusUpdateRequest request) {
         PatientVisit visit = getById(visitId);
+
+        if (request.getStatus() == VisitStatus.COMPLETED) {
+            boolean hasPending = !serviceOrderRepository.findByVisitIdAndStatus(visitId, ServiceOrderStatus.PENDING)
+                    .isEmpty();
+            boolean hasScheduled = !serviceOrderRepository
+                    .findByVisitIdAndStatus(visitId, ServiceOrderStatus.SCHEDULED)
+                    .isEmpty();
+            if (hasPending || hasScheduled) {
+                throw new IllegalStateException("Không thể hoàn tất hồ sơ khi vẫn còn phiếu dịch vụ chưa xử lý.");
+            }
+        }
+
         visit.setStatus(request.getStatus());
         return patientVisitRepository.save(visit);
     }
@@ -128,12 +140,9 @@ public class VisitService {
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Không tìm thấy dịch vụ với id: " + request.getMedicalServiceId()));
 
-        Doctor doctor = null;
-        if (request.getAssignedDoctorId() != null) {
-            doctor = doctorRepository.findById(request.getAssignedDoctorId())
-                    .orElseThrow(() -> new EntityNotFoundException(
-                            "Không tìm thấy bác sĩ với id: " + request.getAssignedDoctorId()));
-        }
+        Doctor doctor = doctorRepository.findById(request.getAssignedDoctorId())
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Không tìm thấy bác sĩ với id: " + request.getAssignedDoctorId()));
 
         ServiceOrder order = new ServiceOrder();
         order.setVisit(visit);

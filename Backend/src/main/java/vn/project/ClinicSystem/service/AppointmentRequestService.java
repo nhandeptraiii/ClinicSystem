@@ -71,10 +71,13 @@ public class AppointmentRequestService {
     }
 
     @Transactional
-    public AppointmentRequest approve(Long id, AppointmentRequestApproveRequest approveRequest, Long staffUserId) {
+    public AppointmentRequest approve(Long id, AppointmentRequestApproveRequest approveRequest, String staffUsername) {
         AppointmentRequest request = appointmentRequestRepository
                 .findByIdAndStatus(id, AppointmentRequestStatus.PENDING)
                 .orElseThrow(() -> new EntityNotFoundException("Yêu cầu không tồn tại hoặc đã xử lý"));
+
+        User staff = userRepository.findByEmail(staffUsername)
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy tài khoản nhân viên: " + staffUsername));
 
         Patient patient = resolvePatient(request, approveRequest.getPatientId());
         request.setPatient(patient);
@@ -83,36 +86,31 @@ public class AppointmentRequestService {
                 patient.getId(),
                 approveRequest.getDoctorId(),
                 approveRequest.getScheduledAt(),
-                approveRequest.getClinicRoomId(),
-                staffUserId,
+                staff,
                 approveRequest.getDuration());
 
         request.setAppointment(appointment);
         request.setStatus(AppointmentRequestStatus.CONFIRMED);
         request.setStaffNote(approveRequest.getStaffNote());
         request.setProcessedAt(Instant.now());
-
-        if (staffUserId != null) {
-            User staff = loadUser(staffUserId);
-            request.setProcessedBy(staff);
-        }
+        request.setProcessedBy(staff);
 
         return appointmentRequestRepository.save(request);
     }
 
     @Transactional
-    public AppointmentRequest reject(Long id, AppointmentRequestRejectRequest rejectRequest, Long staffUserId) {
+    public AppointmentRequest reject(Long id, AppointmentRequestRejectRequest rejectRequest, String staffUsername) {
         AppointmentRequest request = appointmentRequestRepository
                 .findByIdAndStatus(id, AppointmentRequestStatus.PENDING)
                 .orElseThrow(() -> new EntityNotFoundException("Yêu cầu không tồn tại hoặc đã xử lý"));
 
+        User staff = userRepository.findByEmail(staffUsername)
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy tài khoản nhân viên: " + staffUsername));
+
         request.setStatus(AppointmentRequestStatus.REJECTED);
         request.setStaffNote(rejectRequest.getStaffNote());
         request.setProcessedAt(Instant.now());
-
-        if (staffUserId != null) {
-            request.setProcessedBy(loadUser(staffUserId));
-        }
+        request.setProcessedBy(staff);
 
         return appointmentRequestRepository.save(request);
     }
@@ -122,11 +120,6 @@ public class AppointmentRequestService {
         if (!violations.isEmpty()) {
             throw new ConstraintViolationException(violations);
         }
-    }
-
-    private User loadUser(Long userId) {
-        return userRepository.findById(userId)
-                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy người dùng với id: " + userId));
     }
 
     private Patient resolvePatient(AppointmentRequest request, Long patientId) {

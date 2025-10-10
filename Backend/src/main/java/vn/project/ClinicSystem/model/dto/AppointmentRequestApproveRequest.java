@@ -20,9 +20,6 @@ public class AppointmentRequestApproveRequest {
     @NotNull(message = "Cần chọn thời gian khám")
     private LocalDateTime scheduledAt;
 
-    @NotNull(message = "Cần chọn phòng khám")
-    private Long clinicRoomId;
-
     @Positive(message = "Thời lượng khám phải lớn hơn 0")
     private Integer duration;
 
