@@ -1,61 +1,55 @@
-// package vn.project.ClinicSystem.model;
+package vn.project.ClinicSystem.model;
 
-// import java.time.Instant;
-// import java.time.LocalDate;
-// import java.time.LocalTime;
+import java.time.DayOfWeek;
+import java.time.LocalTime;
+import java.util.Set;
 
-// import jakarta.persistence.Column;
-// import jakarta.persistence.Entity;
-// import jakarta.persistence.GeneratedValue;
-// import jakarta.persistence.GenerationType;
-// import jakarta.persistence.Id;
-// import jakarta.persistence.JoinColumn;
-// import jakarta.persistence.ManyToOne;
-// import jakarta.persistence.PrePersist;
-// import jakarta.persistence.PreUpdate;
-// import jakarta.persistence.Table;
-// import lombok.Getter;
-// import lombok.Setter;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import jakarta.persistence.ElementCollection;
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import jakarta.validation.constraints.NotNull;
+import lombok.Getter;
+import lombok.Setter;
 
-// @Getter
-// @Setter
-// @Entity
-// @Table(name = "doctor_schedules")
-// public class DoctorSchedule {
-// @Id
-// @GeneratedValue(strategy = GenerationType.IDENTITY)
-// private Long id;
+@Getter
+@Setter
+@Entity
+@Table(name = "doctor_schedules")
+public class DoctorSchedule {
 
-// @ManyToOne(optional = false)
-// @JoinColumn(name = "doctor_id")
-// private Doctor doctor;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-// @ManyToOne(optional = false)
-// @JoinColumn(name = "clinic_room_id")
-// private ClinicRoom clinicRoom;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "doctor_id")
+    @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
+    private Doctor doctor;
 
-// private LocalDate shiftDate;
+    // Sử dụng @ElementCollection để lưu một tập hợp các ngày trong tuần cho lịch
+    // này
+    @Enumerated(EnumType.STRING)
+    @ElementCollection(targetClass = DayOfWeek.class, fetch = FetchType.EAGER)
+    @CollectionTable(name = "schedule_days", joinColumns = @JoinColumn(name = "schedule_id"))
+    @Column(name = "day_of_week", nullable = false)
+    private Set<DayOfWeek> daysOfWeek;
 
-// private LocalTime startTime;
+    @NotNull
+    @Column(nullable = false)
+    private LocalTime startTime;
 
-// private LocalTime endTime;
-
-// @Column(length = 120)
-// private String shiftLabel; // Ví dụ “Ca sáng”, “Trực tối”
-
-// @Column(length = 255)
-// private String note;
-
-// private Instant createdAt;
-// private Instant updatedAt;
-
-// @PrePersist
-// public void handleBeforeCreate() {
-// this.createdAt = Instant.now();
-// }
-
-// @PreUpdate
-// public void handleBeforeUpdate() {
-// this.updatedAt = Instant.now();
-// }
-// }
+    @NotNull
+    @Column(nullable = false)
+    private LocalTime endTime;
+}
