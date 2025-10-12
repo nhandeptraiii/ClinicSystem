@@ -64,6 +64,10 @@ public class PatientVisit {
     @OneToMany(mappedBy = "visit", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ServiceOrder> serviceOrders = new ArrayList<>();
 
+    @JsonIgnore
+    @OneToMany(mappedBy = "visit", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Prescription> prescriptions = new ArrayList<>();
+
     private Instant createdAt;
     private Instant updatedAt;
 

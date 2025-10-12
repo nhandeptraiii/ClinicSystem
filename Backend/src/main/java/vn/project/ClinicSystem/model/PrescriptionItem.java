@@ -1,62 +1,83 @@
-// package vn.project.ClinicSystem.model;
+package vn.project.ClinicSystem.model;
 
-// import java.time.Instant;
+import java.time.Instant;
 
-// import jakarta.persistence.Column;
-// import jakarta.persistence.Entity;
-// import jakarta.persistence.GeneratedValue;
-// import jakarta.persistence.GenerationType;
-// import jakarta.persistence.Id;
-// import jakarta.persistence.JoinColumn;
-// import jakarta.persistence.ManyToOne;
-// import jakarta.persistence.PrePersist;
-// import jakarta.persistence.PreUpdate;
-// import jakarta.persistence.Table;
-// import lombok.Getter;
-// import lombok.Setter;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
-// @Getter
-// @Setter
-// @Entity
-// @Table(name = "prescription_items")
-// public class PrescriptionItem {
-// @Id
-// @GeneratedValue(strategy = GenerationType.IDENTITY)
-// private Long id;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import lombok.Getter;
+import lombok.Setter;
 
-// @ManyToOne(optional = false)
-// @JoinColumn(name = "prescription_id")
-// private Prescription prescription;
+@Getter
+@Setter
+@Entity
+@Table(name = "prescription_items")
+public class PrescriptionItem {
 
-// @ManyToOne
-// @JoinColumn(name = "medication_id")
-// private Medication medication;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-// @Column(length = 120)
-// private String medicationName;
+    @JsonIgnore
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "prescription_id", nullable = false)
+    private Prescription prescription;
 
-// @Column(length = 80)
-// private String dosage;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "medication_id")
+    @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler", "prescriptionItems" })
+    private Medication medication;
 
-// @Column(length = 80)
-// private String frequency;
+    @Size(max = 120, message = "Tên thuốc tối đa 120 ký tự")
+    @Column(length = 120)
+    private String medicationName;
 
-// @Column(length = 80)
-// private String duration;
+    @NotBlank(message = "Liều dùng không được để trống")
+    @Size(max = 80, message = "Liều dùng tối đa 80 ký tự")
+    @Column(length = 80, nullable = false)
+    private String dosage;
 
-// @Column(length = 255)
-// private String instruction;
+    @NotBlank(message = "Tần suất không được để trống")
+    @Size(max = 80, message = "Tần suất tối đa 80 ký tự")
+    @Column(length = 80, nullable = false)
+    private String frequency;
 
-// private Instant createdAt;
-// private Instant updatedAt;
+    @Size(max = 80, message = "Thời gian sử dụng tối đa 80 ký tự")
+    @Column(length = 80)
+    private String duration;
 
-// @PrePersist
-// public void handleBeforeCreate() {
-// this.createdAt = Instant.now();
-// }
+    @Size(max = 255, message = "Hướng dẫn tối đa 255 ký tự")
+    @Column(length = 255)
+    private String instruction;
 
-// @PreUpdate
-// public void handleBeforeUpdate() {
-// this.updatedAt = Instant.now();
-// }
-// }
+    @Column(nullable = false)
+    private Instant createdAt;
+
+    @Column(nullable = false)
+    private Instant updatedAt;
+
+    @PrePersist
+    public void handleBeforeCreate() {
+        Instant now = Instant.now();
+        this.createdAt = now;
+        this.updatedAt = now;
+    }
+
+    @PreUpdate
+    public void handleBeforeUpdate() {
+        this.updatedAt = Instant.now();
+    }
+}
