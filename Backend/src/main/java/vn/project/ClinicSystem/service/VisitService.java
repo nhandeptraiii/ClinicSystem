@@ -113,7 +113,10 @@ public class VisitService {
             boolean hasScheduled = !serviceOrderRepository
                     .findByVisitIdAndStatus(visitId, ServiceOrderStatus.SCHEDULED)
                     .isEmpty();
-            if (hasPending || hasScheduled) {
+            boolean hasInProgress = !serviceOrderRepository
+                    .findByVisitIdAndStatus(visitId, ServiceOrderStatus.IN_PROGRESS)
+                    .isEmpty();
+            if (hasPending || hasScheduled || hasInProgress) {
                 throw new IllegalStateException("Không thể hoàn tất hồ sơ khi vẫn còn phiếu dịch vụ chưa xử lý.");
             }
         }
