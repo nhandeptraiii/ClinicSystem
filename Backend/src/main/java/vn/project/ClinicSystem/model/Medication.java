@@ -1,63 +1,82 @@
-// package vn.project.ClinicSystem.model;
+package vn.project.ClinicSystem.model;
 
-// import java.math.BigDecimal;
-// import java.time.Instant;
-// import java.util.ArrayList;
-// import java.util.List;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
-// import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
-// import jakarta.persistence.Column;
-// import jakarta.persistence.Entity;
-// import jakarta.persistence.GeneratedValue;
-// import jakarta.persistence.GenerationType;
-// import jakarta.persistence.Id;
-// import jakarta.persistence.OneToMany;
-// import jakarta.persistence.PrePersist;
-// import jakarta.persistence.PreUpdate;
-// import jakarta.persistence.Table;
-// import lombok.Getter;
-// import lombok.Setter;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
+import jakarta.validation.constraints.Digits;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Size;
+import lombok.Getter;
+import lombok.Setter;
 
-// @Getter
-// @Setter
-// @Entity
-// @Table(name = "medications")
-// public class Medication {
-// @Id
-// @GeneratedValue(strategy = GenerationType.IDENTITY)
-// private Long id;
+@Getter
+@Setter
+@Entity
+@Table(name = "medications")
+public class Medication {
 
-// @Column(nullable = false, length = 150)
-// private String name;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-// @Column(length = 150)
-// private String activeIngredient;
+    @NotBlank(message = "Tên thuốc không được để trống")
+    @Size(max = 150, message = "Tên thuốc tối đa 150 ký tự")
+    @Column(nullable = false, length = 150, unique = true)
+    private String name;
 
-// @Column(length = 50)
-// private String form;
+    @Size(max = 150, message = "Hoạt chất tối đa 150 ký tự")
+    @Column(length = 150)
+    private String activeIngredient;
 
-// @Column(length = 30)
-// private String unit;
+    @Size(max = 50, message = "Dạng bào chế tối đa 50 ký tự")
+    @Column(length = 50)
+    private String form;
 
-// private BigDecimal unitPrice;
+    @Size(max = 30, message = "Đơn vị tối đa 30 ký tự")
+    @Column(length = 30)
+    private String unit;
 
-// private Integer stockQuantity;
+    @Digits(integer = 12, fraction = 2, message = "Đơn giá không hợp lệ")
+    @PositiveOrZero(message = "Đơn giá phải >= 0")
+    @Column(precision = 12, scale = 2)
+    private BigDecimal unitPrice;
 
-// @JsonIgnore
-// @OneToMany(mappedBy = "medication")
-// private List<PrescriptionItem> prescriptionItems = new ArrayList<>();
+    @PositiveOrZero(message = "Tồn kho phải >= 0")
+    private Integer stockQuantity = 0;
 
-// private Instant createdAt;
-// private Instant updatedAt;
+    @JsonIgnore
+    @OneToMany(mappedBy = "medication")
+    private List<PrescriptionItem> prescriptionItems = new ArrayList<>();
 
-// @PrePersist
-// public void handleBeforeCreate() {
-// this.createdAt = Instant.now();
-// }
+    @Column(nullable = false)
+    private Instant createdAt;
 
-// @PreUpdate
-// public void handleBeforeUpdate() {
-// this.updatedAt = Instant.now();
-// }
-// }
+    @Column(nullable = false)
+    private Instant updatedAt;
+
+    @PrePersist
+    public void handleBeforeCreate() {
+        Instant now = Instant.now();
+        this.createdAt = now;
+        this.updatedAt = now;
+    }
+
+    @PreUpdate
+    public void handleBeforeUpdate() {
+        this.updatedAt = Instant.now();
+    }
+}
