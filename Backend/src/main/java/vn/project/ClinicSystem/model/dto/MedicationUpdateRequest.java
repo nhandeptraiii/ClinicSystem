@@ -1,8 +1,5 @@
 package vn.project.ClinicSystem.model.dto;
 
-import java.math.BigDecimal;
-
-import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -23,10 +20,6 @@ public class MedicationUpdateRequest {
 
     @Size(max = 30, message = "Đơn vị tối đa 30 ký tự")
     private String unit;
-
-    @Digits(integer = 12, fraction = 2, message = "Đơn giá không hợp lệ")
-    @PositiveOrZero(message = "Đơn giá phải >= 0")
-    private BigDecimal unitPrice;
 
     @PositiveOrZero(message = "Tồn kho phải >= 0")
     private Integer stockQuantity;

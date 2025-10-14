@@ -43,7 +43,6 @@ public class MedicationService {
         medication.setActiveIngredient(normalizeText(request.getActiveIngredient()));
         medication.setForm(normalizeText(request.getForm()));
         medication.setUnit(normalizeText(request.getUnit()));
-        medication.setUnitPrice(request.getUnitPrice());
         medication.setStockQuantity(request.getStockQuantity() != null ? request.getStockQuantity() : 0);
 
         ensureNameUnique(medication.getName(), null);
@@ -71,9 +70,6 @@ public class MedicationService {
         if (request.getUnit() != null) {
             medication.setUnit(normalizeText(request.getUnit()));
         }
-        if (request.getUnitPrice() != null) {
-            medication.setUnitPrice(request.getUnitPrice());
-        }
         if (request.getStockQuantity() != null) {
             if (request.getStockQuantity() < 0) {
                 throw new IllegalArgumentException("Tồn kho phải >= 0");
@@ -90,6 +86,9 @@ public class MedicationService {
         Medication medication = getById(id);
         if (medication.getPrescriptionItems() != null && !medication.getPrescriptionItems().isEmpty()) {
             throw new IllegalStateException("Không thể xóa thuốc đã được kê trong đơn thuốc.");
+        }
+        if (medication.getBatches() != null && !medication.getBatches().isEmpty()) {
+            throw new IllegalStateException("Không thể xóa thuốc khi vẫn còn lô trong kho.");
         }
         medicationRepository.delete(medication);
     }

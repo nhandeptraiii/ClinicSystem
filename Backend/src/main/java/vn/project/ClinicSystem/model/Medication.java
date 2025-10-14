@@ -1,6 +1,5 @@
 package vn.project.ClinicSystem.model;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,7 +15,6 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
-import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
@@ -50,17 +48,16 @@ public class Medication {
     @Column(length = 30)
     private String unit;
 
-    @Digits(integer = 12, fraction = 2, message = "Đơn giá không hợp lệ")
-    @PositiveOrZero(message = "Đơn giá phải >= 0")
-    @Column(precision = 12, scale = 2)
-    private BigDecimal unitPrice;
-
     @PositiveOrZero(message = "Tồn kho phải >= 0")
     private Integer stockQuantity = 0;
 
     @JsonIgnore
     @OneToMany(mappedBy = "medication")
     private List<PrescriptionItem> prescriptionItems = new ArrayList<>();
+
+    @JsonIgnore
+    @OneToMany(mappedBy = "medication")
+    private List<MedicationBatch> batches = new ArrayList<>();
 
     @Column(nullable = false)
     private Instant createdAt;
