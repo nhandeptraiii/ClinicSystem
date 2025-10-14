@@ -14,8 +14,10 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
@@ -25,6 +27,8 @@ import org.springframework.security.web.SecurityFilterChain;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import com.nimbusds.jose.util.Base64;
 
+import vn.project.ClinicSystem.config.security.RevokedTokenValidator;
+import vn.project.ClinicSystem.service.RevokedTokenService;
 import vn.project.ClinicSystem.util.SecurityUtil;
 
 @Configuration
@@ -33,6 +37,12 @@ public class SecurityConfiguration {
 
     @Value("${clinicsystem.jwt.base64-secret}")
     private String jwtKey;
+
+    private final RevokedTokenService revokedTokenService;
+
+    public SecurityConfiguration(RevokedTokenService revokedTokenService) {
+        this.revokedTokenService = revokedTokenService;
+    }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -87,9 +97,14 @@ public class SecurityConfiguration {
     public JwtDecoder jwtDecoder() {
         NimbusJwtDecoder jwtDecoder = NimbusJwtDecoder.withSecretKey(
                 getSecretKey()).macAlgorithm(SecurityUtil.JWT_ALGORITHM).build();
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(
+                getSecretKey()).macAlgorithm(SecurityUtil.JWT_ALGORITHM).build();
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+                JwtValidators.createDefault(),
+                new RevokedTokenValidator(revokedTokenService)));
         return token -> {
             try {
-                return jwtDecoder.decode(token);
+                return decoder.decode(token);
             } catch (Exception e) {
                 System.out.println("Invalid JWT: " + e.getMessage());
                 throw e;
