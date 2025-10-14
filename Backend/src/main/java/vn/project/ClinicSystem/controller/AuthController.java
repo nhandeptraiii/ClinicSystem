@@ -1,6 +1,9 @@
 package vn.project.ClinicSystem.controller;
 
+import java.util.Map;
+
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -10,8 +13,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
-import vn.project.ClinicSystem.model.dto.ResLoginDTO;
 import vn.project.ClinicSystem.model.dto.LoginDTO;
+import vn.project.ClinicSystem.model.dto.ResLoginDTO;
 import vn.project.ClinicSystem.util.SecurityUtil;
 
 @RestController
@@ -40,5 +43,12 @@ public class AuthController {
         res.setAccessToken(access_token);
 
         return ResponseEntity.ok().body(res);
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    @PostMapping("/logout")
+    public ResponseEntity<Map<String, String>> logout() {
+        SecurityContextHolder.clearContext();
+        return ResponseEntity.ok(Map.of("message", "Đăng xuất thành công"));
     }
 }
