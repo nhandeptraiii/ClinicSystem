@@ -1,6 +1,8 @@
 package vn.project.ClinicSystem.model;
 
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -17,6 +19,8 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
@@ -41,6 +45,11 @@ public class PrescriptionItem {
     @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler", "prescriptionItems" })
     private Medication medication;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "batch_id")
+    @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
+    private MedicationBatch medicationBatch;
+
     @Size(max = 120, message = "Tên thuốc tối đa 120 ký tự")
     @Column(length = 120)
     private String medicationName;
@@ -62,6 +71,19 @@ public class PrescriptionItem {
     @Size(max = 255, message = "Hướng dẫn tối đa 255 ký tự")
     @Column(length = 255)
     private String instruction;
+
+    @NotNull(message = "Cần nhập số lượng thuốc")
+    @Positive(message = "Số lượng thuốc phải > 0")
+    @Column(nullable = false)
+    private Integer quantity;
+
+    @Column(precision = 12, scale = 2)
+    private BigDecimal unitPriceSnapshot;
+
+    @Column(precision = 12, scale = 2)
+    private BigDecimal amount;
+
+    private LocalDate expiryDateSnapshot;
 
     @Column(nullable = false)
     private Instant createdAt;
