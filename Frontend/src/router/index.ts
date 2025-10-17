@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import DashboardView from '@/views/dashboard/DashboardView.vue';
-import LoginView from '@/views/auth/LoginView.vue';
+import LoginView from '@/views/auth/LoginNewView.vue';
+import HomeView from '@/views/home/HomeView.vue';
 import { useAuthStore } from '@/stores/authStore';
 
 const router = createRouter({
@@ -14,9 +15,24 @@ const router = createRouter({
     },
     {
       path: '/',
+      name: 'home',
+      component: HomeView,
+      meta: { public: true },
+    },
+    {
+      path: '/dashboard',
       name: 'dashboard',
       component: DashboardView,
     },
+    { path: '/dashboard/appointment-requests', name: 'appointment-requests', component: () => import('@/views/dashboard/AppointmentRequestsView.vue') },
+    { path: '/dashboard/appointments', name: 'appointments', component: () => import('@/views/dashboard/AppointmentsView.vue') },
+    { path: '/dashboard/patients', name: 'patients', component: () => import('@/views/dashboard/PatientsView.vue') },
+    { path: '/dashboard/doctors', name: 'doctors', component: () => import('@/views/dashboard/DoctorsView.vue') },
+    { path: '/dashboard/schedules', name: 'schedules', component: () => import('@/views/dashboard/SchedulesView.vue') },
+    { path: '/dashboard/visits', name: 'visits', component: () => import('@/views/dashboard/VisitsView.vue') },
+    { path: '/dashboard/medications', name: 'medications', component: () => import('@/views/dashboard/MedicationsView.vue') },
+    { path: '/dashboard/services', name: 'services', component: () => import('@/views/dashboard/ServicesView.vue') },
+    { path: '/dashboard/billing', name: 'billing', component: () => import('@/views/dashboard/BillingView.vue') },
   ],
 });
 
