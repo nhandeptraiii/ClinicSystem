@@ -97,8 +97,6 @@ public class SecurityConfiguration {
     // JWT Decoder & Encoder
     @Bean
     public JwtDecoder jwtDecoder() {
-        NimbusJwtDecoder jwtDecoder = NimbusJwtDecoder.withSecretKey(
-                getSecretKey()).macAlgorithm(SecurityUtil.JWT_ALGORITHM).build();
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(
                 getSecretKey()).macAlgorithm(SecurityUtil.JWT_ALGORITHM).build();
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
