@@ -14,8 +14,10 @@ export interface LogoutResponse {
 }
 
 export const login = async (payload: LoginPayload) => {
-  const { data } = await http.post<LoginResponse>('/login', payload);
-  return data;
+  const { data } = await http.post('/login', payload);
+  // Unwrap if backend wraps response as { statusCode, message, data: { accessToken } }
+  const token = data?.accessToken ?? data?.data?.accessToken;
+  return { accessToken: token } as LoginResponse;
 };
 
 export const logout = async () => {
