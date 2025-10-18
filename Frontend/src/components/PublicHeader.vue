@@ -1,23 +1,33 @@
 <script setup lang="ts">
 import { useRouter, useRoute, RouterLink } from 'vue-router';
 import { useAuthStore } from '@/stores/authStore';
-import logoUrl from '@/assets/DuyenHanhLogoF.png';
+import logoUrl from '@/assets/LogoDuyenHanh.png';
 
 const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
 
-const HOTLINE = '0913095115';
+const HOTLINE = '0332406049';
 
 const isActive = (name: string) => route.name === name;
+
+const onLogoClick = () => {
+  if (route.name === 'home') {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } else {
+    router.push({ name: 'home' }).then(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
+};
 </script>
 
 <template>
   <header class="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur">
     <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
       <!-- Logo -->
-      <button class="flex items-center gap-3" @click="router.push({ name: 'home' })">
-        <img :src="logoUrl" alt="Clinic Logo" class="h-10 w-auto" />
+      <button class="flex items-center gap-3" @click="onLogoClick">
+        <img :src="logoUrl" alt="Clinic Logo" class="h-16 w-auto" />
       </button>
 
       <!-- Nav -->
@@ -52,4 +62,3 @@ const isActive = (name: string) => route.name === name;
     </div>
   </header>
 </template>
-
