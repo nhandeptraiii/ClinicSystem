@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import PublicHeader from '@/components/PublicHeader.vue';
 import AppointmentRequestForm from '@/components/AppointmentRequestForm.vue';
+import PublicFooter from '@/components/PublicFooter.vue';
 </script>
 
 <template>
@@ -30,5 +31,5 @@ import AppointmentRequestForm from '@/components/AppointmentRequestForm.vue';
       </div>
     </section>
   </div>
+  <PublicFooter />
 </template>
-

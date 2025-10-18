@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useRouter } from 'vue-router';
 import { fetchDoctors, type Doctor } from '@/services/doctor.service';
 import PublicHeader from '@/components/PublicHeader.vue';
+import PublicFooter from '@/components/PublicFooter.vue';
 
 const authStore = useAuthStore();
 const router = useRouter();
@@ -142,12 +143,6 @@ onMounted(async () => {
       </div>
     </section>
 
-    <!-- Footer -->
-    <footer class="border-t border-slate-200 bg-white">
-      <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-6 text-sm text-slate-600">
-        <p>© 2025 Phòng Khám Sức Khỏe</p>
-        <p>Hotline: 1900 123 456</p>
-      </div>
-    </footer>
+    <PublicFooter />
   </div>
 </template>

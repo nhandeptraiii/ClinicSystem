@@ -17,3 +17,9 @@ app.use(router);
 attachAuthInterceptor(() => useAuthStore());
 
 app.mount('#app');
+
+// Ensure reload brings user to top instead of preserving scroll
+if ('scrollRestoration' in history) {
+  history.scrollRestoration = 'manual';
+}
+window.scrollTo({ top: 0 });

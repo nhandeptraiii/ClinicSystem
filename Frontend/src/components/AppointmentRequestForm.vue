@@ -92,7 +92,7 @@ const handleSubmit = async () => {
 <template>
   <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow">
     <h3 class="mb-1 text-lg font-semibold text-slate-900">Đặt lịch khám</h3>
-    <p class="mb-6 text-sm text-slate-600">Các trường thông tin đều bắt buộc. Khung giờ khám cách nhau 20 phút: sáng 07:30–11:10, chiều 13:00–19:00 (nghỉ trưa 11:30–13:00).</p>
+    <p class="mb-6 text-sm text-slate-600">Các trường thông tin đều bắt buộc. Chúng tôi sẽ liên hệ sớm.</p>
 
     <form class="grid grid-cols-1 gap-4 sm:grid-cols-2" @submit.prevent="handleSubmit">
       <div class="sm:col-span-1">
@@ -121,7 +121,7 @@ const handleSubmit = async () => {
       </div>
 
       <div class="sm:col-span-1">
-        <label class="mb-1 block text-sm font-medium text-slate-700" for="email">Email (không bắt buộc)</label>
+        <label class="mb-1 block text-sm font-medium text-slate-700" for="email">Email</label>
         <input
           id="email"
           v-model="form.email"
@@ -133,7 +133,7 @@ const handleSubmit = async () => {
       </div>
 
       <div class="sm:col-span-1">
-        <label class="mb-1 block text-sm font-medium text-slate-700" for="dob">Ngày sinh (không bắt buộc)</label>
+        <label class="mb-1 block text-sm font-medium text-slate-700" for="dob">Ngày sinh </label>
         <input
           id="dob"
           v-model="form.dateOfBirth"
