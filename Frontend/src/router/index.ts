@@ -42,6 +42,13 @@ const router = createRouter({
     { path: '/dashboard/medications', name: 'medications', component: () => import('@/views/dashboard/MedicationsView.vue') },
     { path: '/dashboard/services', name: 'services', component: () => import('@/views/dashboard/ServicesView.vue') },
     { path: '/dashboard/billing', name: 'billing', component: () => import('@/views/dashboard/BillingView.vue') },
+    // Catch-all 404 route must be last
+    {
+      path: '/:pathMatch(.*)*',
+      name: 'not-found',
+      component: () => import('@/views/public/NotFoundView.vue'),
+      meta: { public: true },
+    },
   ],
 });
 
