@@ -71,7 +71,7 @@ const handleSubmit = async () => {
 <template>
   <div
     class="relative flex min-h-screen bg-slate-900/80"
-    :style="{ backgroundImage: `linear-gradient(rgba(15, 118, 110, 0.35), rgba(15, 118, 110, 0.65)), url(${loginBackground})`}"
+    :style="{ backgroundImage: `url(${loginBackground})`}"
   >
     <div class="absolute inset-0 bg-gradient-to-r from-teal-900/70 via-teal-800/55 to-emerald-900/30 mix-blend-multiply"></div>
 
