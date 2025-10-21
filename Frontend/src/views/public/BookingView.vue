@@ -2,6 +2,7 @@
 import PublicHeader from '@/components/PublicHeader.vue';
 import AppointmentRequestForm from '@/components/AppointmentRequestForm.vue';
 import PublicFooter from '@/components/PublicFooter.vue';
+import bookingHeroImage from '@/assets/DatLich/DatLich.png';
 </script>
 
 <template>
@@ -19,12 +20,13 @@ import PublicFooter from '@/components/PublicFooter.vue';
                 <span class="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.35em] text-emerald-600 shadow-sm">
                   Đặt lịch trực tuyến
                 </span>
-                <h1 class="mt-6 text-3xl font-semibold text-slate-900 md:text-4xl">
-                  Chủ động hẹn khám cùng đội ngũ bác sĩ tại Duyên Hạnh
-                </h1>
-                <p class="mt-4 text-base leading-relaxed text-slate-600 md:text-lg">
-                  Chọn giờ khám linh hoạt, nhận tư vấn cá nhân hóa và tận hưởng trải nghiệm thăm khám nhanh chóng – không mất thời gian chờ đợi.
-                </p>
+                <figure class="mt-6 overflow-hidden rounded-[32px] border border-emerald-100 bg-white shadow-[0_24px_55px_-35px_rgba(13,148,136,0.55)]">
+                  <img
+                    :src="bookingHeroImage"
+                    alt="Khách hàng đặt lịch khám tại phòng khám Duyên Hạnh"
+                    class="block w-full object-cover sm:max-h-[360px]"
+                  />
+                </figure>
               </div>
 
               <div class="grid gap-6 md:grid-cols-2">
@@ -37,14 +39,13 @@ import PublicFooter from '@/components/PublicFooter.vue';
                     </span>
                     <div>
                       <p class="text-sm font-semibold uppercase tracking-wide text-emerald-600">Giờ làm việc</p>
-                      <h3 class="text-lg font-semibold text-slate-900">Linh hoạt tất cả các ngày</h3>
+                      <h3 class="text-lg font-semibold text-slate-900">Thứ 2 - Thứ 7</h3>
                     </div>
                   </div>
                   <ul class="mt-4 space-y-2 text-sm text-slate-600">
-                    <li>• Sáng: 07:30 – 11:10 (khung 20 phút)</li>
-                    <li>• Nghỉ trưa: 11:30 – 13:00</li>
-                    <li>• Chiều: 13:00 – 19:00 (khung 20 phút)</li>
-                    <li>• Hỗ trợ đến 20:00 mỗi ngày</li>
+                    <li>• Sáng: 07:30 – 11:30</li>
+                    <li>• Chiều: 13:00 – 20:00</li>
+                    <li>• Số 36, đường Cách mạng tháng 8, phường Cái Khế, thành phố Cần Thơ</li>
                   </ul>
                 </div>
 
@@ -116,7 +117,7 @@ import PublicFooter from '@/components/PublicFooter.vue';
               </span>
               <div>
                 <p class="font-semibold text-slate-900">Hotline hỗ trợ</p>
-                <a href="tel:1900636373" class="text-emerald-600 hover:text-emerald-700">1900 636 373</a>
+                <a href="tel:1900636373" class="text-emerald-600 hover:text-emerald-700">0332406049</a>
               </div>
             </div>
             <div class="flex items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/80 px-5 py-3">
@@ -127,7 +128,7 @@ import PublicFooter from '@/components/PublicFooter.vue';
               </span>
               <div>
                 <p class="font-semibold text-slate-900">Tài liệu cần mang theo</p>
-                <p>Sổ khám, danh sách thuốc, bảo hiểm y tế, giấy tờ cá nhân.</p>
+                <p>Sổ khám, danh sách thuốc, giấy tờ cá nhân.</p>
               </div>
             </div>
           </div>

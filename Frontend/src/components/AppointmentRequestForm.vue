@@ -38,14 +38,14 @@ const toHHMM = (mins: number) => {
   const m = (mins % 60).toString().padStart(2, '0');
   return `${h}:${m}`;
 };
-const makeSlots = (start: number, end: number, step = 20) => {
+const makeSlots = (start: number, end: number, step = 30) => {
   const out: string[] = [];
   for (let t = start; t <= end; t += step) out.push(toHHMM(t));
   return out;
 };
 
-const MORNING_SLOTS = makeSlots(toMinutes(7, 30), toMinutes(11, 10));
-const AFTERNOON_SLOTS = makeSlots(toMinutes(13, 0), toMinutes(19, 0));
+const MORNING_SLOTS = makeSlots(toMinutes(7, 30), toMinutes(10, 30));
+const AFTERNOON_SLOTS = makeSlots(toMinutes(13, 0), toMinutes(17, 0));
 const ALL_SLOTS = [...MORNING_SLOTS, ...AFTERNOON_SLOTS];
 
 const preferredAtISO = computed(() => {
@@ -182,7 +182,7 @@ const handleSubmit = async () => {
         <h3 class="text-2xl font-semibold text-slate-900">Đặt lịch khám ngay</h3>
         <p class="mt-1 text-sm text-slate-600">Điền đầy đủ thông tin, chúng tôi sẽ liên hệ xác nhận trong giờ làm việc.</p>
       </div>
-      <div class="rounded-full bg-emerald-50 px-4 py-1 text-sm font-semibold uppercase tracking-[0.2  em] text-emerald-600">Ưu tiên xác nhận</div>
+      <div class="rounded-full bg-emerald-50 px-4 py-1 text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">Ưu tiên xác nhận</div>
     </div>
 
     <form class="grid grid-cols-1 gap-6 sm:grid-cols-2" @submit.prevent="handleSubmit">
