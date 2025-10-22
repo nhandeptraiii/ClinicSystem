@@ -44,6 +44,11 @@ public class RoleService {
         });
     }
 
+    @Transactional(readOnly = true)
+    public java.util.List<Role> findAll() {
+        return roleRepository.findAll();
+    }
+
     public void assignRoleToUser(Long userId, @NotBlank String rawRole) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new EntityNotFoundException("User khong ton tai: " + userId));

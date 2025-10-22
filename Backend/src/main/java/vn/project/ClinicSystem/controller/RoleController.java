@@ -1,8 +1,11 @@
 package vn.project.ClinicSystem.controller;
 
+import java.util.List;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -42,5 +45,11 @@ public class RoleController {
     public ResponseEntity<Void> revokeRole(@Valid @RequestBody RoleAssignmentRequest request) {
         roleService.revokeRoleFromUser(request.getUserId(), request.getRole());
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<Role>> getAllRoles() {
+        return ResponseEntity.ok(roleService.findAll());
     }
 }
