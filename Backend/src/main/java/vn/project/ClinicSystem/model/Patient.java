@@ -40,7 +40,7 @@ public class Patient {
     private String gender;
 
     @PastOrPresent(message = "Ngày sinh không hợp lệ")
-    @JsonFormat(pattern = "dd/MM/yyyy")
+    // @JsonFormat(pattern = "dd/MM/yyyy")
     private LocalDate dateOfBirth;
 
     @Pattern(regexp = "^\\d{10}$", message = "Số điện thoại phải gồm đúng 10 chữ số")
