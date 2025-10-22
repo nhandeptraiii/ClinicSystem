@@ -18,6 +18,7 @@ const navItems = [
   { to: { name: 'appointment-requests' }, label: 'Yêu cầu' },
   { to: { name: 'appointments' }, label: 'Lịch hẹn' },
   { to: { name: 'patients' }, label: 'Bệnh nhân' },
+  { to: { name: 'staff' }, label: 'Nhân viên' },
   { to: { name: 'doctors' }, label: 'Bác sĩ' },
 ];
 

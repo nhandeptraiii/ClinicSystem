@@ -195,6 +195,7 @@ onMounted(() => {
               { to: '/dashboard/appointment-requests', title: 'Yêu cầu đặt lịch', desc: 'Duyệt và phân luồng yêu cầu từ trang chủ.' },
               { to: '/dashboard/appointments', title: 'Lịch hẹn', desc: 'Tạo, cập nhật, sắp xếp phòng khám & bác sĩ.' },
               { to: '/dashboard/patients', title: 'Bệnh nhân', desc: 'Theo dõi hồ sơ, lịch sử và tài liệu đính kèm.' },
+              { to: '/dashboard/staff', title: 'Nhân viên', desc: 'Quản lý hồ sơ nhân sự, phân quyền vai trò.' },
               { to: '/dashboard/doctors', title: 'Bác sĩ', desc: 'Quản lý đội ngũ chuyên môn và lịch làm việc.' },
               { to: '/dashboard/schedules', title: 'Lịch làm việc', desc: 'Điều phối ca trực và phòng ban hỗ trợ.' },
               { to: '/dashboard/visits', title: 'Khám & Điều trị', desc: 'Ghi nhận chỉ định, kết quả và tiến trình.' },

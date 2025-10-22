@@ -36,6 +36,7 @@ const router = createRouter({
     { path: '/dashboard/appointment-requests', name: 'appointment-requests', component: () => import('@/views/dashboard/AppointmentRequestsView.vue') },
     { path: '/dashboard/appointments', name: 'appointments', component: () => import('@/views/dashboard/AppointmentsView.vue') },
     { path: '/dashboard/patients', name: 'patients', component: () => import('@/views/dashboard/PatientsView.vue') },
+    { path: '/dashboard/staff', name: 'staff', component: () => import('@/views/dashboard/StaffManagementView.vue') },
     { path: '/dashboard/doctors', name: 'doctors', component: () => import('@/views/dashboard/DoctorsView.vue') },
     { path: '/dashboard/schedules', name: 'schedules', component: () => import('@/views/dashboard/SchedulesView.vue') },
     { path: '/dashboard/visits', name: 'visits', component: () => import('@/views/dashboard/VisitsView.vue') },
