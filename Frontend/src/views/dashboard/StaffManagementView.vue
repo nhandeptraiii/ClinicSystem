@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
-import AdminHeader from '@/components/AdminHeader.vue';
-import { useAuthStore } from '@/stores/authStore';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import { useRouter } from "vue-router";
+import AdminHeader from "@/components/AdminHeader.vue";
+import { useAuthStore } from "@/stores/authStore";
 import {
   createStaff,
   fetchStaff,
@@ -13,171 +13,130 @@ import {
   type StaffRoleDefinition,
   type StaffUpdatePayload,
   updateStaff,
-} from '@/services/staff.service';
+} from "@/services/staff.service";
 
-type RoleFilter = StaffRole | 'ALL';
-type ModalMode = 'create' | 'edit';
+type RoleFilter = StaffRole | "ALL";
+type ModalMode = "create" | "edit";
 
-const supportedRoles: StaffRole[] = ['ADMIN', 'DOCTOR', 'NURSE', 'CASHIER', 'PHARMACIST'];
+const supportedRoles: StaffRole[] = ["ADMIN", "DOCTOR", "NURSE", "CASHIER", "PHARMACIST"];
 
 const roleDisplayMap: Record<StaffRole, { label: string; badge: string; chip: string; desc: string }> = {
   ADMIN: {
-    label: 'Admin',
-    badge: 'bg-slate-900 text-white',
-    chip: 'bg-slate-900/10 text-slate-800',
-    desc: 'Quản trị toàn hệ thống.',
+    label: "Admin",
+    badge: "bg-slate-900 text-white",
+    chip: "bg-slate-900/10 text-slate-800",
+    desc: "Quản trị toàn hệ thống.",
   },
   DOCTOR: {
-    label: 'Bác sĩ',
-    badge: 'bg-emerald-100 text-emerald-700',
-    chip: 'bg-emerald-50 text-emerald-700',
-    desc: 'Khám chữa bệnh, cập nhật hồ sơ.',
+    label: "Bác sĩ",
+    badge: "bg-emerald-100 text-emerald-700",
+    chip: "bg-emerald-50 text-emerald-700",
+    desc: "Khám chữa bệnh, cập nhật hồ sơ.",
   },
   NURSE: {
-    label: 'Điều dưỡng',
-    badge: 'bg-sky-100 text-sky-700',
-    chip: 'bg-sky-50 text-sky-700',
-    desc: 'Hỗ trợ chăm sóc và theo dõi.',
+    label: "Điều dưỡng",
+    badge: "bg-sky-100 text-sky-700",
+    chip: "bg-sky-50 text-sky-700",
+    desc: "Hỗ trợ chăm sóc và theo dõi.",
   },
   CASHIER: {
-    label: 'Thu ngân',
-    badge: 'bg-amber-100 text-amber-700',
-    chip: 'bg-amber-50 text-amber-700',
-    desc: 'Xử lý thanh toán, hóa đơn.',
+    label: "Thu ngân",
+    badge: "bg-amber-100 text-amber-700",
+    chip: "bg-amber-50 text-amber-700",
+    desc: "Xử lý thanh toán, hóa đơn.",
   },
   PHARMACIST: {
-    label: 'Dược sĩ',
-    badge: 'bg-purple-100 text-purple-700',
-    chip: 'bg-purple-50 text-purple-700',
-    desc: 'Quản lý kho thuốc.',
+    label: "Dược sĩ",
+    badge: "bg-purple-100 text-purple-700",
+    chip: "bg-purple-50 text-purple-700",
+    desc: "Quản lý kho thuốc.",
   },
 };
 
 const genderOptions = [
-  { value: '', label: 'Chưa xác định' },
-  { value: 'MALE', label: 'Nam' },
-  { value: 'FEMALE', label: 'Nữ' },
-  { value: 'OTHER', label: 'Khác' },
+  { value: "", label: "Chưa xác định" },
+  { value: "MALE", label: "Nam" },
+  { value: "FEMALE", label: "Nữ" },
+  { value: "OTHER", label: "Khác" },
 ];
 
 const statusOptions = [
-  { value: 'ACTIVE', label: 'Đang hoạt động' },
-  { value: 'INACTIVE', label: 'Tạm ngưng' },
-  { value: 'BANNED', label: 'Bị khóa' },
+  { value: "ACTIVE", label: "Đang hoạt động" },
+  { value: "INACTIVE", label: "Tạm ngưng" },
+  { value: "BANNED", label: "Bị khóa" },
 ];
 
-const doctorRoleName: StaffRole = 'DOCTOR';
+const doctorRoleName: StaffRole = "DOCTOR";
 
 const authStore = useAuthStore();
 const router = useRouter();
 
-const userName = computed(() => authStore.user?.username ?? 'Quản trị viên');
+const userName = computed(() => authStore.user?.username ?? "Quản trị viên");
 
-const staff = ref<StaffMember[]>([]);
+const staffItems = ref<StaffMember[]>([]);
 const staffLoading = ref(false);
 const staffError = ref<string | null>(null);
+
+const totalElements = ref(0);
+const totalPages = ref(1);
+const pageSize = ref(6);
+const currentPage = ref(1);
+const hasNext = ref(false);
+const hasPrevious = ref(false);
+const totalStaff = ref(0);
+const roleTotals = reactive<Record<StaffRole, number>>({
+  ADMIN: 0,
+  DOCTOR: 0,
+  NURSE: 0,
+  CASHIER: 0,
+  PHARMACIST: 0,
+});
 
 const roles = ref<StaffRoleDefinition[]>([]);
 const rolesLoading = ref(false);
 const rolesError = ref<string | null>(null);
 
-const selectedRole = ref<RoleFilter>('ALL');
-const searchTerm = ref('');
+const selectedRole = ref<RoleFilter>("ALL");
+const searchTerm = ref("");
 const refreshedAt = ref<string | null>(null);
 
 const modalOpen = ref(false);
-const modalMode = ref<ModalMode>('create');
+const modalMode = ref<ModalMode>("create");
 const modalSubmitting = ref(false);
 const modalError = ref<string | null>(null);
 
 const form = reactive({
   id: null as number | null,
-  fullName: '',
-  email: '',
-  phone: '',
-  gender: '',
-  dateOfBirth: '',
-  password: '',
-  status: 'ACTIVE',
+  fullName: "",
+  email: "",
+  phone: "",
+  gender: "",
+  dateOfBirth: "",
+  password: "",
+  confirmPassword: "",
+  status: "ACTIVE",
   roles: [] as StaffRole[],
   doctor: {
-    specialty: '',
-    licenseNumber: '',
-    examinationRoom: '',
-    biography: '',
+    specialty: "",
+    licenseNumber: "",
+    biography: "",
   },
 });
 
 const isDoctorSelected = computed(() => form.roles.includes(doctorRoleName));
-
-const roleFilters = computed(() => {
-  const uniqueRoles = new Set<StaffRole>();
-  staff.value.forEach((member) => {
-    member.roles?.forEach((role) => {
-      if (supportedRoles.includes(role)) {
-        uniqueRoles.add(role);
-      }
-    });
-  });
-  return ['ALL', ...supportedRoles.filter((role) => uniqueRoles.has(role))] as RoleFilter[];
-});
-
-const filteredStaff = computed(() => {
-  const keyword = searchTerm.value.trim().toLowerCase();
-  return staff.value
-    .filter((member) => {
-      if (selectedRole.value !== 'ALL') {
-        return member.roles?.some((role) => role === selectedRole.value);
-      }
-      return true;
-    })
-    .filter((member) => {
-      if (!keyword) return true;
-      const haystacks = [
-        member.fullName,
-        member.email,
-        member.phone,
-        member.doctor?.specialty,
-        member.doctor?.licenseNumber,
-      ]
-        .filter(Boolean)
-        .map((value) => value!.toLowerCase());
-      return haystacks.some((value) => value.includes(keyword));
-    })
-    .sort((a, b) => (a.fullName || '').localeCompare(b.fullName || '', 'vi'));
-});
-
-const totalStaff = computed(() => staff.value.length);
-const roleCounts = computed(() => {
-  const counts: Record<StaffRole, number> = {
-    ADMIN: 0,
-    DOCTOR: 0,
-    NURSE: 0,
-    CASHIER: 0,
-    PHARMACIST: 0,
-  };
-  staff.value.forEach((member) => {
-    member.roles?.forEach((role) => {
-      if (supportedRoles.includes(role)) {
-        counts[role] += 1;
-      }
-    });
-  });
-  return counts;
-});
-
-const lastUpdatedLabel = computed(() => {
-  if (!refreshedAt.value) return 'Chưa tải dữ liệu';
-  return `Cập nhật ${formatFromNow(refreshedAt.value)}`;
-});
-
+const roleFilters = computed(() => ["ALL", ...supportedRoles] as RoleFilter[]);
 const roleCards = computed(() =>
   supportedRoles.map((role) => ({
     role,
-    count: roleCounts.value[role],
+    count: roleTotals[role] ?? 0,
     ...roleDisplayMap[role],
-  }))
+  })),
 );
+
+const lastUpdatedLabel = computed(() => {
+  if (!refreshedAt.value) return "Chưa tải dữ liệu";
+  return `Cập nhật ${formatFromNow(refreshedAt.value)}`;
+});
 
 const roleOptions = computed(() =>
   roles.value
@@ -187,12 +146,12 @@ const roleOptions = computed(() =>
       name: role.name,
       label: roleDisplayMap[role.name].label,
       description: role.description ?? roleDisplayMap[role.name].desc,
-    }))
+    })),
 );
 
 const handleSignOut = async () => {
   await authStore.signOut();
-  router.replace({ name: 'home' });
+  router.replace({ name: "home" });
 };
 
 const ensureRolesLoaded = async () => {
@@ -213,81 +172,108 @@ const loadStaff = async () => {
   staffLoading.value = true;
   staffError.value = null;
   try {
-    const list = await fetchStaff();
-    staff.value = Array.isArray(list)
-      ? list.map((member) => ({
-          ...member,
-          roles: (member.roles ?? []).filter((role) => supportedRoles.includes(role)),
-        }))
-      : [];
+    const params: { page: number; size: number; role?: string; keyword?: string } = {
+      page: Math.max(currentPage.value - 1, 0),
+      size: pageSize.value,
+    };
+    if (selectedRole.value !== "ALL") {
+      params.role = selectedRole.value;
+    }
+    const keyword = searchTerm.value.trim();
+    if (keyword) {
+      params.keyword = keyword;
+    }
+
+    const result = await fetchStaff(params);
+    const items = Array.isArray(result?.items) ? result.items : [];
+    staffItems.value = items.map((member) => ({
+      ...member,
+      roles: (member.roles ?? []).filter((role) => supportedRoles.includes(role)),
+    }));
+    totalElements.value = result?.totalElements ?? staffItems.value.length;
+    totalPages.value = Math.max(result?.totalPages ?? 1, 1);
+    hasNext.value = Boolean(result?.hasNext);
+    hasPrevious.value = Boolean(result?.hasPrevious);
+    totalStaff.value = result?.totalStaff ?? totalElements.value;
+    supportedRoles.forEach((role) => {
+      roleTotals[role] = result?.roleTotals?.[role] ?? 0;
+    });
+
+    const responsePage = ((result?.page ?? params.page) + 1) || 1;
+    if (responsePage !== currentPage.value) {
+      currentPage.value = Math.min(Math.max(responsePage, 1), totalPages.value);
+    }
+
     refreshedAt.value = new Date().toISOString();
   } catch (error) {
     staffError.value = extractErrorMessage(error);
-    staff.value = [];
+    staffItems.value = [];
+    totalElements.value = 0;
+    totalPages.value = 1;
+    hasNext.value = false;
+    hasPrevious.value = false;
   } finally {
     staffLoading.value = false;
   }
 };
 
 const extractErrorMessage = (input: unknown) => {
-  const fallback = 'Đã xảy ra lỗi. Vui lòng thử lại.';
-  if (!input || typeof input !== 'object') return fallback;
+  const fallback = "Đã xảy ra lỗi. Vui lòng thử lại.";
+  if (!input || typeof input !== "object") return fallback;
   const maybeError = input as { message?: string; response?: { data?: { message?: unknown; error?: string } } };
   const responseMessage = maybeError.response?.data?.message;
-  if (typeof responseMessage === 'string' && responseMessage.trim()) {
-    return responseMessage;
-  }
+  if (typeof responseMessage === "string" && responseMessage.trim()) return responseMessage;
   if (Array.isArray(responseMessage) && responseMessage.length > 0) {
     const first = responseMessage[0];
-    if (typeof first === 'string' && first.trim()) return first;
+    if (typeof first === "string" && first.trim()) return first;
   }
-  if (maybeError.response?.data?.error) {
-    return maybeError.response.data.error;
-  }
-  if (maybeError.message) {
-    return maybeError.message;
-  }
+  if (maybeError.response?.data?.error) return maybeError.response.data.error;
+  if (maybeError.message) return maybeError.message;
   return fallback;
 };
 
 const resetForm = () => {
   form.id = null;
-  form.fullName = '';
-  form.email = '';
-  form.phone = '';
-  form.gender = '';
-  form.dateOfBirth = '';
-  form.password = '';
-  form.status = 'ACTIVE';
+  form.fullName = "";
+  form.email = "";
+  form.phone = "";
+  form.gender = "";
+  form.dateOfBirth = "";
+  form.password = "";
+  form.confirmPassword = "";
+  form.status = "ACTIVE";
   form.roles.splice(0, form.roles.length);
-  form.doctor.specialty = '';
-  form.doctor.licenseNumber = '';
-  form.doctor.examinationRoom = '';
-  form.doctor.biography = '';
+  form.doctor.specialty = "";
+  form.doctor.licenseNumber = "";
+  form.doctor.biography = "";
 };
 
 const openCreateModal = () => {
-  modalMode.value = 'create';
+  modalMode.value = "create";
   resetForm();
   modalOpen.value = true;
 };
 
 const openEditModal = (member: StaffMember) => {
-  modalMode.value = 'edit';
+  modalMode.value = "edit";
   modalError.value = null;
   form.id = member.id;
-  form.fullName = member.fullName ?? '';
-  form.email = member.email ?? '';
-  form.phone = member.phone ?? '';
-  form.gender = member.gender ?? '';
-  form.dateOfBirth = member.dateOfBirth ?? '';
-  form.password = '';
-  form.status = member.status ?? 'ACTIVE';
-  form.roles.splice(0, form.roles.length, ...(member.roles ?? []).filter((role): role is StaffRole => supportedRoles.includes(role)));
-  form.doctor.specialty = member.doctor?.specialty ?? '';
-  form.doctor.licenseNumber = member.doctor?.licenseNumber ?? '';
-  form.doctor.examinationRoom = member.doctor?.examinationRoom ?? '';
-  form.doctor.biography = member.doctor?.biography ?? '';
+  form.fullName = member.fullName ?? "";
+  form.email = member.email ?? "";
+  form.phone = member.phone ?? "";
+  form.gender = member.gender ?? "";
+  form.dateOfBirth = member.dateOfBirth ?? "";
+  form.password = "";
+  form.confirmPassword = "";
+  form.status = member.status ?? "ACTIVE";
+  form.roles.splice(
+    0,
+    form.roles.length,
+    ...(member.roles ?? []).filter((role): role is StaffRole => supportedRoles.includes(role)),
+  );
+  form.doctor.specialty = member.doctor?.specialty ?? "";
+  form.doctor.licenseNumber = member.doctor?.licenseNumber ?? "";
+  form.doctor.biography = member.doctor?.biography ?? "";
   modalOpen.value = true;
 };
 
@@ -296,13 +282,38 @@ const closeModal = () => {
 };
 
 const submitModal = async () => {
-  modalSubmitting.value = true;
   modalError.value = null;
+
+  const password = form.password.trim();
+  const confirmPassword = form.confirmPassword.trim();
+
+  if (modalMode.value === "create") {
+    if (!confirmPassword) {
+      modalError.value = "Vui lòng nhập lại mật khẩu.";
+      return;
+    }
+    if (password !== confirmPassword) {
+      modalError.value = "Mật khẩu nhập lại không khớp.";
+      return;
+    }
+  } else if (modalMode.value === "edit" && password) {
+    if (!confirmPassword) {
+      modalError.value = "Vui lòng xác nhận mật khẩu mới.";
+      return;
+    }
+    if (password !== confirmPassword) {
+      modalError.value = "Mật khẩu nhập lại không khớp.";
+      return;
+    }
+  }
+
+  modalSubmitting.value = true;
   try {
-    if (modalMode.value === 'create') {
+    if (modalMode.value === "create") {
       const payload = buildCreatePayload();
       await createStaff(payload);
-    } else if (modalMode.value === 'edit' && form.id != null) {
+      currentPage.value = 1;
+    } else if (modalMode.value === "edit" && form.id != null) {
       const payload = buildUpdatePayload();
       await updateStaff(form.id, payload);
     }
@@ -317,7 +328,7 @@ const submitModal = async () => {
 
 const buildCreatePayload = (): StaffCreatePayload => {
   if (!form.password.trim()) {
-    throw new Error('Vui lòng nhập mật khẩu cho nhân viên.');
+    throw new Error("Vui lòng nhập mật khẩu cho nhân viên.");
   }
   const base: StaffCreatePayload = {
     fullName: form.fullName.trim(),
@@ -332,7 +343,6 @@ const buildCreatePayload = (): StaffCreatePayload => {
     base.doctor = {
       specialty: form.doctor.specialty.trim(),
       licenseNumber: form.doctor.licenseNumber.trim(),
-      examinationRoom: form.doctor.examinationRoom.trim() || undefined,
       biography: form.doctor.biography.trim() || undefined,
     };
   }
@@ -356,7 +366,6 @@ const buildUpdatePayload = (): StaffUpdatePayload => {
     payload.doctor = {
       specialty: form.doctor.specialty.trim(),
       licenseNumber: form.doctor.licenseNumber.trim(),
-      examinationRoom: form.doctor.examinationRoom.trim() || undefined,
       biography: form.doctor.biography.trim() || undefined,
     };
   } else {
@@ -374,27 +383,27 @@ const toggleRole = (role: StaffRole, checked: boolean) => {
   }
 };
 
-const formatDate = (value?: string | null) => {
-  if (!value) return '—';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
-  return new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium' }).format(date);
+const formatDate = (value?: string | Date | null) => {
+  const date = value instanceof Date ? value : value ? new Date(value) : null;
+  if (!date) return "—";
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium" }).format(date);
 };
 
-const formatDateTime = (value?: string | null) => {
-  if (!value) return '—';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
-  return new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+const formatDateTime = (value?: string | Date | null) => {
+  const date = value instanceof Date ? value : value ? new Date(value) : null;
+  if (!date) return "—";
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium", timeStyle: "short" }).format(date);
 };
 
 const formatFromNow = (value?: string | Date | null) => {
   const date = value instanceof Date ? value : value ? new Date(value) : null;
-  if (!date || Number.isNaN(date.getTime())) return 'không xác định';
+  if (!date || Number.isNaN(date.getTime())) return "không xác định";
   const diffMs = Date.now() - date.getTime();
   if (diffMs < 0) return formatDateTime(date);
   const minutes = Math.round(diffMs / 60000);
-  if (minutes < 1) return 'vừa xong';
+  if (minutes < 1) return "vừa xong";
   if (minutes < 60) return `${minutes} phút trước`;
   const hours = Math.round(minutes / 60);
   if (hours < 24) return `${hours} giờ trước`;
@@ -405,35 +414,81 @@ const formatFromNow = (value?: string | Date | null) => {
 
 const formatGender = (value?: string | null) => {
   switch (value) {
-    case 'MALE':
-      return 'Nam';
-    case 'FEMALE':
-      return 'Nữ';
-    case 'OTHER':
-      return 'Khác';
+    case "MALE":
+      return "Nam";
+    case "FEMALE":
+      return "Nữ";
+    case "OTHER":
+      return "Khác";
     default:
-      return '—';
+      return "—";
   }
 };
 
 watch(isDoctorSelected, (selected) => {
   if (!selected) {
-    form.doctor.specialty = '';
-    form.doctor.licenseNumber = '';
-    form.doctor.examinationRoom = '';
-    form.doctor.biography = '';
+    form.doctor.specialty = "";
+    form.doctor.licenseNumber = "";
+    form.doctor.biography = "";
   }
 });
 
 watch(modalOpen, (open) => {
   if (!open) {
     modalError.value = null;
-    form.password = '';
+    form.password = "";
+    form.confirmPassword = "";
   }
 });
 
+watch(currentPage, async (value, previous) => {
+  if (value !== previous) {
+    if (value < 1) {
+      currentPage.value = 1;
+      return;
+    }
+    if (value > totalPages.value) {
+      currentPage.value = totalPages.value;
+      return;
+    }
+    await loadStaff();
+  }
+});
+
+watch(selectedRole, () => {
+  if (currentPage.value !== 1) {
+    currentPage.value = 1;
+  } else {
+    void loadStaff();
+  }
+});
+
+let searchDebounce: ReturnType<typeof setTimeout> | null = null;
+watch(
+  () => searchTerm.value,
+  () => {
+    if (searchDebounce) {
+      clearTimeout(searchDebounce);
+    }
+    searchDebounce = setTimeout(() => {
+      if (currentPage.value !== 1) {
+        currentPage.value = 1;
+      } else {
+        void loadStaff();
+      }
+    }, 400);
+  },
+);
+
 onMounted(async () => {
-  await Promise.all([ensureRolesLoaded(), loadStaff()]);
+  await ensureRolesLoaded();
+  await loadStaff();
+});
+
+onBeforeUnmount(() => {
+  if (searchDebounce) {
+    clearTimeout(searchDebounce);
+  }
 });
 </script>
 
@@ -514,7 +569,7 @@ onMounted(async () => {
             >
               <span>{{ role === 'ALL' ? 'Tất cả' : roleDisplayMap[role].label }}</span>
               <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-600">
-                {{ role === 'ALL' ? totalStaff : roleCounts[role] }}
+                {{ role === 'ALL' ? totalStaff : (roleTotals[role] || 0) }}
               </span>
             </button>
           </div>
@@ -537,7 +592,7 @@ onMounted(async () => {
       </section>
 
       <section class="mt-10 rounded-[28px] border border-emerald-100 bg-white/95 p-6 shadow-[0_24px_55px_-45px_rgba(13,148,136,0.55)]">
-        <template v-if="staffLoading && !staff.length">
+        <template v-if="staffLoading && !staffItems.length">
           <div class="grid gap-4 md:grid-cols-2">
             <div v-for="skeleton in 4" :key="skeleton" class="animate-pulse rounded-2xl border border-slate-100 bg-slate-50 p-5">
               <div class="h-4 w-32 rounded-full bg-slate-200/80"></div>
@@ -548,20 +603,20 @@ onMounted(async () => {
           </div>
         </template>
 
-        <template v-else-if="filteredStaff.length === 0">
+        <template v-else-if="!staffLoading && totalElements === 0">
           <div class="rounded-3xl border border-dashed border-emerald-200 bg-emerald-50/40 p-10 text-center text-emerald-700">
             <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
               <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
             </svg>
-            <h3 class="mt-4 text-lg font-semibold">Chưa có nhân viên phù hợp bộ lọc</h3>
-            <p class="mt-2 text-sm text-emerald-600/80">Thêm mới hoặc điều chỉnh bộ lọc tìm kiếm để xem danh sách.</p>
+            <h3 class="mt-4 text-lg font-semibold">Không tìm thấy nhân viên phù hợp</h3>
+            <p class="mt-2 text-sm text-emerald-600/80">Thêm mới hoặc điều chỉnh bộ lọc/từ khóa để xem danh sách.</p>
           </div>
         </template>
 
         <template v-else>
           <div class="grid gap-4 md:grid-cols-2">
             <article
-              v-for="member in filteredStaff"
+              v-for="member in staffItems"
               :key="member.id"
               class="group relative rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-emerald-200 hover:shadow-lg"
             >
@@ -617,14 +672,44 @@ onMounted(async () => {
                 <p class="text-xs font-semibold uppercase tracking-wide text-emerald-500">Thông tin bác sĩ</p>
                 <p class="mt-2"><span class="font-semibold text-emerald-800">Chuyên khoa:</span> {{ member.doctor.specialty }}</p>
                 <p class="mt-1"><span class="font-semibold text-emerald-800">Số giấy phép:</span> {{ member.doctor.licenseNumber }}</p>
-                <p v-if="member.doctor.examinationRoom" class="mt-1">
-                  <span class="font-semibold text-emerald-800">Phòng khám:</span> {{ member.doctor.examinationRoom }}
-                </p>
                 <p v-if="member.doctor.biography" class="mt-1 text-emerald-600/90">
                   {{ member.doctor.biography }}
                 </p>
               </div>
             </article>
+          </div>
+
+          <div class="mt-6 flex flex-col items-center justify-between gap-3 rounded-2xl border border-emerald-100 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm md:flex-row">
+            <span>
+              Đang hiển thị {{ staffItems.length }} / {{ totalElements }} nhân viên
+            </span>
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                :disabled="!hasPrevious"
+                @click="currentPage = Math.max(currentPage - 1, 1)"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="m15 19-7-7 7-7" />
+                </svg>
+                Trước
+              </button>
+              <span class="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                Trang {{ currentPage }} / {{ totalPages }}
+              </span>
+              <button
+                type="button"
+                class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+                :disabled="!hasNext"
+                @click="currentPage = Math.min(currentPage + 1, totalPages)"
+              >
+                Sau
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="m9 5 7 7-7 7" />
+                </svg>
+              </button>
+            </div>
           </div>
         </template>
       </section>
@@ -656,7 +741,7 @@ onMounted(async () => {
                   {{ modalMode === 'create' ? 'Tạo tài khoản nhân sự' : form.fullName }}
                 </h2>
                 <p class="mt-1 text-sm text-slate-500">
-                  Điền thông tin cơ bản và chọn vai trò phù hợp. Khi chọn vai trò bác sĩ, yêu cầu bổ sung thông tin hành nghề.
+                  Điền thông tin cơ bản và chọn vai trò phù hợp. Khi chọn vai trò bác sĩ, cần bổ sung thông tin hành nghề.
                 </p>
               </div>
               <span class="rounded-full bg-emerald-50 px-4 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
@@ -737,28 +822,67 @@ onMounted(async () => {
                 </select>
               </div>
 
-              <div class="sm:col-span-2" v-if="modalMode === 'create'">
-                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="staff-password">Mật khẩu đăng nhập *</label>
-                <input
-                  id="staff-password"
-                  v-model="form.password"
-                  type="password"
-                  minlength="6"
-                  required
-                  class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-                  placeholder="Ít nhất 6 ký tự"
-                />
+            </div>
+
+            <div class="mt-6 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-5">
+              <p class="text-xs font-semibold uppercase tracking-wide text-emerald-600">Mật khẩu</p>
+              <div v-if="modalMode === 'create'">
+                <p class="mt-1 text-sm text-emerald-700/90">
+                  Nhập mật khẩu và xác nhận mật khẩu khi tạo mới nhân viên.
+                </p>
               </div>
-              <div class="sm:col-span-2" v-else>
-                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="staff-password-edit">Đặt lại mật khẩu (tuỳ chọn)</label>
-                <input
-                  id="staff-password-edit"
-                  v-model="form.password"
-                  type="password"
-                  minlength="6"
-                  class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-                  placeholder="Để trống nếu không đổi"
-                />
+              <div v-else>
+                <p class="mt-1 text-sm text-emerald-700/90">
+                  Nhập mật khẩu và xác nhận mật khẩu mới. ĐỂ TRỐNG NẾU KHÔNG ĐỔI.
+                </p>
+              </div>
+              <div class="mt-4 grid gap-4 sm:grid-cols-2">
+                <div v-if="modalMode === 'create'" class="sm:col-span-1">
+                  <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="staff-password">Mật khẩu đăng nhập *</label>
+                  <input
+                    id="staff-password"
+                    v-model="form.password"
+                    type="password"
+                    minlength="6"
+                    required
+                    class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+                    placeholder="Ít nhất 6 ký tự"
+                  />
+                </div>
+                <div v-if="modalMode === 'create'" class="sm:col-span-1">
+                  <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="staff-password-confirm">Nhập lại mật khẩu *</label>
+                  <input
+                    id="staff-password-confirm"
+                    v-model="form.confirmPassword"
+                    type="password"
+                    minlength="6"
+                    required
+                    class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+                    placeholder="Nhập lại mật khẩu"
+                  />
+                </div>
+                <div v-else class="sm:col-span-1">
+                  <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="staff-password-edit">Đặt lại mật khẩu (tùy chọn)</label>
+                  <input
+                    id="staff-password-edit"
+                    v-model="form.password"
+                    type="password"
+                    minlength="6"
+                    class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+                    placeholder="Nhập ít nhất 6 ký tự"
+                  />
+                </div>
+                <div v-if="modalMode === 'edit'" class="sm:col-span-1">
+                  <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="staff-password-edit-confirm">Nhập lại mật khẩu mới</label>
+                  <input
+                    id="staff-password-edit-confirm"
+                    v-model="form.confirmPassword"
+                    type="password"
+                    minlength="6"
+                    class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+                    placeholder="Nhập lại mật khẩu mới"
+                  />
+                </div>
               </div>
             </div>
 
@@ -816,16 +940,6 @@ onMounted(async () => {
                     placeholder="Số giấy phép hành nghề"
                   />
                 </div>
-                <div>
-                  <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="doctor-room">Phòng khám</label>
-                  <input
-                    id="doctor-room"
-                    v-model="form.doctor.examinationRoom"
-                    type="text"
-                    class="w-full rounded-xl border border-emerald-200 bg-white px-4 py-3 text-sm text-emerald-800 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-                    placeholder="Ví dụ: Phòng 203"
-                  />
-                </div>
                 <div class="sm:col-span-2">
                   <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="doctor-bio">Giới thiệu</label>
                   <textarea
@@ -849,7 +963,7 @@ onMounted(async () => {
                 class="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
                 @click="closeModal"
               >
-                Huỷ bỏ
+                Hủy bỏ
               </button>
               <button
                 type="submit"

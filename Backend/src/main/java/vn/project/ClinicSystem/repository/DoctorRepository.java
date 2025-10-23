@@ -17,4 +17,6 @@ public interface DoctorRepository extends JpaRepository<Doctor, Long> {
     Optional<Doctor> findByLicenseNumberIgnoreCase(String licenseNumber);
 
     boolean existsByLicenseNumberIgnoreCase(String licenseNumber);
+
+    List<Doctor> findByAccountIdIn(List<Long> accountIds);
 }

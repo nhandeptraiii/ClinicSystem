@@ -1,4 +1,4 @@
-import { http } from './http';
+﻿import { http } from './http';
 
 interface RestResponse<T> {
   statusCode: number;
@@ -13,7 +13,6 @@ export interface StaffDoctorInfo {
   id?: number;
   specialty: string;
   licenseNumber: string;
-  examinationRoom?: string | null;
   biography?: string | null;
 }
 
@@ -39,6 +38,21 @@ export interface StaffRoleDefinition {
 
 export interface StaffQuery {
   role?: StaffRole | string;
+  keyword?: string;
+  page?: number;
+  size?: number;
+}
+
+export interface StaffPage {
+  items: StaffMember[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
+  totalStaff: number;
+  roleTotals?: Record<string, number>;
 }
 
 export interface StaffCreatePayload {
@@ -52,7 +66,6 @@ export interface StaffCreatePayload {
   doctor?: {
     specialty: string;
     licenseNumber: string;
-    examinationRoom?: string;
     biography?: string;
   };
 }
@@ -69,7 +82,6 @@ export interface StaffUpdatePayload {
   doctor?: {
     specialty: string;
     licenseNumber: string;
-    examinationRoom?: string;
     biography?: string;
   };
 }
@@ -82,9 +94,8 @@ const unwrap = <T>(response: RestResponse<T> | T): T => {
 };
 
 export const fetchStaff = async (params: StaffQuery = {}) => {
-  const { data } = await http.get<RestResponse<StaffMember[]>>('/staff', { params });
-  const unwrapped = unwrap(data);
-  return Array.isArray(unwrapped) ? unwrapped : [];
+  const { data } = await http.get<RestResponse<StaffPage>>('/staff', { params });
+  return unwrap(data);
 };
 
 export const fetchStaffById = async (id: number) => {
@@ -107,3 +118,4 @@ export const fetchStaffRoles = async () => {
   const unwrapped = unwrap(data);
   return Array.isArray(unwrapped) ? unwrapped : [];
 };
+

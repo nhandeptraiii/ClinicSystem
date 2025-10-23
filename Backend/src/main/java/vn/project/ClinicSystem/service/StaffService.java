@@ -1,15 +1,19 @@
 package vn.project.ClinicSystem.service;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +28,7 @@ import vn.project.ClinicSystem.model.dto.DoctorCreateRequest;
 import vn.project.ClinicSystem.model.dto.StaffCreateRequest;
 import vn.project.ClinicSystem.model.dto.StaffDoctorInfo;
 import vn.project.ClinicSystem.model.dto.StaffDoctorSummary;
+import vn.project.ClinicSystem.model.dto.StaffPageResponse;
 import vn.project.ClinicSystem.model.dto.StaffResponse;
 import vn.project.ClinicSystem.model.dto.StaffUpdateRequest;
 import vn.project.ClinicSystem.model.enums.StaffRole;
@@ -59,25 +64,50 @@ public class StaffService {
     }
 
     @Transactional(readOnly = true)
-    public List<StaffResponse> getStaff(String role) {
-        String normalizedRole = role != null && !role.isBlank() ? role.trim().toUpperCase(Locale.ROOT) : null;
-        Map<Long, Doctor> doctorsByUser = doctorRepository.findAll().stream()
-                .filter(doc -> doc.getAccount() != null)
-                .collect(Collectors.toMap(doc -> doc.getAccount().getId(), doc -> doc));
+    public StaffPageResponse getStaff(String role, String keyword, Pageable pageable) {
+        String normalizedRole = null;
+        if (role != null && !role.isBlank() && !"ALL".equalsIgnoreCase(role)) {
+            normalizedRole = StaffRole.from(role).getName();
+        }
+        String normalizedKeyword = keyword != null && !keyword.isBlank() ? keyword.trim() : null;
 
-        return userRepository.findAll().stream()
-                .filter(user -> normalizedRole == null || hasRole(user, normalizedRole))
-                .map(user -> mapToResponse(user, doctorsByUser.get(user.getId())))
-                .sorted((a, b) -> {
-                    if (a.getFullName() == null) {
-                        return -1;
-                    }
-                    if (b.getFullName() == null) {
-                        return 1;
-                    }
-                    return a.getFullName().compareToIgnoreCase(b.getFullName());
-                })
+        Page<User> page = userRepository.searchStaff(
+                normalizedRole,
+                normalizedKeyword,
+                pageable);
+
+        List<Long> accountIds = page.getContent().stream()
+                .map(User::getId)
                 .toList();
+
+        Map<Long, Doctor> doctorsByUser = accountIds.isEmpty()
+                ? Collections.emptyMap()
+                : doctorRepository.findByAccountIdIn(accountIds).stream()
+                        .filter(doc -> doc.getAccount() != null)
+                        .collect(Collectors.toMap(doc -> doc.getAccount().getId(), Function.identity()));
+
+        List<StaffResponse> responses = page.getContent().stream()
+                .map(user -> mapToResponse(user, doctorsByUser.get(user.getId())))
+                .toList();
+
+        Map<String, Long> roleTotals = Arrays.stream(StaffRole.values())
+                .collect(Collectors.toMap(
+                        StaffRole::getName,
+                        roleItem -> userRepository.countDistinctByRoles_NameIgnoreCase(roleItem.getName()),
+                        (existing, replacement) -> replacement,
+                        LinkedHashMap::new));
+
+        StaffPageResponse response = new StaffPageResponse();
+        response.setItems(responses);
+        response.setPage(page.getNumber());
+        response.setSize(page.getSize());
+        response.setTotalElements(page.getTotalElements());
+        response.setTotalPages(page.getTotalPages());
+        response.setHasNext(page.hasNext());
+        response.setHasPrevious(page.hasPrevious());
+        response.setTotalStaff(userRepository.count());
+        response.setRoleTotals(roleTotals);
+        return response;
     }
 
     @Transactional(readOnly = true)
@@ -190,7 +220,6 @@ public class StaffService {
         vn.project.ClinicSystem.model.Doctor changes = new vn.project.ClinicSystem.model.Doctor();
         changes.setSpecialty(doctorInfo.getSpecialty());
         changes.setLicenseNumber(doctorInfo.getLicenseNumber());
-        changes.setExaminationRoom(doctorInfo.getExaminationRoom());
         changes.setBiography(doctorInfo.getBiography());
 
         doctorService.update(existingDoctor.getId(), changes);
@@ -203,7 +232,6 @@ public class StaffService {
         request.setUserId(userId);
         request.setSpecialty(doctorInfo.getSpecialty());
         request.setLicenseNumber(doctorInfo.getLicenseNumber());
-        request.setExaminationRoom(doctorInfo.getExaminationRoom());
         request.setBiography(doctorInfo.getBiography());
         return request;
     }
@@ -258,7 +286,6 @@ public class StaffService {
             summary.setId(doctor.getId());
             summary.setSpecialty(doctor.getSpecialty());
             summary.setLicenseNumber(doctor.getLicenseNumber());
-            summary.setExaminationRoom(doctor.getExaminationRoom());
             summary.setBiography(doctor.getBiography());
             response.setDoctor(summary);
         }

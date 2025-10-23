@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import AdminHeader from '@/components/AdminHeader.vue';
@@ -221,6 +221,3 @@ onMounted(() => {
     </main>
   </div>
 </template>
-
-
-
