@@ -9,6 +9,5 @@ public class StaffDoctorSummary {
     private Long id;
     private String specialty;
     private String licenseNumber;
-    private String examinationRoom;
     private String biography;
 }
