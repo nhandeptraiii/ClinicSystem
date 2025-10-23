@@ -17,7 +17,5 @@ public class DoctorCreateRequest {
     @NotBlank(message = "Số giấy phép không được để trống")
     private String licenseNumber;
 
-    private String examinationRoom;
-
     private String biography;
 }

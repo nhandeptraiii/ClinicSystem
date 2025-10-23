@@ -67,7 +67,6 @@ public class DoctorService {
         Doctor doctor = new Doctor();
         doctor.setSpecialty(normalizeText(request.getSpecialty()));
         doctor.setLicenseNumber(normalizeLicense(request.getLicenseNumber()));
-        doctor.setExaminationRoom(request.getExaminationRoom());
         doctor.setBiography(request.getBiography());
 
         validateBean(doctor);
@@ -98,9 +97,6 @@ public class DoctorService {
                 ensureLicenseUnique(normalized, existing.getId());
                 existing.setLicenseNumber(normalized);
             }
-        }
-        if (changes.getExaminationRoom() != null) {
-            existing.setExaminationRoom(changes.getExaminationRoom());
         }
         if (changes.getBiography() != null) {
             existing.setBiography(changes.getBiography());

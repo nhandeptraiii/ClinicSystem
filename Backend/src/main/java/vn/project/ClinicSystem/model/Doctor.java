@@ -33,9 +33,6 @@ public class Doctor {
     @Column(length = 80, nullable = false, unique = true)
     private String licenseNumber;
 
-    @Column(length = 60)
-    private String examinationRoom;
-
     @Column(length = 255)
     private String biography;
 
