@@ -53,7 +53,7 @@ public class User {
     private String gender;
 
     @Past(message = "Ngày sinh phải nhỏ hơn ngày hiện tại")
-    @JsonFormat(pattern = "dd/MM/yyyy")
+    // @JsonFormat(pattern = "dd/MM/yyyy")
     private LocalDate dateOfBirth;
 
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
