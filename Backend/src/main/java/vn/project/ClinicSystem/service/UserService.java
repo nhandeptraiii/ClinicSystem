@@ -76,6 +76,15 @@ public class UserService {
         return userRepository.findByEmail(username).orElse(null);
     }
 
+    public void updatePassword(User user, String encodedPassword) {
+        if (user == null) {
+            throw new EntityNotFoundException("Không tìm thấy người dùng để cập nhật mật khẩu");
+        }
+        user.setPassword(encodedPassword);
+        validateBean(user);
+        userRepository.save(user);
+    }
+
     private void validateBean(User user) {
         var violations = validator.validate(user);
         if (!violations.isEmpty()) {

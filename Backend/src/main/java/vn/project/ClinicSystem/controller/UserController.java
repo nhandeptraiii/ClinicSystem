@@ -18,10 +18,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import jakarta.validation.Valid;
+import vn.project.ClinicSystem.model.dto.ChangePasswordRequest;
 import vn.project.ClinicSystem.model.User;
 import vn.project.ClinicSystem.service.UserService;
+import vn.project.ClinicSystem.util.SecurityUtil;
 import vn.project.ClinicSystem.util.error.IdInvalidException;
 
 @RestController
@@ -82,5 +85,33 @@ public class UserController {
         }
         User updatedUser = this.userService.handleUpdateUserById(id, user);
         return ResponseEntity.status(HttpStatus.OK).body(updatedUser);
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<User> getCurrentUserProfile() {
+        String login = SecurityUtil.getCurrentUserLogin()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+                        "Không xác định được người dùng hiện tại"));
+        User user = userService.handleGetUserByUsername(login);
+        if (user == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy người dùng hiện tại");
+        }
+        return ResponseEntity.ok(user);
+    }
+
+    @PutMapping("/me/password")
+    public ResponseEntity<Void> changeCurrentUserPassword(@Valid @RequestBody ChangePasswordRequest request) {
+        String login = SecurityUtil.getCurrentUserLogin()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+                        "Không xác định được người dùng hiện tại"));
+        User user = userService.handleGetUserByUsername(login);
+        if (user == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy người dùng hiện tại");
+        }
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Mật khẩu hiện tại không chính xác");
+        }
+        userService.updatePassword(user, passwordEncoder.encode(request.getNewPassword()));
+        return ResponseEntity.noContent().build();
     }
 }
