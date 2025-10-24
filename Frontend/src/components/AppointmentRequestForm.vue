@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { createAppointmentRequest, type AppointmentRequestPayload } from '@/services/appointmentRequest.service';
+import { useToast } from '@/composables/useToast';
 
 const emitting = defineEmits<{ (e: 'submitted'): void }>();
 
@@ -18,9 +19,7 @@ const form = ref({
 const loading = ref(false);
 const success = ref<string | null>(null);
 const error = ref<string | null>(null);
-type ToastState = { type: 'success' | 'error'; message: string };
-const toast = ref<ToastState | null>(null);
-let toastTimer: ReturnType<typeof setTimeout> | undefined;
+const { toast, show: showToast, hide: hideToast } = useToast();
 
 type InvalidMessageMap = Partial<{
   required: string;
@@ -84,48 +83,18 @@ const onInvalid = (event: Event, messages: InvalidMessageMap) => {
   }
 };
 
-const clearToastTimer = () => {
-  if (toastTimer) {
-    clearTimeout(toastTimer);
-    toastTimer = undefined;
-  }
-};
-
-const resetMessageByType = (type: ToastState['type']) => {
-  if (type === 'success') success.value = null;
-  if (type === 'error') error.value = null;
-};
-
-const showToast = (type: ToastState['type'], message: string) => {
-  clearToastTimer();
-  toast.value = { type, message };
-  const scheduledType = type;
-  toastTimer = setTimeout(() => {
-    if (toast.value?.type === scheduledType) {
-      resetMessageByType(scheduledType);
-      toast.value = null;
-    }
-    toastTimer = undefined;
-  }, 4500);
-};
-
 watch([success, error], ([successMessage, errorMessage]) => {
   if (successMessage) {
     showToast('success', successMessage);
+    success.value = null;
   } else if (errorMessage) {
     showToast('error', errorMessage);
-  } else {
-    clearToastTimer();
-    toast.value = null;
+    error.value = null;
   }
 });
 
 const dismissToast = () => {
-  if (!toast.value) return;
-  const currentType = toast.value.type;
-  clearToastTimer();
-  resetMessageByType(currentType);
-  toast.value = null;
+  hideToast();
 };
 
 const validatePhone = (value: string) => /^\d{10}$/.test(value);
