@@ -7,3 +7,4 @@ Frontend/dist/
 .idea/
 *.iml
 *.log
+Backend/uploads/
