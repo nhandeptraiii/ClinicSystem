@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import jakarta.validation.Valid;
@@ -113,5 +114,27 @@ public class UserController {
         }
         userService.updatePassword(user, passwordEncoder.encode(request.getNewPassword()));
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/me/avatar")
+    public ResponseEntity<User> updateCurrentUserAvatar(@RequestParam("file") MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Vui lòng chọn tệp ảnh hợp lệ");
+        }
+        String login = SecurityUtil.getCurrentUserLogin()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+                        "Không xác định được người dùng hiện tại"));
+        User user = userService.handleGetUserByUsername(login);
+        if (user == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy người dùng hiện tại");
+        }
+        try {
+            User updated = userService.updateAvatar(user, file);
+            return ResponseEntity.ok(updated);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Không thể lưu ảnh đại diện", e);
+        }
     }
 }

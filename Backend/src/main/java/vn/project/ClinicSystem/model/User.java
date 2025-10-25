@@ -52,6 +52,9 @@ public class User {
     @Column(length = 20)
     private String gender;
 
+    @Column(length = 255)
+    private String avatarUrl;
+
     @Past(message = "Ngày sinh phải nhỏ hơn ngày hiện tại")
     // @JsonFormat(pattern = "dd/MM/yyyy")
     private LocalDate dateOfBirth;

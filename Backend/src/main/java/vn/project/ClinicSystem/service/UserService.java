@@ -1,10 +1,12 @@
 package vn.project.ClinicSystem.service;
 
+import java.io.IOException;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.persistence.EntityExistsException;
 import jakarta.persistence.EntityNotFoundException;
@@ -17,10 +19,12 @@ import vn.project.ClinicSystem.repository.UserRepository;
 public class UserService {
     private final UserRepository userRepository;
     private final Validator validator;
+    private final AvatarStorageService avatarStorageService;
 
-    public UserService(UserRepository userRepository, Validator validator) {
+    public UserService(UserRepository userRepository, Validator validator, AvatarStorageService avatarStorageService) {
         this.userRepository = userRepository;
         this.validator = validator;
+        this.avatarStorageService = avatarStorageService;
     }
 
     public User handleCreateUser(User user) {
@@ -63,6 +67,9 @@ public class UserService {
         if (changes.getPassword() != null && !changes.getPassword().isBlank()) {
             currentUser.setPassword(changes.getPassword());
         }
+        if (changes.getAvatarUrl() != null) {
+            currentUser.setAvatarUrl(changes.getAvatarUrl());
+        }
 
         validateBean(currentUser);
         return userRepository.save(currentUser);
@@ -83,6 +90,21 @@ public class UserService {
         user.setPassword(encodedPassword);
         validateBean(user);
         userRepository.save(user);
+    }
+
+    public User updateAvatar(User user, MultipartFile file) throws IOException {
+        if (user == null) {
+            throw new EntityNotFoundException("Không tìm thấy người dùng để cập nhật ảnh đại diện");
+        }
+        String previousAvatar = user.getAvatarUrl();
+        String newAvatarUrl = avatarStorageService.store(user.getId(), file);
+        user.setAvatarUrl(newAvatarUrl);
+        validateBean(user);
+        User saved = userRepository.save(user);
+        if (previousAvatar != null && !previousAvatar.isBlank()) {
+            avatarStorageService.deleteByUrl(previousAvatar);
+        }
+        return saved;
     }
 
     private void validateBean(User user) {
