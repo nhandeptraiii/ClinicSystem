@@ -21,6 +21,7 @@ export interface UserProfile {
   gender?: string | null;
   dateOfBirth?: string | null;
   status?: string | null;
+  avatarUrl?: string | null;
   roles?: RoleSummary[];
   createdAt?: string;
   updatedAt?: string;
@@ -64,4 +65,13 @@ export const updateCurrentUserProfile = async (id: number, payload: UpdateProfil
   if (password) {
     await http.put('/users/me/password', password);
   }
+};
+
+export const uploadCurrentUserAvatar = async (file: File) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const { data } = await http.put<RestResponse<UserProfile> | UserProfile>('/users/me/avatar', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return unwrap(data);
 };

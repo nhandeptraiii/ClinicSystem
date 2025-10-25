@@ -19,8 +19,7 @@ const navItems = [
   { to: { name: 'appointments' }, label: 'Lịch hẹn' },
   { to: { name: 'patients' }, label: 'Bệnh nhân' },
   { to: { name: 'staff' }, label: 'Nhân viên' },
-  { to: { name: 'doctors' }, label: 'Bác sĩ' },
-  { to: { name: 'profile' }, label: 'Trang cá nhân' },
+
 ];
 
 const isActive = (to: { name?: string }) => {
@@ -30,8 +29,8 @@ const isActive = (to: { name?: string }) => {
 </script>
 
 <template>
-  <header class="relative border-b border-emerald-100 bg-white/85 backdrop-blur">
-    <div class="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
+  <header class="border-b border-emerald-100 bg-white/85 backdrop-blur">
+    <div class=" flex w-full px-8 flex-col gap-4 px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
       <div class="flex items-center gap-4">
         <button
           class="flex items-center gap-3 rounded-full border border-transparent px-3 py-1 transition hover:border-emerald-200"
@@ -55,13 +54,26 @@ const isActive = (to: { name?: string }) => {
           </RouterLink>
         </nav>
       </div>
+      <div class="rounded-2xl border border-emerald-100 bg-white/80 px-4 py-2 text-sm text-slate-600 shadow-sm">
+            <span class="font-semibold text-slate-900">Xin chào,</span> {{ props.userName }}
+      </div>
 
       <div class="flex flex-wrap items-center justify-between gap-3 lg:justify-end">
-        <div class="rounded-2xl border border-emerald-100 bg-white/80 px-4 py-2 text-sm text-slate-600 shadow-sm">
-          <span class="font-semibold text-slate-900">Xin chào,</span> {{ props.userName }}
+        <div class="flex flex-col-reverse items-end gap-2 text-sm text-slate-600">
+          <div class="flex items-center gap-2">
+            <RouterLink
+              :to="{ name: 'profile' }"
+              class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5.121 17.804A7 7 0 0 1 12 14a7 7 0 0 1 6.879 3.804M12 13a5 5 0 1 0-5-5 5 5 0 0 0 5 5Z" />
+              </svg>
+              Trang cá nhân
+            </RouterLink>
+          </div>
         </div>
         <button
-          class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50"
+          class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 lg:ml-4"
           @click="emit('sign-out')"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8">

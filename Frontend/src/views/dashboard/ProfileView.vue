@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import AdminHeader from '@/components/AdminHeader.vue';
 import { useAuthStore } from '@/stores/authStore';
-import { fetchCurrentUserProfile, updateCurrentUserProfile, type UserProfile } from '@/services/user.service';
+import { fetchCurrentUserProfile, updateCurrentUserProfile, uploadCurrentUserAvatar, type UserProfile } from '@/services/user.service';
+import { http } from '@/services/http';
 import { useToast } from '@/composables/useToast';
 
 const authStore = useAuthStore();
@@ -41,6 +42,82 @@ const editForm = reactive({
   currentPassword: '',
   newPassword: '',
   confirmPassword: '',
+});
+const passwordSectionOpen = ref(false);
+
+const selectedAvatarFile = ref<File | null>(null);
+const avatarInputRef = ref<HTMLInputElement | null>(null);
+const avatarPreview = ref<string | null>(null);
+let previewObjectUrl: string | null = null;
+
+const resetAvatarPreview = () => {
+  if (previewObjectUrl) {
+    URL.revokeObjectURL(previewObjectUrl);
+    previewObjectUrl = null;
+  }
+  avatarPreview.value = null;
+  selectedAvatarFile.value = null;
+  if (avatarInputRef.value) {
+    avatarInputRef.value.value = '';
+  }
+};
+
+const handleAvatarFileChange = (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const files = target.files;
+  if (files && files[0]) {
+    const file = files[0];
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+      const message = 'Ảnh đại diện tối đa 5MB. Vui lòng chọn ảnh nhỏ hơn.';
+      editError.value = message;
+      showToast('error', message);
+      resetAvatarPreview();
+      return;
+    }
+    selectedAvatarFile.value = file;
+  } else {
+    resetAvatarPreview();
+  }
+};
+
+watch(selectedAvatarFile, (file) => {
+  if (previewObjectUrl) {
+    URL.revokeObjectURL(previewObjectUrl);
+    previewObjectUrl = null;
+  }
+  if (file) {
+    previewObjectUrl = URL.createObjectURL(file);
+    avatarPreview.value = previewObjectUrl;
+  } else {
+    avatarPreview.value = null;
+  }
+});
+
+const rawBaseUrl =
+  http.defaults.baseURL ?? (typeof window !== 'undefined' ? window.location.origin : '');
+const apiBaseUrl = rawBaseUrl.replace(/\/$/, '');
+
+const resolvedAvatarUrl = computed(() => {
+  if (avatarPreview.value) {
+    return avatarPreview.value;
+  }
+  const url = profile.value?.avatarUrl ?? '';
+  if (!url) {
+    return null;
+  }
+  if (/^https?:\/\//i.test(url)) {
+    return url;
+  }
+  return `${apiBaseUrl}/${url.replace(/^\/+/, '')}`;
+});
+
+const avatarInitial = computed(() => {
+  const name = profile.value?.fullName?.trim();
+  if (name) {
+    return name.charAt(0).toUpperCase();
+  }
+  return profile.value?.email?.charAt(0).toUpperCase() ?? 'U';
 });
 
 const toDateInput = (value?: string | null) => {
@@ -87,6 +164,8 @@ const openEditModal = () => {
   editForm.newPassword = '';
   editForm.confirmPassword = '';
   editError.value = null;
+  passwordSectionOpen.value = false;
+  resetAvatarPreview();
   editModalOpen.value = true;
 };
 
@@ -94,9 +173,11 @@ const closeEditModal = () => {
   editModalOpen.value = false;
   editSubmitting.value = false;
   editError.value = null;
+  resetAvatarPreview();
   editForm.currentPassword = '';
   editForm.newPassword = '';
   editForm.confirmPassword = '';
+  passwordSectionOpen.value = false;
 };
 
 const loadProfile = async () => {
@@ -168,7 +249,22 @@ const handleEditSubmit = async () => {
           }
         : null,
     });
-    await loadProfile();
+
+    if (selectedAvatarFile.value) {
+      try {
+        const updated = await uploadCurrentUserAvatar(selectedAvatarFile.value);
+        profile.value = updated;
+      } catch (error: any) {
+        const message =
+            error?.response?.data?.message ?? error?.message ?? 'Không thể cập nhật ảnh đại diện. Vui lòng thử lại.';
+        editError.value = message;
+        showToast('error', message);
+        return;
+      }
+    } else {
+      profile.value = await fetchCurrentUserProfile();
+    }
+
     showToast('success', 'Cập nhật thông tin thành công.');
     closeEditModal();
   } catch (error: any) {
@@ -188,6 +284,19 @@ const handleSignOut = async () => {
 
 onMounted(() => {
   loadProfile();
+});
+
+const togglePasswordSection = () => {
+  passwordSectionOpen.value = !passwordSectionOpen.value;
+  if (!passwordSectionOpen.value) {
+    editForm.currentPassword = '';
+    editForm.newPassword = '';
+    editForm.confirmPassword = '';
+  }
+};
+
+onBeforeUnmount(() => {
+  resetAvatarPreview();
 });
 </script>
 
@@ -243,6 +352,24 @@ onMounted(() => {
         </div>
 
         <div v-if="!profileError" class="mt-6 rounded-3xl border border-emerald-100 bg-white/95 p-6 shadow-sm">
+          <div v-if="profile" class="flex flex-col items-center gap-4 border-b border-emerald-100 pb-6 md:flex-row md:items-center md:gap-6">
+            <div class="relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-full border border-emerald-100 bg-emerald-50 shadow-sm">
+              <img
+                v-if="resolvedAvatarUrl"
+                :src="resolvedAvatarUrl"
+                alt="Avatar"
+                class="h-full w-full object-cover"
+              />
+              <div v-else class="flex h-full w-full items-center justify-center bg-emerald-100 text-xl font-semibold text-emerald-700">
+                {{ avatarInitial }}
+              </div>
+            </div>
+            <div class="text-center md:text-left">
+              <p class="text-lg font-semibold text-slate-900">{{ profile.fullName || profile.email }}</p>
+              <p class="mt-1 text-sm text-slate-500">Ảnh đại diện có thể được cập nhật trong phần chỉnh sửa hồ sơ.</p>
+            </div>
+          </div>
+
           <div v-if="profileLoading" class="grid gap-4 md:grid-cols-2">
             <div v-for="skeleton in 4" :key="skeleton" class="animate-pulse rounded-2xl border border-slate-100 bg-slate-50 p-5">
               <div class="h-4 w-32 rounded-full bg-slate-200/80"></div>
@@ -252,7 +379,7 @@ onMounted(() => {
           </div>
           <div v-else-if="profile" class="grid gap-6 md:grid-cols-2">
             <div class="space-y-3">
-              <p class="text-xs font-semibold uppercase tracking-wide text-emerald-500">Thông tin liên hệ</p>
+              <p class="text-sm mt-3 font-semibold uppercase tracking-wide text-emerald-500">Thông tin liên hệ</p>
               <div class="rounded-2xl border border-emerald-100 bg-emerald-50/40 p-5 text-sm text-slate-700">
                 <div class="flex justify-between gap-4">
                   <span class="text-slate-500">Họ và tên:</span>
@@ -270,7 +397,7 @@ onMounted(() => {
             </div>
 
             <div class="space-y-3">
-              <p class="text-xs font-semibold uppercase tracking-wide text-emerald-500">Thông tin bổ sung</p>
+              <p class="text-sm mt-3 font-semibold uppercase tracking-wide text-emerald-500">Thông tin bổ sung</p>
               <div class="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm text-sm text-slate-700">
                 <div class="flex justify-between gap-4">
                   <span class="text-slate-500">Giới tính:</span>
@@ -301,7 +428,7 @@ onMounted(() => {
             </div>
 
             <div class="space-y-3">
-              <p class="text-xs font-semibold uppercase tracking-wide text-emerald-500">Lịch sử tài khoản</p>
+              <p class="text-sm font-semibold uppercase tracking-wide text-emerald-500">Lịch sử tài khoản</p>
               <div class="rounded-2xl border border-slate-100 bg-slate-50/60 p-5 text-sm text-slate-700">
                 <div class="flex justify-between gap-4">
                   <span class="text-slate-500">Tạo lúc:</span>
@@ -341,6 +468,54 @@ onMounted(() => {
                 <p class="text-sm text-slate-500">
                   Điều chỉnh họ tên, thông tin liên hệ và các dữ liệu bổ sung. Các thay đổi sẽ được ghi nhận ngay sau khi lưu.
                 </p>
+              </div>
+
+              <div class="mt-6 flex flex-wrap items-center gap-4 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-5">
+                <div class="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-full border border-emerald-100 bg-emerald-50 shadow-sm">
+                  <img
+                    v-if="resolvedAvatarUrl"
+                    :src="resolvedAvatarUrl"
+                    alt="Avatar preview"
+                    class="h-full w-full object-cover"
+                  />
+                  <div v-else class="flex h-full w-full items-center justify-center bg-emerald-100 text-lg font-semibold text-emerald-700">
+                    {{ avatarInitial }}
+                  </div>
+                </div>
+                <div class="flex-1">
+                  <label class="text-xs font-semibold uppercase tracking-wide text-emerald-600" for="profile-edit-avatar">Ảnh đại diện</label>
+                  <p class="mt-1 text-xs text-emerald-700/80">Chọn ảnh mới (PNG, JPG, JPEG, GIF, WEBP; tối đa ~5MB).</p>
+                  <div class="mt-2 flex flex-wrap items-center gap-3">
+                    <label
+                      for="profile-edit-avatar"
+                      class="inline-flex cursor-pointer items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                      </svg>
+                      Chọn ảnh
+                    </label>
+                    <button
+                      v-if="selectedAvatarFile"
+                      type="button"
+                      class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50"
+                      @click="resetAvatarPreview"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m19 7-10 10-4-4" />
+                      </svg>
+                      Bỏ chọn
+                    </button>
+                  </div>
+                  <input
+                    id="profile-edit-avatar"
+                    type="file"
+                    accept="image/*"
+                    ref="avatarInputRef"
+                    class="hidden"
+                    @change="handleAvatarFileChange"
+                  />
+                </div>
               </div>
 
               <div class="mt-6 grid gap-4 sm:grid-cols-2">
@@ -392,45 +567,71 @@ onMounted(() => {
               </div>
 
               <div class="mt-6 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-5">
-                <p class="text-xs font-semibold uppercase tracking-wide text-emerald-600">Đổi mật khẩu (tùy chọn)</p>
+                <button
+                  type="button"
+                  class="flex w-full items-center justify-between text-left text-xs font-semibold uppercase tracking-wide text-emerald-600"
+                  @click="togglePasswordSection"
+                >
+                  <span>Đổi mật khẩu (tùy chọn)</span>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    class="h-4 w-4 transform transition"
+                    :class="passwordSectionOpen ? 'rotate-90' : ''"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
                 <p class="mt-1 text-sm text-emerald-700/90">
                   Nhập mật khẩu hiện tại và mật khẩu mới nếu bạn muốn thay đổi thông tin đăng nhập.
                 </p>
-                <div class="mt-4 grid gap-4 sm:grid-cols-2">
-                  <div class="sm:col-span-2">
-                    <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="profile-edit-current-password">Mật khẩu hiện tại</label>
-                    <input
-                      id="profile-edit-current-password"
-                      v-model="editForm.currentPassword"
-                      type="password"
-                      minlength="6"
-                      class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-                      placeholder="Nhập mật khẩu hiện tại"
-                    />
+                <Transition
+                  enter-active-class="transition duration-200 ease-out"
+                  enter-from-class="opacity-0 -translate-y-1"
+                  enter-to-class="opacity-100 translate-y-0"
+                  leave-active-class="transition duration-150 ease-in"
+                  leave-from-class="opacity-100 translate-y-0"
+                  leave-to-class="opacity-0 -translate-y-1"
+                >
+                  <div v-if="passwordSectionOpen" class="mt-4 grid gap-4 sm:grid-cols-2">
+                    <div class="sm:col-span-2">
+                      <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="profile-edit-current-password">Mật khẩu hiện tại</label>
+                      <input
+                        id="profile-edit-current-password"
+                        v-model="editForm.currentPassword"
+                        type="password"
+                        minlength="6"
+                        class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+                        placeholder="Nhập mật khẩu hiện tại"
+                      />
+                    </div>
+                    <div>
+                      <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="profile-edit-new-password">Mật khẩu mới</label>
+                      <input
+                        id="profile-edit-new-password"
+                        v-model="editForm.newPassword"
+                        type="password"
+                        minlength="6"
+                        class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+                        placeholder="Ít nhất 6 ký tự"
+                      />
+                    </div>
+                    <div>
+                      <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="profile-edit-confirm-password">Nhập lại mật khẩu mới</label>
+                      <input
+                        id="profile-edit-confirm-password"
+                        v-model="editForm.confirmPassword"
+                        type="password"
+                        minlength="6"
+                        class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+                        placeholder="Nhập lại mật khẩu mới"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="profile-edit-new-password">Mật khẩu mới</label>
-                    <input
-                      id="profile-edit-new-password"
-                      v-model="editForm.newPassword"
-                      type="password"
-                      minlength="6"
-                      class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-                      placeholder="Ít nhất 6 ký tự"
-                    />
-                  </div>
-                  <div >
-                    <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="profile-edit-confirm-password">Nhập lại mật khẩu mới</label>
-                    <input
-                      id="profile-edit-confirm-password"
-                      v-model="editForm.confirmPassword"
-                      type="password"
-                      minlength="6"
-                      class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-                      placeholder="Nhập lại mật khẩu mới"
-                    />
-                  </div>
-                </div>
+                </Transition>
               </div>
 
               <!-- <p v-if="editError" class="mt-4 rounded-2xl border border-rose-100 bg-rose-50/90 px-4 py-3 text-sm text-rose-600">
