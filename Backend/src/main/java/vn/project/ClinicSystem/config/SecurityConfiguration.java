@@ -67,6 +67,7 @@ public class SecurityConfiguration {
                                 .requestMatchers("/", "/login").permitAll()
                                 .requestMatchers("/appointment-requests", "/appointment-requests/**").permitAll()
                                 .requestMatchers(HttpMethod.GET, "/doctors", "/doctors/**").permitAll()
+                                .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
                                 .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
