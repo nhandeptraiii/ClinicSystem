@@ -270,6 +270,7 @@ public class StaffService {
         response.setGender(user.getGender());
         response.setDateOfBirth(user.getDateOfBirth());
         response.setStatus(user.getStatus());
+        response.setAvatarUrl(user.getAvatarUrl());
         response.setCreatedAt(user.getCreatedAt());
         response.setUpdatedAt(user.getUpdatedAt());
 

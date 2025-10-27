@@ -17,6 +17,7 @@ public class StaffResponse {
     private String gender;
     private LocalDate dateOfBirth;
     private String status;
+    private String avatarUrl;
     private Set<String> roles;
     private Instant createdAt;
     private Instant updatedAt;

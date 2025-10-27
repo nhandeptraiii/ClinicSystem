@@ -24,6 +24,7 @@ export interface StaffMember {
   gender?: string | null;
   dateOfBirth?: string | null;
   status?: string | null;
+  avatarUrl?: string | null;
   roles: StaffRole[];
   createdAt?: string;
   updatedAt?: string;
@@ -117,5 +118,14 @@ export const fetchStaffRoles = async () => {
   const { data } = await http.get<RestResponse<StaffRoleDefinition[]>>('/roles');
   const unwrapped = unwrap(data);
   return Array.isArray(unwrapped) ? unwrapped : [];
+};
+
+export const uploadStaffAvatar = async (id: number, file: File) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const { data } = await http.put<RestResponse<StaffMember> | StaffMember>(`/users/${id}/avatar`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return unwrap(data);
 };
 

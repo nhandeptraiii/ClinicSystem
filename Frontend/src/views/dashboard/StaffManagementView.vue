@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue"
 import { useRouter } from "vue-router";
 import AdminHeader from "@/components/AdminHeader.vue";
 import { useAuthStore } from "@/stores/authStore";
+import { useToast, type ToastType } from "@/composables/useToast";
 import {
   createStaff,
   fetchStaff,
@@ -13,7 +14,9 @@ import {
   type StaffRoleDefinition,
   type StaffUpdatePayload,
   updateStaff,
+  uploadStaffAvatar,
 } from "@/services/staff.service";
+import { http } from "@/services/http";
 
 type RoleFilter = StaffRole | "ALL";
 type ModalMode = "create" | "edit";
@@ -71,6 +74,45 @@ const doctorRoleName: StaffRole = "DOCTOR";
 const authStore = useAuthStore();
 const router = useRouter();
 
+const { toast, show: showToast, hide: hideToast } = useToast();
+
+type ToastVisual = {
+  title: string;
+  container: string;
+  icon: string;
+  iconType: "success" | "error" | "warning" | "info";
+};
+
+const toastVisualMap: Record<ToastType, ToastVisual> = {
+  success: {
+    title: "Thành công",
+    container: "border-emerald-200 bg-emerald-50/95 text-emerald-800",
+    icon: "bg-emerald-100 text-emerald-600",
+    iconType: "success",
+  },
+  error: {
+    title: "Có lỗi xảy ra",
+    container: "border-rose-200 bg-rose-50/95 text-rose-700",
+    icon: "bg-rose-100 text-rose-600",
+    iconType: "error",
+  },
+  info: {
+    title: "Thông báo",
+    container: "border-sky-200 bg-sky-50/95 text-sky-700",
+    icon: "bg-sky-100 text-sky-600",
+    iconType: "info",
+  },
+  warning: {
+    title: "Cảnh báo",
+    container: "border-amber-200 bg-amber-50/95 text-amber-700",
+    icon: "bg-amber-100 text-amber-600",
+    iconType: "warning",
+  },
+};
+
+const toastVisuals = computed(() => toastVisualMap[toast.value?.type ?? "info"]);
+const dismissToast = () => hideToast();
+
 const userName = computed(() => authStore.user?.username ?? "Quản trị viên");
 
 const staffItems = ref<StaffMember[]>([]);
@@ -104,6 +146,10 @@ const modalOpen = ref(false);
 const modalMode = ref<ModalMode>("create");
 const modalSubmitting = ref(false);
 const modalError = ref<string | null>(null);
+const raiseModalError = (message: string) => {
+  modalError.value = message;
+  showToast("error", message);
+};
 
 const form = reactive({
   id: null as number | null,
@@ -115,6 +161,7 @@ const form = reactive({
   password: "",
   confirmPassword: "",
   status: "ACTIVE",
+  avatarUrl: "",
   roles: [] as StaffRole[],
   doctor: {
     specialty: "",
@@ -138,6 +185,12 @@ const lastUpdatedLabel = computed(() => {
   return `Cập nhật ${formatFromNow(refreshedAt.value)}`;
 });
 
+const selectedAvatarFile = ref<File | null>(null);
+const avatarInputRef = ref<HTMLInputElement | null>(null);
+const avatarPreview = ref<string | null>(null);
+let avatarPreviewUrl: string | null = null;
+const passwordSectionOpen = ref(false);
+
 const roleOptions = computed(() =>
   roles.value
     .filter((role) => supportedRoles.includes(role.name))
@@ -148,6 +201,85 @@ const roleOptions = computed(() =>
       description: role.description ?? roleDisplayMap[role.name].desc,
     })),
 );
+
+const rawBaseUrl =
+  http.defaults.baseURL ?? (typeof window !== "undefined" ? window.location.origin : "");
+const apiBaseUrl = rawBaseUrl.replace(/\/$/, "");
+
+const resolveAvatarUrl = (url?: string | null) => {
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url)) return url;
+  return `${apiBaseUrl}/${url.replace(/^\/+/, "")}`;
+};
+
+const resolvedModalAvatar = computed(() => {
+  if (avatarPreview.value) return avatarPreview.value;
+  return resolveAvatarUrl(form.avatarUrl);
+});
+
+const modalAvatarInitial = computed(() => {
+  const name = form.fullName?.trim();
+  if (name) return name.charAt(0).toUpperCase();
+  return "NV";
+});
+
+const memberAvatarUrl = (member: StaffMember) => {
+  if (member === null || member === undefined) return null;
+  return resolveAvatarUrl(member.avatarUrl);
+};
+
+const memberAvatarInitial = (member: StaffMember) => {
+  const name = member.fullName?.trim();
+  if (name) return name.charAt(0).toUpperCase();
+  return member.email?.charAt(0).toUpperCase() ?? "U";
+};
+
+const resetModalAvatar = () => {
+  if (avatarPreviewUrl) {
+    URL.revokeObjectURL(avatarPreviewUrl);
+    avatarPreviewUrl = null;
+  }
+  avatarPreview.value = null;
+  selectedAvatarFile.value = null;
+  if (avatarInputRef.value) {
+    avatarInputRef.value.value = "";
+  }
+};
+
+const triggerAvatarInput = () => {
+  avatarInputRef.value?.click();
+};
+
+const handleAvatarFileChange = (event: Event) => {
+  modalError.value = null;
+  const target = event.target as HTMLInputElement;
+  const files = target.files;
+  if (files && files[0]) {
+    const file = files[0];
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      resetModalAvatar();
+      raiseModalError("Ảnh đại diện tối đa 5MB. Vui lòng chọn ảnh nhỏ hơn.");
+      return;
+    }
+    selectedAvatarFile.value = file;
+  } else {
+    resetModalAvatar();
+  }
+};
+
+watch(selectedAvatarFile, (file) => {
+  if (avatarPreviewUrl) {
+    URL.revokeObjectURL(avatarPreviewUrl);
+    avatarPreviewUrl = null;
+  }
+  if (file) {
+    avatarPreviewUrl = URL.createObjectURL(file);
+    avatarPreview.value = avatarPreviewUrl;
+  } else {
+    avatarPreview.value = null;
+  }
+});
 
 const handleSignOut = async () => {
   await authStore.signOut();
@@ -163,6 +295,7 @@ const ensureRolesLoaded = async () => {
     roles.value = result.filter((role) => supportedRoles.includes(role.name));
   } catch (error) {
     rolesError.value = extractErrorMessage(error);
+    showToast("error", rolesError.value || "Không thể tải danh sách vai trò.");
   } finally {
     rolesLoading.value = false;
   }
@@ -212,6 +345,7 @@ const loadStaff = async () => {
     totalPages.value = 1;
     hasNext.value = false;
     hasPrevious.value = false;
+    showToast("error", staffError.value || "Đã xảy ra lỗi khi tải danh sách nhân viên.");
   } finally {
     staffLoading.value = false;
   }
@@ -242,10 +376,13 @@ const resetForm = () => {
   form.password = "";
   form.confirmPassword = "";
   form.status = "ACTIVE";
+  form.avatarUrl = "";
   form.roles.splice(0, form.roles.length);
   form.doctor.specialty = "";
   form.doctor.licenseNumber = "";
   form.doctor.biography = "";
+  resetModalAvatar();
+  passwordSectionOpen.value = modalMode.value === "create";
 };
 
 const openCreateModal = () => {
@@ -266,6 +403,7 @@ const openEditModal = (member: StaffMember) => {
   form.password = "";
   form.confirmPassword = "";
   form.status = member.status ?? "ACTIVE";
+  form.avatarUrl = member.avatarUrl ?? "";
   form.roles.splice(
     0,
     form.roles.length,
@@ -274,11 +412,14 @@ const openEditModal = (member: StaffMember) => {
   form.doctor.specialty = member.doctor?.specialty ?? "";
   form.doctor.licenseNumber = member.doctor?.licenseNumber ?? "";
   form.doctor.biography = member.doctor?.biography ?? "";
+  resetModalAvatar();
+  passwordSectionOpen.value = false;
   modalOpen.value = true;
 };
 
 const closeModal = () => {
   modalOpen.value = false;
+  resetModalAvatar();
 };
 
 const submitModal = async () => {
@@ -288,22 +429,26 @@ const submitModal = async () => {
   const confirmPassword = form.confirmPassword.trim();
 
   if (modalMode.value === "create") {
+    if (!password) {
+      return raiseModalError("Vui lòng nhập mật khẩu cho nhân viên.");
+    }
     if (!confirmPassword) {
-      modalError.value = "Vui lòng nhập lại mật khẩu.";
-      return;
+      return raiseModalError("Vui lòng nhập lại mật khẩu.");
     }
     if (password !== confirmPassword) {
-      modalError.value = "Mật khẩu nhập lại không khớp.";
-      return;
+      return raiseModalError("Mật khẩu nhập lại không khớp.");
     }
-  } else if (modalMode.value === "edit" && password) {
-    if (!confirmPassword) {
-      modalError.value = "Vui lòng xác nhận mật khẩu mới.";
-      return;
-    }
-    if (password !== confirmPassword) {
-      modalError.value = "Mật khẩu nhập lại không khớp.";
-      return;
+  } else if (modalMode.value === "edit") {
+    if (passwordSectionOpen.value) {
+      if (!password || !confirmPassword) {
+        return raiseModalError("Vui lòng nhập đầy đủ thông tin mật khẩu.");
+      }
+      if (password !== confirmPassword) {
+        return raiseModalError("Mật khẩu nhập lại không khớp.");
+      }
+    } else {
+      form.password = "";
+      form.confirmPassword = "";
     }
   }
 
@@ -311,16 +456,23 @@ const submitModal = async () => {
   try {
     if (modalMode.value === "create") {
       const payload = buildCreatePayload();
-      await createStaff(payload);
+      const created = await createStaff(payload);
+      if (selectedAvatarFile.value) {
+        await uploadStaffAvatar(created.id, selectedAvatarFile.value);
+      }
       currentPage.value = 1;
     } else if (modalMode.value === "edit" && form.id != null) {
       const payload = buildUpdatePayload();
       await updateStaff(form.id, payload);
+      if (selectedAvatarFile.value) {
+        await uploadStaffAvatar(form.id, selectedAvatarFile.value);
+      }
     }
     await loadStaff();
+    showToast("success", modalMode.value === "create" ? "Đã tạo nhân viên mới thành công." : "Đã cập nhật thông tin nhân viên.");
     closeModal();
   } catch (error) {
-    modalError.value = extractErrorMessage(error);
+    raiseModalError(extractErrorMessage(error));
   } finally {
     modalSubmitting.value = false;
   }
@@ -438,6 +590,8 @@ watch(modalOpen, (open) => {
     modalError.value = null;
     form.password = "";
     form.confirmPassword = "";
+    passwordSectionOpen.value = false;
+    resetModalAvatar();
   }
 });
 
@@ -626,16 +780,27 @@ onBeforeUnmount(() => {
                   <p class="mt-1 text-sm text-slate-500">{{ member.email }}</p>
                   <p class="mt-1 text-sm text-slate-500">SĐT: {{ member.phone || '—' }}</p>
                 </div>
-                <button
-                  type="button"
-                  class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50"
-                  @click="openEditModal(member)"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487 19.513 7.138m-2.651-2.651L7.5 16.5l-3 3 3-3 9.862-9.862Zm0 0 1.76-1.76a1.5 1.5 0 0 1 2.122 0l.378.378a1.5 1.5 0 0 1 0 2.122l-1.76 1.76m-2.5-2.5-9.862 9.862m0 0H4.5v-2.414" />
-                  </svg>
-                  Chỉnh sửa
-                </button>
+                <div class="flex flex-col items-end gap-3">
+                  <button
+                    type="button"
+                    class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50"
+                    @click="openEditModal(member)"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487 19.513 7.138m-2.651-2.651L7.5 16.5l-3 3 3-3 9.862-9.862Zm0 0 1.76-1.76a1.5 1.5 0 0 1 2.122 0l.378.378a1.5 1.5 0 0 1 0 2.122l-1.76 1.76m-2.5-2.5-9.862 9.862m0 0H4.5v-2.414" />
+                    </svg>
+                    Chỉnh sửa
+                  </button>
+                  <div class="relative flex h-[7.5rem] w-[7.5rem] items-center justify-center overflow-hidden rounded-2xl border border-emerald-100 bg-emerald-50 text-lg font-semibold text-emerald-600 shadow-sm">
+                    <img
+                      v-if="memberAvatarUrl(member)"
+                      :src="memberAvatarUrl(member) || undefined"
+                      :alt="`Ảnh đại diện của ${member.fullName}`"
+                      class="h-full w-full object-cover"
+                    />
+                    <span v-else>{{ memberAvatarInitial(member) }}</span>
+                  </div>
+                </div>
               </div>
 
               <div class="mt-4 flex flex-wrap gap-2">
@@ -749,6 +914,57 @@ onBeforeUnmount(() => {
               </span>
             </div>
 
+            <div class="mt-6 flex flex-col gap-4 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-5 sm:flex-row sm:items-center">
+              <div class="relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-3xl border border-emerald-100 bg-white shadow-sm">
+                <img
+                  v-if="resolvedModalAvatar"
+                  :src="resolvedModalAvatar || undefined"
+                  :alt="modalMode === 'create' ? 'Ảnh đại diện xem trước' : `Ảnh đại diện của ${form.fullName || 'nhân viên'}`"
+                  class="h-full w-full object-cover"
+                />
+                <span v-else class="text-lg font-semibold text-emerald-600">{{ modalAvatarInitial }}</span>
+              </div>
+              <div class="flex-1">
+                <p class="text-xs font-semibold uppercase tracking-wide text-emerald-600">Ảnh đại diện</p>
+                <p class="mt-1 text-sm text-emerald-700/90">
+                  Hỗ trợ định dạng JPG, PNG. Ưu tiên ảnh hình vuông, dung lượng tối đa 5MB.
+                </p>
+                <div class="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    class="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700"
+                    @click="triggerAvatarInput"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m7-7H5" />
+                    </svg>
+                    Chọn ảnh
+                  </button>
+                  <button
+                    v-if="selectedAvatarFile || avatarPreview"
+                    type="button"
+                    class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50"
+                    @click="resetModalAvatar"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="m16 8-8 8m0-8 8 8" />
+                    </svg>
+                    Bỏ chọn
+                  </button>
+                </div>
+                <p v-if="selectedAvatarFile" class="mt-2 max-w-sm truncate text-xs text-emerald-700/80">
+                  {{ selectedAvatarFile.name }}
+                </p>
+              </div>
+              <input
+                ref="avatarInputRef"
+                type="file"
+                accept="image/*"
+                class="hidden"
+                @change="handleAvatarFileChange"
+              />
+            </div>
+
             <div class="mt-6 grid gap-4 sm:grid-cols-2">
               <div class="sm:col-span-2">
                 <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="staff-fullname">Họ và tên *</label>
@@ -825,65 +1041,78 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="mt-6 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-5">
-              <p class="text-xs font-semibold uppercase tracking-wide text-emerald-600">Mật khẩu</p>
-              <div v-if="modalMode === 'create'">
-                <p class="mt-1 text-sm text-emerald-700/90">
-                  Nhập mật khẩu và xác nhận mật khẩu khi tạo mới nhân viên.
-                </p>
+              <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p class="text-xs font-semibold uppercase tracking-wide text-emerald-600">Mật khẩu</p>
+                  <p v-if="modalMode === 'create'" class="mt-1 text-sm text-emerald-700/90">
+                    Nhập mật khẩu và xác nhận để tạo tài khoản đăng nhập cho nhân viên.
+                  </p>
+                  <p v-else class="mt-1 text-sm text-emerald-700/90">
+                    Bấm nút để mở phần đổi mật khẩu khi cần cập nhật thông tin đăng nhập.
+                  </p>
+                </div>
+                <button
+                  v-if="modalMode === 'edit'"
+                  type="button"
+                  class="inline-flex items-center gap-2 self-start rounded-full border border-emerald-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50"
+                  @click="passwordSectionOpen = !passwordSectionOpen"
+                >
+                  <span>Đổi mật khẩu</span>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-3.5 w-3.5 transition-transform"
+                    :class="passwordSectionOpen ? 'rotate-180' : ''"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m5 9 7 7 7-7" />
+                  </svg>
+                </button>
               </div>
-              <div v-else>
-                <p class="mt-1 text-sm text-emerald-700/90">
-                  Nhập mật khẩu và xác nhận mật khẩu mới. ĐỂ TRỐNG NẾU KHÔNG ĐỔI.
-                </p>
-              </div>
-              <div class="mt-4 grid gap-4 sm:grid-cols-2">
-                <div v-if="modalMode === 'create'" class="sm:col-span-1">
-                  <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="staff-password">Mật khẩu đăng nhập *</label>
-                  <input
-                    id="staff-password"
-                    v-model="form.password"
-                    type="password"
-                    minlength="6"
-                    required
-                    class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-                    placeholder="Ít nhất 6 ký tự"
-                  />
+              <Transition
+                enter-active-class="transition duration-150 ease-out"
+                enter-from-class="opacity-0 -translate-y-1"
+                enter-to-class="opacity-100 translate-y-0"
+                leave-active-class="transition duration-150 ease-in"
+                leave-from-class="opacity-100 translate-y-0"
+                leave-to-class="opacity-0 -translate-y-1"
+              >
+                <div v-if="modalMode === 'create' || passwordSectionOpen" class="mt-4 grid gap-4 sm:grid-cols-2">
+                  <div class="sm:col-span-1">
+                    <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="staff-password">
+                      {{ modalMode === 'create' ? 'Mật khẩu đăng nhập *' : 'Mật khẩu mới' }}
+                    </label>
+                    <input
+                      id="staff-password"
+                      v-model="form.password"
+                      type="password"
+                      minlength="6"
+                      :required="modalMode === 'create'"
+                      class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+                      :placeholder="modalMode === 'create' ? 'Ít nhất 6 ký tự' : 'Nhập mật khẩu mới'"
+                    />
+                  </div>
+                  <div class="sm:col-span-1">
+                    <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="staff-password-confirm">
+                      {{ modalMode === 'create' ? 'Nhập lại mật khẩu *' : 'Nhập lại mật khẩu mới' }}
+                    </label>
+                    <input
+                      id="staff-password-confirm"
+                      v-model="form.confirmPassword"
+                      type="password"
+                      minlength="6"
+                      :required="modalMode === 'create'"
+                      class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+                      :placeholder="modalMode === 'create' ? 'Nhập lại mật khẩu' : 'Xác nhận mật khẩu mới'"
+                    />
+                  </div>
+                  <p v-if="modalMode === 'edit'" class="sm:col-span-2 text-xs text-emerald-700/80">
+                    Lưu ý: mật khẩu mới cần dài tối thiểu 6 ký tự.
+                  </p>
                 </div>
-                <div v-if="modalMode === 'create'" class="sm:col-span-1">
-                  <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="staff-password-confirm">Nhập lại mật khẩu *</label>
-                  <input
-                    id="staff-password-confirm"
-                    v-model="form.confirmPassword"
-                    type="password"
-                    minlength="6"
-                    required
-                    class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-                    placeholder="Nhập lại mật khẩu"
-                  />
-                </div>
-                <div v-else class="sm:col-span-1">
-                  <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="staff-password-edit">Đặt lại mật khẩu (tùy chọn)</label>
-                  <input
-                    id="staff-password-edit"
-                    v-model="form.password"
-                    type="password"
-                    minlength="6"
-                    class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-                    placeholder="Nhập ít nhất 6 ký tự"
-                  />
-                </div>
-                <div v-if="modalMode === 'edit'" class="sm:col-span-1">
-                  <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="staff-password-edit-confirm">Nhập lại mật khẩu mới</label>
-                  <input
-                    id="staff-password-edit-confirm"
-                    v-model="form.confirmPassword"
-                    type="password"
-                    minlength="6"
-                    class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-                    placeholder="Nhập lại mật khẩu mới"
-                  />
-                </div>
-              </div>
+              </Transition>
             </div>
 
             <div class="mt-6 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-5">
@@ -981,6 +1210,88 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </Transition>
+    <Teleport to="body">
+      <Transition
+        enter-active-class="transition duration-200"
+        enter-from-class="translate-y-2 opacity-0"
+        enter-to-class="translate-y-0 opacity-100"
+        leave-active-class="transition duration-200"
+        leave-from-class="translate-y-0 opacity-100"
+        leave-to-class="translate-y-2 opacity-0"
+      >
+        <div
+          v-if="toast"
+          class="fixed top-6 right-6 z-[90] w-[min(320px,90vw)] rounded-2xl border px-5 py-4 shadow-xl backdrop-blur"
+          :class="toastVisuals.container"
+        >
+          <div class="flex items-start gap-3">
+            <span
+              class="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full"
+              :class="toastVisuals.icon"
+            >
+              <svg
+                v-if="toastVisuals.iconType === 'success'"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                class="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7" />
+              </svg>
+              <svg
+                v-else-if="toastVisuals.iconType === 'error'"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                class="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="m15 9-6 6m0-6 6 6" />
+              </svg>
+              <svg
+                v-else-if="toastVisuals.iconType === 'warning'"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                class="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01m-6.938 2h13.856a1 1 0 0 0 .894-1.447L12.894 4.553a1 1 0 0 0-1.788 0l-6.918 12.004A1 1 0 0 0 5.062 19Z" />
+              </svg>
+              <svg
+                v-else
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                class="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01m0-14a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z" />
+              </svg>
+            </span>
+            <div class="flex-1">
+              <p class="text-sm font-semibold">{{ toastVisuals.title }}</p>
+              <p class="mt-1 text-sm leading-relaxed">{{ toast.message }}</p>
+            </div>
+            <button
+              type="button"
+              class="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-white/70 text-slate-500 transition hover:bg-white hover:text-slate-700"
+              @click="dismissToast"
+              aria-label="Đóng thông báo"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m16 8-8 8m0-8 8 8" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -994,3 +1305,4 @@ onBeforeUnmount(() => {
   opacity: 0;
 }
 </style>
+

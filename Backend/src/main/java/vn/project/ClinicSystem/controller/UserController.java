@@ -88,6 +88,26 @@ public class UserController {
         return ResponseEntity.status(HttpStatus.OK).body(updatedUser);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
+    @PutMapping("/{id}/avatar")
+    public ResponseEntity<User> updateUserAvatar(@PathVariable("id") Long id, @RequestParam("file") MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Vui lòng chọn tệp ảnh hợp lệ");
+        }
+        User user = userService.handleGetUserById(id);
+        if (user == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy người dùng với id: " + id);
+        }
+        try {
+            User updated = userService.updateAvatar(user, file);
+            return ResponseEntity.ok(updated);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Không thể lưu ảnh đại diện", e);
+        }
+    }
+
     @GetMapping("/me")
     public ResponseEntity<User> getCurrentUserProfile() {
         String login = SecurityUtil.getCurrentUserLogin()
