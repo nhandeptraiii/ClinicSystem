@@ -22,9 +22,12 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import jakarta.validation.Valid;
-import vn.project.ClinicSystem.model.dto.ChangePasswordRequest;
 import vn.project.ClinicSystem.model.User;
+import vn.project.ClinicSystem.model.dto.ChangePasswordRequest;
+import vn.project.ClinicSystem.model.dto.UpdateWorkScheduleRequest;
+import vn.project.ClinicSystem.model.dto.WorkScheduleDayDto;
 import vn.project.ClinicSystem.service.UserService;
+import vn.project.ClinicSystem.service.UserWorkScheduleService;
 import vn.project.ClinicSystem.util.SecurityUtil;
 import vn.project.ClinicSystem.util.error.IdInvalidException;
 
@@ -33,10 +36,13 @@ import vn.project.ClinicSystem.util.error.IdInvalidException;
 public class UserController {
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
+    private final UserWorkScheduleService userWorkScheduleService;
 
-    public UserController(UserService userService, PasswordEncoder passwordEncoder) {
+    public UserController(UserService userService, PasswordEncoder passwordEncoder,
+            UserWorkScheduleService userWorkScheduleService) {
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
+        this.userWorkScheduleService = userWorkScheduleService;
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -156,5 +162,48 @@ public class UserController {
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Không thể lưu ảnh đại diện", e);
         }
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/{id}/work-schedule")
+    public ResponseEntity<List<WorkScheduleDayDto>> getUserWorkSchedule(@PathVariable("id") Long id) {
+        return ResponseEntity.ok(userWorkScheduleService.getScheduleForUser(id));
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PutMapping("/{id}/work-schedule")
+    public ResponseEntity<List<WorkScheduleDayDto>> updateUserWorkSchedule(
+            @PathVariable("id") Long id,
+            @Valid @RequestBody UpdateWorkScheduleRequest request) {
+        List<WorkScheduleDayDto> days = request != null && request.getDays() != null ? request.getDays() : List.of();
+        Long clinicRoomId = request != null ? request.getClinicRoomId() : null;
+        return ResponseEntity.ok(userWorkScheduleService.updateScheduleForUser(id, days, clinicRoomId));
+    }
+
+    @GetMapping("/me/work-schedule")
+    public ResponseEntity<List<WorkScheduleDayDto>> getCurrentUserWorkSchedule() {
+        String login = SecurityUtil.getCurrentUserLogin()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+                        "Không xác định được người dùng hiện tại"));
+        User user = userService.handleGetUserByUsername(login);
+        if (user == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy người dùng hiện tại");
+        }
+        return ResponseEntity.ok(userWorkScheduleService.getScheduleForUser(user));
+    }
+
+    @PutMapping("/me/work-schedule")
+    public ResponseEntity<List<WorkScheduleDayDto>> updateCurrentUserWorkSchedule(
+            @Valid @RequestBody UpdateWorkScheduleRequest request) {
+        String login = SecurityUtil.getCurrentUserLogin()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+                        "Không xác định được người dùng hiện tại"));
+        User user = userService.handleGetUserByUsername(login);
+        if (user == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy người dùng hiện tại");
+        }
+        List<WorkScheduleDayDto> days = request != null && request.getDays() != null ? request.getDays() : List.of();
+        Long clinicRoomId = request != null ? request.getClinicRoomId() : null;
+        return ResponseEntity.ok(userWorkScheduleService.updateScheduleForUser(user, days, clinicRoomId));
     }
 }
