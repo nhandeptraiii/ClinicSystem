@@ -13,18 +13,17 @@ export interface ClinicRoom {
   name: string;
   floor?: string | null;
   note?: string | null;
-  createdAt?: string;
-  updatedAt?: string;
 }
 
-export const fetchClinicRooms = async () => {
-  const { data } = await http.get<RestResponse<ClinicRoom[]>>('/clinic-rooms');
-  if (Array.isArray(data)) {
-    return data as ClinicRoom[];
+const unwrap = <T>(input: RestResponse<T> | T): T => {
+  if (input && typeof input === 'object' && 'data' in (input as RestResponse<T>)) {
+    return (input as RestResponse<T>).data;
   }
-  if (data && Array.isArray((data as any).data)) {
-    return (data as any).data as ClinicRoom[];
-  }
-  return [];
+  return input as T;
 };
 
+export const fetchClinicRooms = async (floor?: string) => {
+  const params = floor ? { floor } : undefined;
+  const { data } = await http.get<RestResponse<ClinicRoom[]> | ClinicRoom[]>('/clinic-rooms', { params });
+  return unwrap(data);
+};
