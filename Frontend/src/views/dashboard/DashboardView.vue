@@ -202,7 +202,7 @@ onMounted(() => {
               { to: '/dashboard/medications', title: 'Kho thuốc', desc: 'Quản lý tồn kho, lô nhập và cấp phát.' },
               { to: '/dashboard/services', title: 'Danh mục dịch vụ', desc: 'Cập nhật dịch vụ y tế, giá và ưu đãi.' },
               { to: '/dashboard/billing', title: 'Thanh toán & Hóa đơn', desc: 'Theo dõi công nợ, xuất hóa đơn và báo cáo.' },
-              { to: '/dashboard/profile', title: 'Trang cá nhân', desc: 'Xem hồ sơ và đổi mật khẩu của bạn.' },
+              // { to: '/dashboard/profile', title: 'Trang cá nhân', desc: 'Xem hồ sơ và đổi mật khẩu của bạn.' },
             ]"
             :key="item.to"
             :to="item.to"
