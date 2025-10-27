@@ -213,7 +213,7 @@ onMounted(() => {
             <span class="mt-4 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-emerald-600 group-hover:text-emerald-700">
               Quản lý ngay
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />ScheduleD
               </svg>
             </span>
           </RouterLink>

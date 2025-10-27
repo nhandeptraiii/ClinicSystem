@@ -206,8 +206,8 @@ const rawBaseUrl =
   http.defaults.baseURL ?? (typeof window !== "undefined" ? window.location.origin : "");
 const apiBaseUrl = rawBaseUrl.replace(/\/$/, "");
 
-const resolveAvatarUrl = (url?: string | null) => {
-  if (!url) return null;
+const resolveAvatarUrl = (url?: string | null): string | undefined => {
+  if (!url) return undefined;
   if (/^https?:\/\//i.test(url)) return url;
   return `${apiBaseUrl}/${url.replace(/^\/+/, "")}`;
 };
@@ -223,8 +223,8 @@ const modalAvatarInitial = computed(() => {
   return "NV";
 });
 
-const memberAvatarUrl = (member: StaffMember) => {
-  if (member === null || member === undefined) return null;
+const memberAvatarUrl = (member: StaffMember): string | undefined => {
+  if (member === null || member === undefined) return undefined;
   return resolveAvatarUrl(member.avatarUrl);
 };
 
@@ -794,7 +794,7 @@ onBeforeUnmount(() => {
                   <div class="relative flex h-[7.5rem] w-[7.5rem] items-center justify-center overflow-hidden rounded-2xl border border-emerald-100 bg-emerald-50 text-lg font-semibold text-emerald-600 shadow-sm">
                     <img
                       v-if="memberAvatarUrl(member)"
-                      :src="memberAvatarUrl(member) || undefined"
+                      :src="memberAvatarUrl(member)"
                       :alt="`Ảnh đại diện của ${member.fullName}`"
                       class="h-full w-full object-cover"
                     />
@@ -918,7 +918,7 @@ onBeforeUnmount(() => {
               <div class="relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-3xl border border-emerald-100 bg-white shadow-sm">
                 <img
                   v-if="resolvedModalAvatar"
-                  :src="resolvedModalAvatar || undefined"
+                  :src="resolvedModalAvatar"
                   :alt="modalMode === 'create' ? 'Ảnh đại diện xem trước' : `Ảnh đại diện của ${form.fullName || 'nhân viên'}`"
                   class="h-full w-full object-cover"
                 />
