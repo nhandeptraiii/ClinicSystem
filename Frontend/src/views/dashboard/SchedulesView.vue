@@ -272,6 +272,9 @@ const scheduleSaveDisabled = computed(
 );
 
 const scheduleInfoMessage = computed(() => {
+  if (!isDoctorSelected.value) {
+    return 'Nhân viên này làm toàn thời gian từ Thứ 2 đến Thứ 7. Vui lòng chọn phòng áp dụng nếu cần.';
+  }
   if (!scheduleHasAnyShift.value) {
     return 'Chưa có ca làm việc nào được chọn cho nhân viên này.';
   }
@@ -279,6 +282,13 @@ const scheduleInfoMessage = computed(() => {
     return 'Vui lòng chọn phòng khám áp dụng cho lịch này.';
   }
   return null;
+});
+
+const scheduleModalDescription = computed(() => {
+  if (isDoctorSelected.value) {
+    return 'Chọn ca làm việc buổi sáng và chiều cho từng ngày trong tuần. Các thay đổi sẽ áp dụng sau khi lưu.';
+  }
+  return 'Nhân viên này sử dụng lịch cố định 08:00 - 17:00. Vui lòng chọn phòng làm việc áp dụng và lưu để cập nhật.';
 });
 
 const selectedClinicRoomDisplay = computed(() => {
@@ -405,18 +415,26 @@ const normalizeScheduleForDisplay = (days: WorkScheduleDay[] | null | undefined)
 const doctorStaff = computed(() => staffItems.value.filter((member) => hasDoctorRole(member)));
 const otherStaff = computed(() => staffItems.value.filter((member) => !hasDoctorRole(member)));
 
+const formatClinicRoomDisplay = (entry: WorkScheduleEntry) => {
+  if (entry.clinicRoomName) {
+    const codeSuffix = entry.clinicRoomCode ? ` (${entry.clinicRoomCode})` : '';
+    return `${entry.clinicRoomName}${codeSuffix}`;
+  }
+  if (entry.clinicRoomCode) {
+    return entry.clinicRoomCode;
+  }
+  return 'Chưa chọn';
+};
+
 const doctorCards = computed(() =>
   doctorStaff.value.map((member) => {
     const entry = ensureScheduleEntry(member.id);
     const overview = normalizeScheduleForDisplay(entry.days);
-    const clinicDisplay = entry.clinicRoomName
-      ? `${entry.clinicRoomName}${entry.clinicRoomCode ? ` (${entry.clinicRoomCode})` : ''}`
-      : entry.clinicRoomCode || 'Chưa chọn';
     return {
       member,
       entry,
       overview,
-      clinicDisplay,
+      clinicDisplay: formatClinicRoomDisplay(entry),
     };
   }),
 );
@@ -437,9 +455,20 @@ const filteredDoctorCards = computed(() =>
   }),
 );
 
+const otherStaffCards = computed(() =>
+  otherStaff.value.map((member) => {
+    const entry = ensureScheduleEntry(member.id);
+    return {
+      member,
+      entry,
+      clinicDisplay: formatClinicRoomDisplay(entry),
+    };
+  }),
+);
+
 const normalizedOtherSearch = computed(() => otherSearchTerm.value.trim().toLowerCase());
-const filteredOtherStaff = computed(() =>
-  otherStaff.value.filter((member) => {
+const filteredOtherStaffCards = computed(() =>
+  otherStaffCards.value.filter(({ member }) => {
     const matchesRole =
       selectedOtherRole.value === 'ALL' ||
       (member.roles ?? []).some((role) => role === selectedOtherRole.value);
@@ -453,12 +482,9 @@ const filteredOtherStaff = computed(() =>
 );
 
 watch(
-  doctorStaff,
-  (doctors) => {
-    const ids = doctors.map((doctor) => doctor.id);
-    ids.forEach((id) => {
-      ensureScheduleEntry(id);
-    });
+  () => staffItems.value.map((member) => member.id),
+  (ids) => {
+    ids.forEach((id) => ensureScheduleEntry(id));
     Object.keys(workScheduleEntries).forEach((key) => {
       const id = Number(key);
       if (!ids.includes(id)) {
@@ -579,7 +605,9 @@ const loadStaff = async () => {
     }
 
     const doctors = staffItems.value.filter((member) => hasDoctorRole(member));
+    const nonDoctors = staffItems.value.filter((member) => !hasDoctorRole(member));
     await preloadWorkSchedules(doctors);
+    await preloadWorkSchedules(nonDoctors);
   } catch (error) {
     staffError.value = extractErrorMessage(error);
     staffItems.value = [];
@@ -605,7 +633,7 @@ const ensureClinicRoomsLoaded = async () => {
 };
 
 const startEditSchedule = async (member: StaffMember) => {
-  if (!hasDoctorRole(member) || scheduleSaving.value) return;
+  if (scheduleSaving.value) return;
   selectedStaff.value = member;
   scheduleModalOpen.value = true;
   scheduleLoading.value = true;
@@ -613,7 +641,8 @@ const startEditSchedule = async (member: StaffMember) => {
   await ensureClinicRoomsLoaded();
   const entry = await fetchWorkSchedule(member, { force: true });
   const days = entry?.days ?? null;
-  setScheduleState(days, { defaultFullWhenEmpty: false, updateBaseline: true });
+  const defaultFullWhenEmpty = !hasDoctorRole(member);
+  setScheduleState(days, { defaultFullWhenEmpty, updateBaseline: true });
   if (!selectedClinicRoomId.value && entry?.clinicRoomId != null) {
     selectedClinicRoomId.value = entry.clinicRoomId;
     scheduleClinicRoomFallback.name = entry.clinicRoomName ?? null;
@@ -700,16 +729,14 @@ const saveSchedule = async () => {
       defaultFullWhenEmpty: !isDoctorSelected.value,
       updateBaseline: true,
     });
-    if (isDoctorSelected.value) {
-      const normalizedForCache = normalizeWorkDays(updated, false);
-      const entry = ensureScheduleEntry(selectedStaff.value.id);
-      entry.days = normalizedForCache;
-      const firstWithRoom = normalizedForCache.find((item) => item.clinicRoomId != null);
-      entry.clinicRoomId = firstWithRoom?.clinicRoomId ?? null;
-      entry.clinicRoomName = firstWithRoom?.clinicRoomName ?? null;
-      entry.clinicRoomCode = firstWithRoom?.clinicRoomCode ?? null;
-      entry.error = null;
-    }
+    const normalizedForCache = normalizeWorkDays(updated, false);
+    const entry = ensureScheduleEntry(selectedStaff.value.id);
+    entry.days = normalizedForCache;
+    const firstWithRoom = normalizedForCache.find((item) => item.clinicRoomId != null);
+    entry.clinicRoomId = firstWithRoom?.clinicRoomId ?? null;
+    entry.clinicRoomName = firstWithRoom?.clinicRoomName ?? null;
+    entry.clinicRoomCode = firstWithRoom?.clinicRoomCode ?? null;
+    entry.error = null;
     showToast('success', 'Đã cập nhật lịch làm việc cho nhân viên.');
     if (scheduleModalOpen.value) {
       closeScheduleModal();
@@ -972,7 +999,7 @@ onMounted(async () => {
               </p>
             </div>
             <div class="text-xs font-semibold uppercase tracking-wide text-emerald-600">
-              {{ filteredOtherStaff.length }} nhân viên
+              {{ filteredOtherStaffCards.length }} nhân viên
             </div>
           </div>
 
@@ -1002,7 +1029,7 @@ onMounted(async () => {
             </div>
           </div>
 
-          <template v-if="staffLoading && !filteredOtherStaff.length">
+          <template v-if="staffLoading && !filteredOtherStaffCards.length">
             <div class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <div
                 v-for="skeleton in 6"
@@ -1015,7 +1042,7 @@ onMounted(async () => {
               </div>
             </div>
           </template>
-          <template v-else-if="!filteredOtherStaff.length">
+          <template v-else-if="!filteredOtherStaffCards.length">
             <div class="mt-6 rounded-3xl border border-dashed border-emerald-200 bg-emerald-50/40 p-10 text-center text-emerald-700">
               <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
@@ -1027,28 +1054,28 @@ onMounted(async () => {
           <template v-else>
             <div class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <article
-                v-for="member in filteredOtherStaff"
-                :key="member.id"
+                v-for="staff in filteredOtherStaffCards"
+                :key="staff.member.id"
                 class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-emerald-200 hover:shadow-lg"
               >
                 <div class="flex items-start gap-3">
                   <div class="relative flex h-14 w-14 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-emerald-100 bg-emerald-50 text-sm font-semibold text-emerald-600 shadow-sm">
                     <img
-                      v-if="getStaffAvatarUrl(member)"
-                      :src="getStaffAvatarUrl(member)"
-                    :alt="`Avatar of ${member.fullName}`"
+                      v-if="getStaffAvatarUrl(staff.member)"
+                      :src="getStaffAvatarUrl(staff.member)"
+                      :alt="`Avatar of ${staff.member.fullName}`"
                       class="h-full w-full object-cover"
                     />
-                    <span v-else>{{ getStaffInitial(member) }}</span>
+                    <span v-else>{{ getStaffInitial(staff.member) }}</span>
                   </div>
                   <div>
-                    <h3 class="text-base font-semibold text-slate-900">{{ member.fullName }}</h3>
-                    <p class="text-xs text-slate-500">{{ member.email }}</p>
-                    <p class="mt-1 text-xs text-slate-500">SĐT: {{ member.phone || '—' }}</p>
+                    <h3 class="text-base font-semibold text-slate-900">{{ staff.member.fullName }}</h3>
+                    <p class="text-xs text-slate-500">{{ staff.member.email }}</p>
+                    <p class="mt-1 text-xs text-slate-500">SĐT: {{ staff.member.phone || '—' }}</p>
                     <div class="mt-2 flex flex-wrap gap-2">
                       <span
-                        v-for="role in member.roles"
-                        :key="`${member.id}-${role}`"
+                        v-for="role in staff.member.roles"
+                        :key="`${staff.member.id}-${role}`"
                         class="rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700"
                       >
                         {{ roleDisplayMap[role].label }}
@@ -1058,6 +1085,29 @@ onMounted(async () => {
                 </div>
                 <div class="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50/60 px-4 py-3 text-xs text-emerald-700">
                   Lịch cố định: <span class="font-semibold text-emerald-800">08:00 - 12:00 · 13:00 - 17:00</span> (Thứ 2 - Thứ 7)
+                </div>
+                <div class="mt-3 flex flex-col gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-3 text-xs text-slate-600">
+                  <div class="flex items-center justify-between">
+                    <span class="font-semibold text-slate-700">Phòng hiện tại:</span>
+                    <span class="text-emerald-700 font-semibold">{{ staff.clinicDisplay }}</span>
+                  </div>
+                  <button
+                    type="button"
+                    class="inline-flex items-center justify-center gap-2 self-start rounded-full border border-emerald-200 bg-white px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-emerald-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-70"
+                    :disabled="scheduleSaving || staff.entry.loading"
+                    @click="startEditSchedule(staff.member)"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M6.25 4.75h11.5a1.5 1.5 0 0 1 1.5 1.5v11.5a1.5 1.5 0 0 1-1.5 1.5H6.25a1.5 1.5 0 0 1-1.5-1.5V6.25a1.5 1.5 0 0 1 1.5-1.5Zm7.5 3.5h2m-2 3h2m-2 3h2m-8-6h3m-3 3h3m-3 3h3" />
+                    </svg>
+                    Gán / đổi phòng
+                  </button>
+                  <p
+                    v-if="staff.entry.error"
+                    class="rounded-xl border border-rose-100 bg-rose-50/90 px-3 py-2 text-rose-600"
+                  >
+                    {{ staff.entry.error }}
+                  </p>
                 </div>
               </article>
             </div>
@@ -1069,7 +1119,7 @@ onMounted(async () => {
           class="rounded-[28px] border border-emerald-100 bg-white px-4 py-3 text-sm text-slate-600 shadow-[0_24px_55px_-45px_rgba(13,148,136,0.55)] flex flex-col gap-2 md:flex-row md:items-center md:justify-between"
         >
           <span>Tổng số nhân viên: {{ staffItems.length }}</span>
-          <span>Bác sĩ: {{ filteredDoctorCards.length }} · Nhân viên khác: {{ filteredOtherStaff.length }}</span>
+          <span>Bác sĩ: {{ filteredDoctorCards.length }} · Nhân viên khác: {{ filteredOtherStaffCards.length }}</span>
         </div>
       </section>
     </main>
@@ -1098,7 +1148,7 @@ onMounted(async () => {
                 <span class="text-emerald-600">{{ selectedStaff?.fullName || 'bác sĩ' }}</span>
               </h2>
               <p class="text-sm text-slate-500">
-                Chọn ca làm việc buổi sáng và chiều cho từng ngày trong tuần. Các thay đổi sẽ áp dụng sau khi lưu.
+                {{ scheduleModalDescription }}
               </p>
             </div>
 
@@ -1106,7 +1156,7 @@ onMounted(async () => {
               <button
                 type="button"
                 class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
-                :disabled="scheduleSaving"
+                :disabled="scheduleSaving || !isDoctorSelected"
                 @click="applyDefaultWorkSchedule"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
@@ -1117,7 +1167,7 @@ onMounted(async () => {
               <button
                 type="button"
                 class="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-rose-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
-                :disabled="scheduleSaving"
+                :disabled="scheduleSaving || !isDoctorSelected"
                 @click="clearWorkSchedule"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
@@ -1185,29 +1235,29 @@ onMounted(async () => {
                       <p class="text-xs text-slate-500">Chọn ca làm việc cho ngày này.</p>
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        class="inline-flex flex-col items-center justify-center rounded-2xl border px-4 py-2 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
-                        :class="scheduleState[day.key].morning
-                          ? 'border-emerald-300 bg-emerald-50 text-emerald-700 shadow-sm'
-                          : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-200 hover:bg-emerald-50/60'"
-                        :aria-pressed="scheduleState[day.key].morning"
-                        :disabled="scheduleSaving"
-                        @click="toggleShift(day.key, 'morning')"
-                      >
+                        <button
+                          type="button"
+                          class="inline-flex flex-col items-center justify-center rounded-2xl border px-4 py-2 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                          :class="scheduleState[day.key].morning
+                            ? 'border-emerald-300 bg-emerald-50 text-emerald-700 shadow-sm'
+                            : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-200 hover:bg-emerald-50/60'"
+                          :aria-pressed="scheduleState[day.key].morning"
+                          :disabled="scheduleSaving || !isDoctorSelected"
+                          @click="toggleShift(day.key, 'morning')"
+                        >
                         <span>{{ SHIFT_META.morning.label }}</span>
                         <span class="mt-0.5 text-[11px] font-normal tracking-wide text-slate-500">{{ SHIFT_META.morning.time }}</span>
                       </button>
-                      <button
-                        type="button"
-                        class="inline-flex flex-col items-center justify-center rounded-2xl border px-4 py-2 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
-                        :class="scheduleState[day.key].afternoon
-                          ? 'border-emerald-300 bg-emerald-50 text-emerald-700 shadow-sm'
-                          : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-200 hover:bg-emerald-50/60'"
-                        :aria-pressed="scheduleState[day.key].afternoon"
-                        :disabled="scheduleSaving"
-                        @click="toggleShift(day.key, 'afternoon')"
-                      >
+                        <button
+                          type="button"
+                          class="inline-flex flex-col items-center justify-center rounded-2xl border px-4 py-2 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                          :class="scheduleState[day.key].afternoon
+                            ? 'border-emerald-300 bg-emerald-50 text-emerald-700 shadow-sm'
+                            : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-200 hover:bg-emerald-50/60'"
+                          :aria-pressed="scheduleState[day.key].afternoon"
+                          :disabled="scheduleSaving || !isDoctorSelected"
+                          @click="toggleShift(day.key, 'afternoon')"
+                        >
                         <span>{{ SHIFT_META.afternoon.label }}</span>
                         <span class="mt-0.5 text-[11px] font-normal tracking-wide text-slate-500">{{ SHIFT_META.afternoon.time }}</span>
                       </button>

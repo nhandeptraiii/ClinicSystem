@@ -73,6 +73,23 @@ public class UserWorkScheduleService {
         return persistSchedule(user, normalized, clinicRoom);
     }
 
+    public void clearScheduleForUser(Long userId) {
+        scheduleRepository.deleteByUserId(userId);
+        scheduleRepository.flush();
+    }
+
+    public ClinicRoom findAssignedClinicRoom(Long userId) {
+        return scheduleRepository.findByUserIdOrderByDayOfWeekAsc(userId).stream()
+                .map(UserWorkSchedule::getClinicRoom)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+    }
+
+    public void initializeDefaultScheduleForNonDoctor(User user, ClinicRoom clinicRoom) {
+        persistSchedule(user, Map.of(), clinicRoom);
+    }
+
     private List<WorkScheduleDayDto> persistSchedule(User user, Map<DayOfWeek, WorkScheduleDayDto> normalized,
             ClinicRoom clinicRoom) {
         scheduleRepository.deleteByUserId(user.getId());
@@ -108,7 +125,8 @@ public class UserWorkScheduleService {
 
     private void validateClinicRoomAvailability(User user, Map<DayOfWeek, WorkScheduleDayDto> normalized,
             ClinicRoom clinicRoom) {
-        if (clinicRoom == null || clinicRoom.getId() == null) {
+        boolean isDoctor = hasDoctorRole(user);
+        if (!isDoctor || clinicRoom == null || clinicRoom.getId() == null) {
             return;
         }
 
@@ -126,7 +144,13 @@ public class UserWorkScheduleService {
 
             for (UserWorkSchedule existing : existingSchedules) {
                 User assignedUser = existing.getUser();
-                if (assignedUser != null && Objects.equals(assignedUser.getId(), user.getId())) {
+                if (assignedUser == null) {
+                    continue;
+                }
+                if (Objects.equals(assignedUser.getId(), user.getId())) {
+                    continue;
+                }
+                if (!hasDoctorRole(assignedUser)) {
                     continue;
                 }
 
@@ -136,8 +160,7 @@ public class UserWorkScheduleService {
                     continue;
                 }
 
-                long userKey = assignedUser != null && assignedUser.getId() != null ? assignedUser.getId()
-                        : UNKNOWN_USER_KEY;
+                long userKey = assignedUser.getId() != null ? assignedUser.getId() : UNKNOWN_USER_KEY;
                 UserRoomConflict userConflict = userConflicts
                         .computeIfAbsent(userKey, key -> new UserRoomConflict(assignedUser));
                 ShiftConflict shift = userConflict.dayConflicts
@@ -314,11 +337,11 @@ public class UserWorkScheduleService {
     private ClinicRoom resolveClinicRoomForSchedule(Long roomId, User user,
             Map<DayOfWeek, WorkScheduleDayDto> normalized) {
         boolean isDoctor = hasDoctorRole(user);
-        if (!isDoctor) {
-            return null;
-        }
         if (roomId == null) {
-            throw new IllegalArgumentException("Vui lòng chọn phòng khám cho lịch làm việc của bác sĩ.");
+            if (isDoctor) {
+                throw new IllegalArgumentException("Vui lòng chọn phòng khám cho lịch làm việc của bác sĩ.");
+            }
+            return null;
         }
         ClinicRoom clinicRoom = clinicRoomRepository.findById(roomId)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy phòng khám với id: " + roomId));

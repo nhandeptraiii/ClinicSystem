@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
+import vn.project.ClinicSystem.model.ClinicRoom;
 import vn.project.ClinicSystem.model.Doctor;
 import vn.project.ClinicSystem.model.Role;
 import vn.project.ClinicSystem.model.User;
@@ -43,6 +44,7 @@ public class StaffService {
     private final DoctorRepository doctorRepository;
     private final RoleService roleService;
     private final DoctorService doctorService;
+    private final UserWorkScheduleService userWorkScheduleService;
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
     private final Validator validator;
@@ -51,6 +53,7 @@ public class StaffService {
             DoctorRepository doctorRepository,
             RoleService roleService,
             DoctorService doctorService,
+            UserWorkScheduleService userWorkScheduleService,
             UserService userService,
             PasswordEncoder passwordEncoder,
             Validator validator) {
@@ -58,6 +61,7 @@ public class StaffService {
         this.doctorRepository = doctorRepository;
         this.roleService = roleService;
         this.doctorService = doctorService;
+        this.userWorkScheduleService = userWorkScheduleService;
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
         this.validator = validator;
@@ -135,12 +139,21 @@ public class StaffService {
         User savedUser = userService.handleCreateUser(user);
 
         Doctor doctor = handleDoctorSectionOnCreate(savedUser, roles, request.getDoctor());
+
+        boolean isDoctor = containsDoctorRole(roles);
+        if (isDoctor) {
+            userWorkScheduleService.clearScheduleForUser(savedUser.getId());
+        } else {
+            userWorkScheduleService.initializeDefaultScheduleForNonDoctor(savedUser, null);
+        }
         return mapToResponse(savedUser, doctor);
     }
 
     public StaffResponse updateStaff(Long id, StaffUpdateRequest request) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy nhân viên với id: " + id));
+
+        boolean wasDoctor = hasRole(user, StaffRole.DOCTOR.getName());
 
         if (request.getFullName() != null) {
             user.setFullName(request.getFullName());
@@ -178,6 +191,14 @@ public class StaffService {
 
         Set<Role> currentRoles = savedUser.getRoles();
         Doctor doctor = handleDoctorSectionOnUpdate(savedUser, currentRoles, request.getDoctor());
+
+        boolean isDoctor = containsDoctorRole(currentRoles);
+        if (!wasDoctor && isDoctor) {
+            userWorkScheduleService.clearScheduleForUser(savedUser.getId());
+        } else if (wasDoctor && !isDoctor) {
+            ClinicRoom assignedRoom = userWorkScheduleService.findAssignedClinicRoom(savedUser.getId());
+            userWorkScheduleService.initializeDefaultScheduleForNonDoctor(savedUser, assignedRoom);
+        }
 
         return mapToResponse(savedUser, doctor);
     }
@@ -261,6 +282,13 @@ public class StaffService {
         return user.getRoles().stream().anyMatch(role -> roleName.equalsIgnoreCase(role.getName()));
     }
 
+    private boolean containsDoctorRole(Set<Role> roles) {
+        if (roles == null || roles.isEmpty()) {
+            return false;
+        }
+        return roles.stream().anyMatch(role -> StaffRole.DOCTOR.getName().equalsIgnoreCase(role.getName()));
+    }
+
     private StaffResponse mapToResponse(User user, Doctor doctor) {
         StaffResponse response = new StaffResponse();
         response.setId(user.getId());
@@ -303,6 +331,9 @@ public class StaffService {
             StaffRole staffRole = StaffRole.from(rawName);
             resolved.computeIfAbsent(staffRole.getName(),
                     key -> roleService.ensureRole(staffRole.getName(), staffRole.getDescription()));
+        }
+        if (resolved.size() != 1) {
+            throw new IllegalArgumentException("Mỗi nhân viên chỉ được gán một vai trò duy nhất.");
         }
         return new LinkedHashSet<>(resolved.values());
     }
