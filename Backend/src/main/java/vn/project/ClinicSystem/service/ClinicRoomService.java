@@ -2,6 +2,8 @@ package vn.project.ClinicSystem.service;
 
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -9,32 +11,41 @@ import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
 import vn.project.ClinicSystem.model.ClinicRoom;
+import vn.project.ClinicSystem.model.dto.ClinicRoomPageResponse;
 import vn.project.ClinicSystem.repository.ClinicRoomRepository;
+import vn.project.ClinicSystem.repository.UserWorkScheduleRepository;
 
 @Service
 @Transactional(readOnly = true)
 public class ClinicRoomService {
     private final ClinicRoomRepository clinicRoomRepository;
     private final Validator validator;
+    private final UserWorkScheduleRepository userWorkScheduleRepository;
 
-    public ClinicRoomService(ClinicRoomRepository clinicRoomRepository, Validator validator) {
+    public ClinicRoomService(ClinicRoomRepository clinicRoomRepository,
+            Validator validator,
+            UserWorkScheduleRepository userWorkScheduleRepository) {
         this.clinicRoomRepository = clinicRoomRepository;
         this.validator = validator;
+        this.userWorkScheduleRepository = userWorkScheduleRepository;
     }
 
     public List<ClinicRoom> findAll() {
         return clinicRoomRepository.findAll();
     }
 
-    public List<ClinicRoom> searchByFloor(String floor) {
-        if (floor == null || floor.isBlank()) {
-            return findAll();
-        }
-        List<ClinicRoom> rooms = clinicRoomRepository.findByFloorIgnoreCase(floor.trim());
-        if (rooms.isEmpty()) {
-            throw new EntityNotFoundException("Không tìm thấy phòng ở tầng/khu: " + floor);
-        }
-        return rooms;
+    public ClinicRoomPageResponse getPaged(String keyword, String floor, Pageable pageable) {
+        Page<ClinicRoom> page = clinicRoomRepository.search(
+                normalizeKeyword(keyword),
+                normalizeFloor(floor),
+                pageable);
+        return ClinicRoomPageResponse.from(page);
+    }
+
+    public List<ClinicRoom> search(String keyword, String floor) {
+        return clinicRoomRepository
+                .search(normalizeKeyword(keyword), normalizeFloor(floor), Pageable.unpaged())
+                .getContent();
     }
 
     public ClinicRoom getById(Long id) {
@@ -90,6 +101,10 @@ public class ClinicRoomService {
         if (!clinicRoomRepository.existsById(id)) {
             throw new EntityNotFoundException("Không tìm thấy phòng khám với id: " + id);
         }
+        if (userWorkScheduleRepository.existsByClinicRoomId(id)) {
+            throw new IllegalStateException(
+                    "Không thể xóa phòng vì đang được sử dụng trong lịch làm việc của nhân sự. Vui lòng điều chỉnh lịch trước.");
+        }
         clinicRoomRepository.deleteById(id);
     }
 
@@ -107,6 +122,22 @@ public class ClinicRoomService {
         if (!violations.isEmpty()) {
             throw new ConstraintViolationException(violations);
         }
+    }
+
+    private String normalizeKeyword(String keyword) {
+        if (keyword == null) {
+            return null;
+        }
+        String trimmed = keyword.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String normalizeFloor(String floor) {
+        if (floor == null) {
+            return null;
+        }
+        String trimmed = floor.trim();
+        return trimmed.isEmpty() ? null : trimmed.toLowerCase();
     }
 
     private String normalizeCode(String code) {

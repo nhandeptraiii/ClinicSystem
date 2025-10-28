@@ -16,4 +16,6 @@ public interface UserWorkScheduleRepository extends JpaRepository<UserWorkSchedu
     List<UserWorkSchedule> findByClinicRoomIdAndDayOfWeek(Long clinicRoomId, DayOfWeek dayOfWeek);
 
     void deleteByUserId(Long userId);
+
+    boolean existsByClinicRoomId(Long clinicRoomId);
 }

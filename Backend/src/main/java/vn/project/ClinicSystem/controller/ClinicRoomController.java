@@ -1,7 +1,5 @@
 package vn.project.ClinicSystem.controller;
 
-import java.util.List;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -15,8 +13,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+
 import jakarta.validation.Valid;
 import vn.project.ClinicSystem.model.ClinicRoom;
+import vn.project.ClinicSystem.model.dto.ClinicRoomPageResponse;
 import vn.project.ClinicSystem.service.ClinicRoomService;
 
 @RestController
@@ -36,9 +39,22 @@ public class ClinicRoomController {
     }
 
     @GetMapping
-    public ResponseEntity<List<ClinicRoom>> getClinicRooms(
-            @RequestParam(value = "floor", required = false) String floor) {
-        return ResponseEntity.ok(clinicRoomService.searchByFloor(floor));
+    public ResponseEntity<?> getClinicRooms(
+            @RequestParam(value = "keyword", required = false) String keyword,
+            @RequestParam(value = "floor", required = false) String floor,
+            @RequestParam(value = "page", required = false) Integer page,
+            @RequestParam(value = "size", required = false) Integer size) {
+        if (page != null || size != null) {
+            int safePage = page != null ? Math.max(page, 0) : 0;
+            int safeSize = size != null ? Math.min(Math.max(size, 1), 50) : 10;
+            Pageable pageable = PageRequest.of(
+                    safePage,
+                    safeSize,
+                    Sort.by(Sort.Order.asc("name"), Sort.Order.asc("code")));
+            ClinicRoomPageResponse response = clinicRoomService.getPaged(keyword, floor, pageable);
+            return ResponseEntity.ok(response);
+        }
+        return ResponseEntity.ok(clinicRoomService.search(keyword, floor));
     }
 
     @GetMapping("/{id}")

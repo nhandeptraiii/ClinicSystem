@@ -19,6 +19,7 @@ const navItems = [
   { to: { name: 'appointments' }, label: 'Lịch hẹn' },
   { to: { name: 'patients' }, label: 'Bệnh nhân' },
   { to: { name: 'staff' }, label: 'Nhân viên' },
+  { to: { name: 'clinic-rooms' }, label: 'Phòng khám' },
 
 ];
 

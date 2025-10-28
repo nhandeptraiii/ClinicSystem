@@ -38,6 +38,7 @@ const router = createRouter({
     { path: '/dashboard/patients', name: 'patients', component: () => import('@/views/dashboard/PatientsView.vue') },
     { path: '/dashboard/staff', name: 'staff', component: () => import('@/views/dashboard/StaffManagementView.vue') },
     { path: '/dashboard/doctors', name: 'doctors', component: () => import('@/views/dashboard/DoctorsView.vue') },
+    { path: '/dashboard/clinic-rooms', name: 'clinic-rooms', component: () => import('@/views/dashboard/ClinicRoomsView.vue') },
     { path: '/dashboard/schedules', name: 'schedules', component: () => import('@/views/dashboard/SchedulesView.vue') },
     { path: '/dashboard/visits', name: 'visits', component: () => import('@/views/dashboard/VisitsView.vue') },
     { path: '/dashboard/medications', name: 'medications', component: () => import('@/views/dashboard/MedicationsView.vue') },
