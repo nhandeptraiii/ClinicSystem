@@ -4,6 +4,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,9 +16,9 @@ import vn.project.ClinicSystem.model.Appointment;
 import vn.project.ClinicSystem.model.AppointmentRequest;
 import vn.project.ClinicSystem.model.ClinicRoom;
 import vn.project.ClinicSystem.model.Doctor;
-import vn.project.ClinicSystem.model.DoctorSchedule;
 import vn.project.ClinicSystem.model.Patient;
 import vn.project.ClinicSystem.model.User;
+import vn.project.ClinicSystem.model.UserWorkSchedule;
 import vn.project.ClinicSystem.model.dto.AppointmentCreateRequest;
 import vn.project.ClinicSystem.model.dto.AppointmentStatusUpdateRequest;
 import vn.project.ClinicSystem.model.dto.AppointmentUpdateRequest;
@@ -25,20 +26,25 @@ import vn.project.ClinicSystem.model.enums.AppointmentStatus;
 import vn.project.ClinicSystem.repository.AppointmentRepository;
 import vn.project.ClinicSystem.repository.ClinicRoomRepository;
 import vn.project.ClinicSystem.repository.DoctorRepository;
-import vn.project.ClinicSystem.repository.DoctorScheduleRepository;
 import vn.project.ClinicSystem.repository.PatientRepository;
 import vn.project.ClinicSystem.repository.UserRepository;
+import vn.project.ClinicSystem.repository.UserWorkScheduleRepository;
 
 @Service
 @Transactional(readOnly = true)
 public class AppointmentService {
+
+    private static final LocalTime MORNING_SHIFT_START = LocalTime.of(8, 0);
+    private static final LocalTime MORNING_SHIFT_END = LocalTime.of(12, 0);
+    private static final LocalTime AFTERNOON_SHIFT_START = LocalTime.of(13, 0);
+    private static final LocalTime AFTERNOON_SHIFT_END = LocalTime.of(17, 0);
 
     private final AppointmentRepository appointmentRepository;
     private final PatientRepository patientRepository;
     private final DoctorRepository doctorRepository;
     private final ClinicRoomRepository clinicRoomRepository;
     private final UserRepository userRepository;
-    private final DoctorScheduleRepository doctorScheduleRepository;
+    private final UserWorkScheduleRepository userWorkScheduleRepository;
     private final Validator validator;
 
     public AppointmentService(AppointmentRepository appointmentRepository,
@@ -46,14 +52,14 @@ public class AppointmentService {
             DoctorRepository doctorRepository,
             ClinicRoomRepository clinicRoomRepository,
             UserRepository userRepository,
-            DoctorScheduleRepository doctorScheduleRepository,
+            UserWorkScheduleRepository userWorkScheduleRepository,
             Validator validator) {
         this.appointmentRepository = appointmentRepository;
         this.patientRepository = patientRepository;
         this.doctorRepository = doctorRepository;
         this.clinicRoomRepository = clinicRoomRepository;
         this.userRepository = userRepository;
-        this.doctorScheduleRepository = doctorScheduleRepository;
+        this.userWorkScheduleRepository = userWorkScheduleRepository;
         this.validator = validator;
     }
 
@@ -111,28 +117,20 @@ public class AppointmentService {
             User staffUser,
             Integer duration) {
 
-        // 1. TÌM CA LÀM VIỆC PHÙ HỢP
-        List<DoctorSchedule> schedules = doctorScheduleRepository.findSchedulesForDoctorAt(doctorId,
-                scheduledAt.getDayOfWeek(), scheduledAt.toLocalTime());
-
-        if (schedules.isEmpty()) {
-            throw new IllegalStateException("Bác sĩ không có lịch làm việc vào thời gian đã chọn.");
-        }
-        // Giả sử một bác sĩ chỉ có 1 ca làm việc tại 1 thời điểm
-        DoctorSchedule schedule = schedules.get(0);
-
-        // 2. TỰ ĐỘNG LẤY PHÒNG KHÁM TỪ CA LÀM VIỆC
-        ClinicRoom clinicRoom = schedule.getClinicRoom();
-
         Patient patient = loadPatient(patientId);
         Doctor doctor = loadDoctor(doctorId);
+        int resolvedDuration = resolveDuration(duration);
+        LocalDateTime appointmentEnd = scheduledAt.plusMinutes(resolvedDuration);
+
+        UserWorkSchedule schedule = validateDoctorWorkingHours(doctor, scheduledAt, appointmentEnd);
+        ClinicRoom clinicRoom = requireScheduleClinicRoom(schedule);
 
         Appointment appointment = new Appointment();
         appointment.setPatient(patient);
         appointment.setDoctor(doctor);
         appointment.setClinicRoom(clinicRoom);
         appointment.setScheduledAt(scheduledAt);
-        appointment.setDuration(resolveDuration(duration));
+        appointment.setDuration(resolvedDuration);
         appointment.setReason(requestEntity.getSymptomDescription());
         appointment.setStatus(AppointmentStatus.CONFIRMED);
         appointment.setRequest(requestEntity);
@@ -206,8 +204,9 @@ public class AppointmentService {
         int duration = resolveDuration(appointment.getDuration());
         LocalDateTime end = start.plusMinutes(duration);
 
-        // BƯỚC 1: KIỂM TRA LỊCH LÀM VIỆC
-        checkDoctorWorkingHours(appointment.getDoctor().getId(), start, end);
+        // BƯỚC 1: KIỂM TRA LỊCH LÀM VIỆC VÀ PHÒNG
+        UserWorkSchedule schedule = validateDoctorWorkingHours(appointment.getDoctor(), start, end);
+        ensureClinicRoomConsistency(appointment.getClinicRoom(), schedule);
 
         // BƯỚC 2: KIỂM TRA XUNG ĐỘT LỊCH HẸN
         boolean doctorConflict = appointmentRepository.existsDoctorOverlap(
@@ -224,20 +223,85 @@ public class AppointmentService {
 
     }
 
-    private void checkDoctorWorkingHours(Long doctorId, LocalDateTime appointmentStart, LocalDateTime appointmentEnd) {
+    private UserWorkSchedule validateDoctorWorkingHours(Doctor doctor, LocalDateTime appointmentStart,
+            LocalDateTime appointmentEnd) {
+        if (doctor == null) {
+            throw new IllegalStateException("Thông tin bác sĩ không hợp lệ.");
+        }
+        User account = resolveDoctorAccount(doctor);
         DayOfWeek day = appointmentStart.getDayOfWeek();
+
+        UserWorkSchedule schedule = userWorkScheduleRepository
+                .findByUserIdAndDayOfWeek(account.getId(), day)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Bác sĩ chưa thiết lập lịch làm việc cho " + formatDayOfWeek(day) + "."));
+
+        if (!schedule.isMorning() && !schedule.isAfternoon()) {
+            throw new IllegalStateException("Bác sĩ nghỉ làm " + formatDayOfWeek(day) + ".");
+        }
+
         LocalTime startTime = appointmentStart.toLocalTime();
         LocalTime endTime = appointmentEnd.toLocalTime();
 
-        List<DoctorSchedule> schedules = doctorScheduleRepository.findByDoctorId(doctorId);
+        boolean withinMorning = schedule.isMorning()
+                && !startTime.isBefore(MORNING_SHIFT_START)
+                && !endTime.isAfter(MORNING_SHIFT_END);
 
-        boolean isWithinWorkingHours = schedules.stream().anyMatch(schedule -> schedule.getDaysOfWeek().contains(day) &&
-                !startTime.isBefore(schedule.getStartTime()) &&
-                !endTime.isAfter(schedule.getEndTime()));
+        boolean withinAfternoon = schedule.isAfternoon()
+                && !startTime.isBefore(AFTERNOON_SHIFT_START)
+                && !endTime.isAfter(AFTERNOON_SHIFT_END);
 
-        if (!isWithinWorkingHours) {
-            throw new IllegalStateException("Bác sĩ không có lịch làm việc vào thời gian đã chọn.");
+        if (!(withinMorning || withinAfternoon)) {
+            throw new IllegalStateException(
+                    "Thời gian đã chọn không nằm trong ca làm việc của bác sĩ vào " + formatDayOfWeek(day) + ".");
         }
+
+        return schedule;
+    }
+
+    private void ensureClinicRoomConsistency(ClinicRoom appointmentRoom, UserWorkSchedule schedule) {
+        ClinicRoom scheduledRoom = schedule.getClinicRoom();
+        if (scheduledRoom == null) {
+            throw new IllegalStateException("Bác sĩ chưa được gán phòng khám cho lịch làm việc.");
+        }
+        if (appointmentRoom == null) {
+            throw new IllegalStateException("Vui lòng chọn phòng khám cho lịch hẹn.");
+        }
+        if (!Objects.equals(scheduledRoom.getId(), appointmentRoom.getId())) {
+            throw new IllegalStateException(
+                    "Phòng khám của lịch hẹn không khớp với phòng đã đăng ký trong lịch làm việc của bác sĩ.");
+        }
+    }
+
+    private ClinicRoom requireScheduleClinicRoom(UserWorkSchedule schedule) {
+        ClinicRoom clinicRoom = schedule.getClinicRoom();
+        if (clinicRoom == null) {
+            throw new IllegalStateException("Bác sĩ chưa được gán phòng khám cho lịch làm việc.");
+        }
+        return clinicRoom;
+    }
+
+    private User resolveDoctorAccount(Doctor doctor) {
+        if (doctor == null) {
+            throw new IllegalStateException("Thông tin bác sĩ không hợp lệ.");
+        }
+        User account = doctor.getAccount();
+        if (account == null) {
+            throw new IllegalStateException("Bác sĩ chưa được liên kết với tài khoản người dùng.");
+        }
+        return account;
+    }
+
+    private String formatDayOfWeek(DayOfWeek day) {
+        return switch (day) {
+            case MONDAY -> "Thứ 2";
+            case TUESDAY -> "Thứ 3";
+            case WEDNESDAY -> "Thứ 4";
+            case THURSDAY -> "Thứ 5";
+            case FRIDAY -> "Thứ 6";
+            case SATURDAY -> "Thứ 7";
+            case SUNDAY -> "Chủ nhật";
+        };
     }
 
     private void validateBean(Appointment appointment) {

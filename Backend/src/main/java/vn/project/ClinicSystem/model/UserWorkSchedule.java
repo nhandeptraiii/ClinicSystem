@@ -19,8 +19,6 @@ import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
 import lombok.Setter;
 
-import vn.project.ClinicSystem.model.ClinicRoom;
-
 @Getter
 @Setter
 @Entity

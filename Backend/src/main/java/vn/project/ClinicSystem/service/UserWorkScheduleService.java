@@ -4,6 +4,7 @@ import java.time.DayOfWeek;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -28,6 +29,7 @@ import vn.project.ClinicSystem.repository.UserWorkScheduleRepository;
 public class UserWorkScheduleService {
     private static final EnumSet<DayOfWeek> SUPPORTED_WORK_DAYS = EnumSet.range(DayOfWeek.MONDAY, DayOfWeek.SATURDAY);
     private static final String DOCTOR_ROLE_NAME = "DOCTOR";
+    private static final long UNKNOWN_USER_KEY = -1L;
 
     private final UserWorkScheduleRepository scheduleRepository;
     private final UserRepository userRepository;
@@ -59,6 +61,7 @@ public class UserWorkScheduleService {
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy người dùng với id: " + userId));
         Map<DayOfWeek, WorkScheduleDayDto> normalized = normalizeRequestDays(requestDays);
         ClinicRoom clinicRoom = resolveClinicRoomForSchedule(clinicRoomId, user, normalized);
+        validateClinicRoomAvailability(user, normalized, clinicRoom);
         return persistSchedule(user, normalized, clinicRoom);
     }
 
@@ -66,6 +69,7 @@ public class UserWorkScheduleService {
             Long clinicRoomId) {
         Map<DayOfWeek, WorkScheduleDayDto> normalized = normalizeRequestDays(requestDays);
         ClinicRoom clinicRoom = resolveClinicRoomForSchedule(clinicRoomId, user, normalized);
+        validateClinicRoomAvailability(user, normalized, clinicRoom);
         return persistSchedule(user, normalized, clinicRoom);
     }
 
@@ -100,6 +104,142 @@ public class UserWorkScheduleService {
 
         scheduleRepository.saveAll(entities);
         return buildScheduleResponse(user, entities);
+    }
+
+    private void validateClinicRoomAvailability(User user, Map<DayOfWeek, WorkScheduleDayDto> normalized,
+            ClinicRoom clinicRoom) {
+        if (clinicRoom == null || clinicRoom.getId() == null) {
+            return;
+        }
+
+        Long clinicRoomId = clinicRoom.getId();
+        Map<Long, UserRoomConflict> userConflicts = new LinkedHashMap<>();
+
+        for (DayOfWeek day : SUPPORTED_WORK_DAYS) {
+            WorkScheduleDayDto dto = normalized.get(day);
+            if (dto == null || (!dto.isMorning() && !dto.isAfternoon())) {
+                continue;
+            }
+
+            List<UserWorkSchedule> existingSchedules = scheduleRepository
+                    .findByClinicRoomIdAndDayOfWeek(clinicRoomId, day);
+
+            for (UserWorkSchedule existing : existingSchedules) {
+                User assignedUser = existing.getUser();
+                if (assignedUser != null && Objects.equals(assignedUser.getId(), user.getId())) {
+                    continue;
+                }
+
+                boolean morningConflict = dto.isMorning() && existing.isMorning();
+                boolean afternoonConflict = dto.isAfternoon() && existing.isAfternoon();
+                if (!morningConflict && !afternoonConflict) {
+                    continue;
+                }
+
+                long userKey = assignedUser != null && assignedUser.getId() != null ? assignedUser.getId()
+                        : UNKNOWN_USER_KEY;
+                UserRoomConflict userConflict = userConflicts
+                        .computeIfAbsent(userKey, key -> new UserRoomConflict(assignedUser));
+                ShiftConflict shift = userConflict.dayConflicts
+                        .computeIfAbsent(day, key -> new ShiftConflict());
+                shift.register(morningConflict, afternoonConflict);
+            }
+        }
+
+        if (!userConflicts.isEmpty()) {
+            String message = buildConflictMessage(clinicRoom, userConflicts);
+            throw new IllegalStateException(message);
+        }
+    }
+
+    private String buildConflictMessage(ClinicRoom room, Map<Long, UserRoomConflict> userConflicts) {
+        List<String> userMessages = new ArrayList<>(userConflicts.size());
+        for (UserRoomConflict userConflict : userConflicts.values()) {
+            Map<String, List<DayOfWeek>> groupedByShift = new LinkedHashMap<>();
+            for (Map.Entry<DayOfWeek, ShiftConflict> entry : userConflict.dayConflicts.entrySet()) {
+                ShiftConflict shiftConflict = entry.getValue();
+                String shiftLabel = buildConflictShiftLabel(shiftConflict.morning, shiftConflict.afternoon);
+                groupedByShift.computeIfAbsent(shiftLabel, key -> new ArrayList<>()).add(entry.getKey());
+            }
+
+            List<String> segments = new ArrayList<>(groupedByShift.size());
+            for (Map.Entry<String, List<DayOfWeek>> entry : groupedByShift.entrySet()) {
+                String shiftLabel = entry.getKey();
+                String formattedDays = formatDayList(entry.getValue());
+                segments.add(shiftLabel + " " + formattedDays);
+            }
+
+            String holderName = resolveUserDisplayName(userConflict.user);
+            userMessages.add("đã được " + holderName + " đăng ký " + String.join("; ", segments));
+        }
+
+        return "Phòng " + room.getName() + " (" + room.getCode() + ") " + String.join("; ", userMessages);
+    }
+
+    private String formatDayList(List<DayOfWeek> days) {
+        List<String> labels = new ArrayList<>(days.size());
+        for (DayOfWeek supportedDay : SUPPORTED_WORK_DAYS) {
+            if (days.contains(supportedDay)) {
+                labels.add(formatDayOfWeek(supportedDay));
+            }
+        }
+        return String.join(", ", labels);
+    }
+
+    private String resolveUserDisplayName(User user) {
+        if (user == null) {
+            return "nhân sự khác";
+        }
+        String fullName = user.getFullName();
+        if (fullName != null && !fullName.isBlank()) {
+            return fullName;
+        }
+        String email = user.getEmail();
+        if (email != null && !email.isBlank()) {
+            return email;
+        }
+        return "nhân sự khác";
+    }
+
+    private static class UserRoomConflict {
+        private final User user;
+        private final Map<DayOfWeek, ShiftConflict> dayConflicts = new EnumMap<>(DayOfWeek.class);
+
+        private UserRoomConflict(User user) {
+            this.user = user;
+        }
+    }
+
+    private static class ShiftConflict {
+        private boolean morning;
+        private boolean afternoon;
+
+        private void register(boolean morningConflict, boolean afternoonConflict) {
+            this.morning = this.morning || morningConflict;
+            this.afternoon = this.afternoon || afternoonConflict;
+        }
+    }
+
+    private String buildConflictShiftLabel(boolean morningConflict, boolean afternoonConflict) {
+        if (morningConflict && afternoonConflict) {
+            return "cả ngày";
+        }
+        if (morningConflict) {
+            return "ca sáng";
+        }
+        return "ca chiều";
+    }
+
+    private String formatDayOfWeek(DayOfWeek day) {
+        return switch (day) {
+            case MONDAY -> "Thứ 2";
+            case TUESDAY -> "Thứ 3";
+            case WEDNESDAY -> "Thứ 4";
+            case THURSDAY -> "Thứ 5";
+            case FRIDAY -> "Thứ 6";
+            case SATURDAY -> "Thứ 7";
+            case SUNDAY -> "Chủ nhật";
+        };
     }
 
     private Map<DayOfWeek, WorkScheduleDayDto> normalizeRequestDays(List<WorkScheduleDayDto> requestDays) {
