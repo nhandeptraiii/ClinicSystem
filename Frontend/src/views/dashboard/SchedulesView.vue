@@ -338,7 +338,7 @@ const scheduleSummary = computed(() =>
   }),
 );
 
-interface DoctorScheduleEntry {
+interface WorkScheduleEntry {
   loading: boolean;
   error: string | null;
   days: WorkScheduleDay[] | null;
@@ -347,11 +347,11 @@ interface DoctorScheduleEntry {
   clinicRoomCode: string | null;
 }
 
-const doctorScheduleEntries = reactive<Record<number, DoctorScheduleEntry>>({});
+const workScheduleEntries = reactive<Record<number, WorkScheduleEntry>>({});
 
-const ensureDoctorEntry = (id: number): DoctorScheduleEntry => {
-  if (!doctorScheduleEntries[id]) {
-    doctorScheduleEntries[id] = {
+const ensureScheduleEntry = (id: number): WorkScheduleEntry => {
+  if (!workScheduleEntries[id]) {
+    workScheduleEntries[id] = {
       loading: false,
       error: null,
       days: null,
@@ -360,7 +360,7 @@ const ensureDoctorEntry = (id: number): DoctorScheduleEntry => {
       clinicRoomCode: null,
     };
   }
-  return doctorScheduleEntries[id];
+  return workScheduleEntries[id];
 };
 
 const normalizeScheduleForDisplay = (days: WorkScheduleDay[] | null | undefined) => {
@@ -407,7 +407,7 @@ const otherStaff = computed(() => staffItems.value.filter((member) => !hasDoctor
 
 const doctorCards = computed(() =>
   doctorStaff.value.map((member) => {
-    const entry = ensureDoctorEntry(member.id);
+    const entry = ensureScheduleEntry(member.id);
     const overview = normalizeScheduleForDisplay(entry.days);
     const clinicDisplay = entry.clinicRoomName
       ? `${entry.clinicRoomName}${entry.clinicRoomCode ? ` (${entry.clinicRoomCode})` : ''}`
@@ -457,12 +457,12 @@ watch(
   (doctors) => {
     const ids = doctors.map((doctor) => doctor.id);
     ids.forEach((id) => {
-      ensureDoctorEntry(id);
+      ensureScheduleEntry(id);
     });
-    Object.keys(doctorScheduleEntries).forEach((key) => {
+    Object.keys(workScheduleEntries).forEach((key) => {
       const id = Number(key);
       if (!ids.includes(id)) {
-        delete doctorScheduleEntries[id];
+        delete workScheduleEntries[id];
       }
     });
   },
@@ -517,9 +517,9 @@ const extractErrorMessage = (input: unknown) => {
   return fallback;
 };
 
-const fetchDoctorSchedule = async (member: StaffMember, options: { force?: boolean } = {}) => {
+const fetchWorkSchedule = async (member: StaffMember, options: { force?: boolean } = {}) => {
   if (!member?.id) return null;
-  const entry = ensureDoctorEntry(member.id);
+  const entry = ensureScheduleEntry(member.id);
   if (entry.loading) return entry;
   if (!options.force && entry.days) return entry;
   entry.loading = true;
@@ -544,11 +544,11 @@ const fetchDoctorSchedule = async (member: StaffMember, options: { force?: boole
   return entry;
 };
 
-const preloadDoctorSchedules = async (doctors: StaffMember[]) => {
+const preloadWorkSchedules = async (doctors: StaffMember[]) => {
   await Promise.all(
     doctors.map((doctor) =>
-      fetchDoctorSchedule(doctor).catch(() => {
-        const entry = ensureDoctorEntry(doctor.id);
+      fetchWorkSchedule(doctor).catch(() => {
+        const entry = ensureScheduleEntry(doctor.id);
         entry.error = entry.error ?? 'Không thể tải lịch làm việc.';
       }),
     ),
@@ -579,7 +579,7 @@ const loadStaff = async () => {
     }
 
     const doctors = staffItems.value.filter((member) => hasDoctorRole(member));
-    await preloadDoctorSchedules(doctors);
+    await preloadWorkSchedules(doctors);
   } catch (error) {
     staffError.value = extractErrorMessage(error);
     staffItems.value = [];
@@ -611,7 +611,7 @@ const startEditSchedule = async (member: StaffMember) => {
   scheduleLoading.value = true;
   scheduleError.value = null;
   await ensureClinicRoomsLoaded();
-  const entry = await fetchDoctorSchedule(member, { force: true });
+  const entry = await fetchWorkSchedule(member, { force: true });
   const days = entry?.days ?? null;
   setScheduleState(days, { defaultFullWhenEmpty: false, updateBaseline: true });
   if (!selectedClinicRoomId.value && entry?.clinicRoomId != null) {
@@ -638,7 +638,7 @@ const toggleShift = (day: DayOfWeekKey, shift: ShiftKey) => {
   scheduleError.value = null;
 };
 
-const applyDefaultDoctorSchedule = () => {
+const applyDefaultWorkSchedule = () => {
   if (!isDoctorSelected.value) return;
   WORK_DAY_KEYS.forEach((day) => {
     scheduleState[day].morning = true;
@@ -650,7 +650,7 @@ const applyDefaultDoctorSchedule = () => {
   scheduleError.value = null;
 };
 
-const clearDoctorSchedule = () => {
+const clearWorkSchedule = () => {
   if (!isDoctorSelected.value) return;
   WORK_DAY_KEYS.forEach((day) => {
     scheduleState[day].morning = false;
@@ -702,7 +702,7 @@ const saveSchedule = async () => {
     });
     if (isDoctorSelected.value) {
       const normalizedForCache = normalizeWorkDays(updated, false);
-      const entry = ensureDoctorEntry(selectedStaff.value.id);
+      const entry = ensureScheduleEntry(selectedStaff.value.id);
       entry.days = normalizedForCache;
       const firstWithRoom = normalizedForCache.find((item) => item.clinicRoomId != null);
       entry.clinicRoomId = firstWithRoom?.clinicRoomId ?? null;
@@ -1107,7 +1107,7 @@ onMounted(async () => {
                 type="button"
                 class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
                 :disabled="scheduleSaving"
-                @click="applyDefaultDoctorSchedule"
+                @click="applyDefaultWorkSchedule"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M4 12h16m-8-8v16" />
@@ -1118,7 +1118,7 @@ onMounted(async () => {
                 type="button"
                 class="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-rose-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
                 :disabled="scheduleSaving"
-                @click="clearDoctorSchedule"
+                @click="clearWorkSchedule"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                   <path stroke-linecap="round" stroke-linejoin="round" d="m6 18 12-12M6 6l12 12" />
@@ -1220,13 +1220,6 @@ onMounted(async () => {
             <p v-if="scheduleInfoMessage" class="mt-4 text-xs text-amber-600">
               {{ scheduleInfoMessage }}
             </p>
-            <p
-              v-if="scheduleError"
-              class="mt-4 rounded-2xl border border-rose-100 bg-rose-50/90 px-4 py-3 text-sm text-rose-600"
-            >
-              {{ scheduleError }}
-            </p>
-
             <div class="mt-6 flex flex-wrap items-center justify-end gap-3">
               <button
                 type="button"

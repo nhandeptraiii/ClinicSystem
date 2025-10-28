@@ -69,7 +69,7 @@ const createEmptyScheduleRecord = () =>
     return acc;
   }, {} as Record<DayOfWeekKey, DayScheduleState>);
 
-const doctorSchedule = reactive<Record<DayOfWeekKey, DayScheduleState>>(createEmptyScheduleRecord());
+const workScheduleState = reactive<Record<DayOfWeekKey, DayScheduleState>>(createEmptyScheduleRecord());
 const scheduleBaseline = ref<string>('');
 const scheduleLoading = ref(false);
 const scheduleSaving = ref(false);
@@ -259,8 +259,8 @@ const setScheduleState = (
 ) => {
   const normalized = normalizeWorkDays(days, options.defaultFullWhenEmpty ?? false);
   normalized.forEach(({ dayOfWeek, morning, afternoon }) => {
-    doctorSchedule[dayOfWeek].morning = Boolean(morning);
-    doctorSchedule[dayOfWeek].afternoon = Boolean(afternoon);
+    workScheduleState[dayOfWeek].morning = Boolean(morning);
+    workScheduleState[dayOfWeek].afternoon = Boolean(afternoon);
   });
   const firstWithRoom = normalized.find((item) => item.clinicRoomId != null);
   if (firstWithRoom && firstWithRoom.clinicRoomId != null) {
@@ -289,8 +289,8 @@ const setScheduleState = (
 const getCurrentSchedulePayload = (): WorkScheduleDay[] =>
   WORK_DAY_KEYS.map((key) => ({
     dayOfWeek: key,
-    morning: doctorSchedule[key].morning,
-    afternoon: doctorSchedule[key].afternoon,
+    morning: workScheduleState[key].morning,
+    afternoon: workScheduleState[key].afternoon,
     clinicRoomId: selectedClinicRoomId.value,
   }));
 
@@ -365,7 +365,7 @@ const selectedClinicRoomDisplay = computed(() => {
 
 const scheduleSummary = computed(() =>
   WEEK_DAY_META.map(({ key, label, short }) => {
-    const state = doctorSchedule[key];
+    const state = workScheduleState[key];
     const hasMorning = Boolean(state?.morning);
     const hasAfternoon = Boolean(state?.afternoon);
     const hasAny = hasMorning || hasAfternoon;
@@ -449,8 +449,8 @@ const applyDefaultFullSchedule = async () => {
   await ensureClinicRoomsLoaded();
   if (isDoctor.value) {
     WORK_DAY_KEYS.forEach((day) => {
-      doctorSchedule[day].morning = true;
-      doctorSchedule[day].afternoon = true;
+      workScheduleState[day].morning = true;
+      workScheduleState[day].afternoon = true;
     });
     if (selectedClinicRoomId.value == null) {
       const firstRoom = clinicRooms.value[0];
@@ -478,7 +478,7 @@ const applyDefaultFullSchedule = async () => {
   scheduleError.value = null;
 };
 
-const clearDoctorSchedule = () => {
+const clearWorkSchedule = () => {
   const emptySchedule = WORK_DAY_KEYS.map<WorkScheduleDay>((key) => ({
     dayOfWeek: key,
     morning: false,
@@ -488,9 +488,9 @@ const clearDoctorSchedule = () => {
   scheduleError.value = null;
 };
 
-const toggleDoctorSlot = (day: DayOfWeekKey, shift: ShiftKey) => {
+const toggleScheduleSlot = (day: DayOfWeekKey, shift: ShiftKey) => {
   if (scheduleSaving.value) return;
-  const state = doctorSchedule[day];
+  const state = workScheduleState[day];
   if (!state) return;
   const next = !state[shift];
   state[shift] = next;
@@ -503,7 +503,7 @@ const applyFixedScheduleForNonDoctor = () => {
   scheduleError.value = null;
 };
 
-const loadDoctorSchedule = async () => {
+const loadWorkSchedule = async () => {
   await ensureClinicRoomsLoaded();
   scheduleLoading.value = true;
   scheduleError.value = null;
@@ -525,7 +525,7 @@ const loadDoctorSchedule = async () => {
   }
 };
 
-const saveDoctorSchedule = async () => {
+const saveWorkSchedule = async () => {
   if (scheduleSaveDisabled.value) {
     return;
   }
@@ -654,7 +654,7 @@ const loadProfile = async () => {
     const fetched = await fetchCurrentUserProfile();
     profile.value = fetched;
     if (hasDoctorRole(fetched)) {
-      await loadDoctorSchedule();
+      await loadWorkSchedule();
     } else {
       clinicRooms.value = [];
       clinicRoomsError.value = null;
@@ -745,7 +745,7 @@ const handleEditSubmit = async () => {
 
     if (profile.value) {
       if (hasDoctorRole(profile.value)) {
-        await loadDoctorSchedule();
+        await loadWorkSchedule();
       } else {
         applyFixedScheduleForNonDoctor();
       }
@@ -1306,7 +1306,7 @@ onBeforeUnmount(() => {
                   type="button"
                   class="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-rose-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
                   :disabled="scheduleSaving"
-                  @click="clearDoctorSchedule"
+                  @click="clearWorkSchedule"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                     <path stroke-linecap="round" stroke-linejoin="round" d="m6 18 12-12M6 6l12 12" />
@@ -1376,12 +1376,12 @@ onBeforeUnmount(() => {
                         <button
                           type="button"
                           class="inline-flex flex-col items-center justify-center rounded-2xl border px-4 py-2 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
-                          :class="doctorSchedule[day.key].morning
+                          :class="workScheduleState[day.key].morning
                             ? 'border-emerald-300 bg-emerald-50 text-emerald-700 shadow-sm'
                             : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-200 hover:bg-emerald-50/60'"
-                          :aria-pressed="doctorSchedule[day.key].morning"
+                          :aria-pressed="workScheduleState[day.key].morning"
                           :disabled="scheduleSaving"
-                          @click="toggleDoctorSlot(day.key, 'morning')"
+                          @click="toggleScheduleSlot(day.key, 'morning')"
                         >
                           <span>{{ SHIFT_META.morning.label }}</span>
                           <span class="mt-0.5 text-[11px] font-normal tracking-wide text-slate-500">{{ SHIFT_META.morning.time }}</span>
@@ -1389,12 +1389,12 @@ onBeforeUnmount(() => {
                         <button
                           type="button"
                           class="inline-flex flex-col items-center justify-center rounded-2xl border px-4 py-2 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
-                          :class="doctorSchedule[day.key].afternoon
+                          :class="workScheduleState[day.key].afternoon
                             ? 'border-emerald-300 bg-emerald-50 text-emerald-700 shadow-sm'
                             : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-200 hover:bg-emerald-50/60'"
-                          :aria-pressed="doctorSchedule[day.key].afternoon"
+                          :aria-pressed="workScheduleState[day.key].afternoon"
                           :disabled="scheduleSaving"
-                          @click="toggleDoctorSlot(day.key, 'afternoon')"
+                          @click="toggleScheduleSlot(day.key, 'afternoon')"
                         >
                           <span>{{ SHIFT_META.afternoon.label }}</span>
                           <span class="mt-0.5 text-[11px] font-normal tracking-wide text-slate-500">{{ SHIFT_META.afternoon.time }}</span>
@@ -1428,7 +1428,7 @@ onBeforeUnmount(() => {
                   type="button"
                   class="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-6 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
                   :disabled="scheduleSaveDisabled"
-                  @click="saveDoctorSchedule"
+                  @click="saveWorkSchedule"
                 >
                   <svg
                     v-if="scheduleSaving"
