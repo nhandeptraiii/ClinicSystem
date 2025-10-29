@@ -386,12 +386,12 @@ onMounted(() => {
 
         <div class="mt-5">
           <div
-            class="hidden rounded-2xl border border-emerald-100 bg-emerald-50/70 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-emerald-700 md:grid md:grid-cols-[160px_minmax(0,1fr)_120px_240px]"
+            class="hidden rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-emerald-700 md:grid md:grid-cols-[140px_minmax(0,400px)_100px_1fr] md:gap-6"
           >
             <span>Mã phòng</span>
             <span>Tên phòng</span>
-            <span >Tầng/Khu</span>
-            <span>Thao tác</span>
+            <span>Tầng/Khu</span>
+            <span class="flex justify-end pr-20">Thao tác</span>
           </div>
 
           <template v-if="loading">
@@ -400,7 +400,7 @@ onMounted(() => {
               :key="`clinic-room-skeleton-${skeleton}`"
               class="mt-3 animate-pulse rounded-2xl border border-slate-100 bg-white px-4 py-4 shadow-sm"
             >
-              <div class="grid gap-4 md:grid-cols-[160px_minmax(0,1fr)_120px_240px] md:items-center">
+              <div class="grid gap-6 md:grid-cols-[140px_minmax(0,400px)_100px_1fr] md:items-center">
                 <div class="h-4 rounded-full bg-slate-200/70"></div>
                 <div class="h-4 rounded-full bg-slate-200/60"></div>
                 <div class="h-4 rounded-full bg-slate-200/50"></div>
@@ -423,7 +423,7 @@ onMounted(() => {
               :key="room.id"
               class="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm transition hover:border-emerald-200 hover:shadow-md"
             >
-              <div class="grid gap-4 md:grid-cols-[160px_minmax(0,1fr)_120px_240px] md:items-center">
+              <div class="grid gap-6 md:grid-cols-[140px_minmax(0,400px)_100px_1fr] md:items-center">
                 <div>
                   <p class="text-xs font-semibold uppercase tracking-wide text-slate-400 md:hidden">Mã phòng</p>
                   <p class="text-sm font-semibold text-slate-900">{{ room.code }}</p>

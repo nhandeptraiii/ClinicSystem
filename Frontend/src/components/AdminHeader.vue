@@ -20,7 +20,7 @@ const navItems = [
   { to: { name: 'patients' }, label: 'Bệnh nhân' },
   { to: { name: 'staff' }, label: 'Nhân viên' },
   { to: { name: 'clinic-rooms' }, label: 'Phòng khám' },
-
+  { to: { name: 'services' }, label: 'Dịch vụ' },
 ];
 
 const isActive = (to: { name?: string }) => {
