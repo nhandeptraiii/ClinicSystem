@@ -13,8 +13,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.EntityNotFoundException;
 import vn.project.ClinicSystem.model.Doctor;
+import vn.project.ClinicSystem.model.IndicatorTemplate;
 import vn.project.ClinicSystem.model.MedicalService;
-import vn.project.ClinicSystem.model.ServiceIndicator;
+import vn.project.ClinicSystem.model.ServiceIndicatorMapping;
 import vn.project.ClinicSystem.model.ServiceOrder;
 import vn.project.ClinicSystem.model.ServiceOrderResult;
 import vn.project.ClinicSystem.model.dto.ServiceOrderResultEntryRequest;
@@ -22,7 +23,8 @@ import vn.project.ClinicSystem.model.dto.ServiceOrderResultRequest;
 import vn.project.ClinicSystem.model.enums.IndicatorResultLevel;
 import vn.project.ClinicSystem.model.enums.ServiceOrderStatus;
 import vn.project.ClinicSystem.repository.DoctorRepository;
-import vn.project.ClinicSystem.repository.ServiceIndicatorRepository;
+import vn.project.ClinicSystem.repository.IndicatorTemplateRepository;
+import vn.project.ClinicSystem.repository.ServiceIndicatorMappingRepository;
 import vn.project.ClinicSystem.repository.ServiceOrderRepository;
 import vn.project.ClinicSystem.repository.ServiceOrderResultRepository;
 
@@ -31,16 +33,19 @@ import vn.project.ClinicSystem.repository.ServiceOrderResultRepository;
 public class ServiceOrderResultService {
 
     private final ServiceOrderRepository serviceOrderRepository;
-    private final ServiceIndicatorRepository indicatorRepository;
+    private final ServiceIndicatorMappingRepository mappingRepository;
+    private final IndicatorTemplateRepository templateRepository;
     private final ServiceOrderResultRepository resultRepository;
     private final DoctorRepository doctorRepository;
 
     public ServiceOrderResultService(ServiceOrderRepository serviceOrderRepository,
-            ServiceIndicatorRepository indicatorRepository,
+            ServiceIndicatorMappingRepository mappingRepository,
+            IndicatorTemplateRepository templateRepository,
             ServiceOrderResultRepository resultRepository,
             DoctorRepository doctorRepository) {
         this.serviceOrderRepository = serviceOrderRepository;
-        this.indicatorRepository = indicatorRepository;
+        this.mappingRepository = mappingRepository;
+        this.templateRepository = templateRepository;
         this.resultRepository = resultRepository;
         this.doctorRepository = doctorRepository;
     }
@@ -59,13 +64,13 @@ public class ServiceOrderResultService {
             throw new IllegalStateException("Không thể nhập kết quả cho phiếu dịch vụ đã hủy.");
         }
 
-        Map<Long, ServiceIndicator> indicatorsById = loadIndicatorsMap(medicalService.getId(), request.getIndicators());
-        ensureRequiredIndicatorsFilled(medicalService.getId(), request.getIndicators());
+        Map<Long, IndicatorTemplate> templatesById = loadTemplatesMap(medicalService.getId(), request.getIndicators());
+        ensureRequiredTemplatesFilled(medicalService.getId(), request.getIndicators());
 
         order.clearIndicatorResults();
         request.getIndicators().forEach(entry -> {
-            ServiceIndicator indicator = indicatorsById.get(entry.getIndicatorId());
-            ServiceOrderResult result = buildResult(indicator, entry);
+            IndicatorTemplate template = templatesById.get(entry.getIndicatorId());
+            ServiceOrderResult result = buildResult(template, entry);
             order.addIndicatorResult(result);
         });
 
@@ -85,58 +90,74 @@ public class ServiceOrderResultService {
         return serviceOrderRepository.save(order);
     }
 
-    private ServiceOrderResult buildResult(ServiceIndicator indicator, ServiceOrderResultEntryRequest entry) {
+    private ServiceOrderResult buildResult(IndicatorTemplate template, ServiceOrderResultEntryRequest entry) {
         ServiceOrderResult result = new ServiceOrderResult();
-        result.setIndicator(indicator);
-        result.setIndicatorNameSnapshot(indicator.getName());
-        result.setUnitSnapshot(indicator.getUnit());
+        result.setIndicatorTemplate(template);
+        result.setIndicatorNameSnapshot(template.getName());
+        result.setUnitSnapshot(template.getUnit());
         result.setMeasuredValue(entry.getValue().stripTrailingZeros());
-        result.setEvaluation(evaluate(indicator, entry.getValue()));
+        result.setEvaluation(evaluate(template, entry.getValue()));
         result.setNote(entry.getNote() != null ? entry.getNote().trim() : null);
         return result;
     }
 
-    private Map<Long, ServiceIndicator> loadIndicatorsMap(Long medicalServiceId,
+    private Map<Long, IndicatorTemplate> loadTemplatesMap(Long medicalServiceId,
             List<ServiceOrderResultEntryRequest> entries) {
-        Set<Long> indicatorIds = new HashSet<>();
+        // Lấy danh sách template IDs được phép cho dịch vụ này
+        List<ServiceIndicatorMapping> mappings = mappingRepository
+                .findByMedicalServiceIdOrderByDisplayOrderAsc(medicalServiceId);
+
+        Set<Long> allowedTemplateIds = new HashSet<>();
+        for (ServiceIndicatorMapping mapping : mappings) {
+            allowedTemplateIds.add(mapping.getIndicatorTemplate().getId());
+        }
+
+        // Validate và collect template IDs từ request
+        Set<Long> requestedTemplateIds = new HashSet<>();
         for (ServiceOrderResultEntryRequest entry : entries) {
-            if (!indicatorIds.add(entry.getIndicatorId())) {
+            if (!requestedTemplateIds.add(entry.getIndicatorId())) {
                 throw new IllegalArgumentException("Không được nhập trùng một chỉ số hai lần.");
             }
         }
 
-        Map<Long, ServiceIndicator> map = new HashMap<>();
-        for (Long id : indicatorIds) {
-            ServiceIndicator indicator = indicatorRepository.findById(id)
-                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy chỉ số với id: " + id));
-            if (!indicator.getMedicalService().getId().equals(medicalServiceId)) {
-                throw new IllegalArgumentException("Chỉ số " + indicator.getCode()
-                        + " không thuộc dịch vụ có id: " + medicalServiceId);
+        // Load templates và validate
+        Map<Long, IndicatorTemplate> map = new HashMap<>();
+        for (Long templateId : requestedTemplateIds) {
+            if (!allowedTemplateIds.contains(templateId)) {
+                throw new IllegalArgumentException("Chỉ số với id " + templateId
+                        + " không thuộc dịch vụ này.");
             }
-            map.put(id, indicator);
+            IndicatorTemplate template = templateRepository.findById(templateId)
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy template với id: " + templateId));
+            map.put(templateId, template);
         }
         return map;
     }
 
-    private void ensureRequiredIndicatorsFilled(Long serviceId, List<ServiceOrderResultEntryRequest> entries) {
-        List<ServiceIndicator> requiredIndicators = indicatorRepository.findByMedicalServiceIdAndRequiredTrue(serviceId);
-        if (requiredIndicators.isEmpty()) {
+    private void ensureRequiredTemplatesFilled(Long serviceId, List<ServiceOrderResultEntryRequest> entries) {
+        // Lấy các mappings có required = true
+        List<ServiceIndicatorMapping> requiredMappings = mappingRepository
+                .findByMedicalServiceIdAndRequiredTrue(serviceId);
+
+        if (requiredMappings.isEmpty()) {
             return;
         }
-        Set<Long> provided = new HashSet<>();
-        entries.forEach(entry -> provided.add(entry.getIndicatorId()));
 
-        for (ServiceIndicator indicator : requiredIndicators) {
-            if (!provided.contains(indicator.getId())) {
+        Set<Long> providedTemplateIds = new HashSet<>();
+        entries.forEach(entry -> providedTemplateIds.add(entry.getIndicatorId()));
+
+        for (ServiceIndicatorMapping mapping : requiredMappings) {
+            Long requiredTemplateId = mapping.getIndicatorTemplate().getId();
+            if (!providedTemplateIds.contains(requiredTemplateId)) {
                 throw new IllegalArgumentException(
-                        "Thiếu kết quả cho chỉ số bắt buộc: " + indicator.getName());
+                        "Thiếu kết quả cho chỉ số bắt buộc: " + mapping.getIndicatorTemplate().getName());
             }
         }
     }
 
-    private IndicatorResultLevel evaluate(ServiceIndicator indicator, BigDecimal value) {
-        BigDecimal min = indicator.getNormalMin();
-        BigDecimal max = indicator.getNormalMax();
+    private IndicatorResultLevel evaluate(IndicatorTemplate template, BigDecimal value) {
+        BigDecimal min = template.getNormalMin();
+        BigDecimal max = template.getNormalMax();
 
         if (min != null && value.compareTo(min) < 0) {
             return IndicatorResultLevel.LOW;

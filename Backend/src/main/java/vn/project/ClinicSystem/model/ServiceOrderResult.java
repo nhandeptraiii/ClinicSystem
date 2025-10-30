@@ -41,9 +41,9 @@ public class ServiceOrderResult {
     private ServiceOrder serviceOrder;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "indicator_id", nullable = false)
+    @JoinColumn(name = "indicator_template_id", nullable = false)
     @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
-    private ServiceIndicator indicator;
+    private IndicatorTemplate indicatorTemplate;
 
     @Size(max = 150, message = "Tên chỉ số tối đa 150 ký tự")
     @Column(length = 150)

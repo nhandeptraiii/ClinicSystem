@@ -31,7 +31,7 @@ import vn.project.ClinicSystem.repository.MedicationBatchRepository;
 import vn.project.ClinicSystem.repository.MedicationRepository;
 import vn.project.ClinicSystem.repository.PatientVisitRepository;
 import vn.project.ClinicSystem.repository.PrescriptionRepository;
-import vn.project.ClinicSystem.repository.ServiceIndicatorRepository;
+import vn.project.ClinicSystem.repository.ServiceIndicatorMappingRepository;
 import vn.project.ClinicSystem.repository.ServiceOrderRepository;
 
 @Service
@@ -44,7 +44,7 @@ public class PrescriptionService {
     private final MedicationRepository medicationRepository;
     private final MedicationBatchRepository medicationBatchRepository;
     private final ServiceOrderRepository serviceOrderRepository;
-    private final ServiceIndicatorRepository serviceIndicatorRepository;
+    private final ServiceIndicatorMappingRepository mappingRepository;
     private final Validator validator;
 
     public PrescriptionService(PrescriptionRepository prescriptionRepository,
@@ -53,7 +53,7 @@ public class PrescriptionService {
             MedicationRepository medicationRepository,
             MedicationBatchRepository medicationBatchRepository,
             ServiceOrderRepository serviceOrderRepository,
-            ServiceIndicatorRepository serviceIndicatorRepository,
+            ServiceIndicatorMappingRepository mappingRepository,
             Validator validator) {
         this.prescriptionRepository = prescriptionRepository;
         this.patientVisitRepository = patientVisitRepository;
@@ -61,7 +61,7 @@ public class PrescriptionService {
         this.medicationRepository = medicationRepository;
         this.medicationBatchRepository = medicationBatchRepository;
         this.serviceOrderRepository = serviceOrderRepository;
-        this.serviceIndicatorRepository = serviceIndicatorRepository;
+        this.mappingRepository = mappingRepository;
         this.validator = validator;
     }
 
@@ -244,7 +244,7 @@ public class PrescriptionService {
     private boolean requiresIndicatorResults(ServiceOrder order, Map<Long, Boolean> cache) {
         Long serviceId = order.getMedicalService().getId();
         return cache.computeIfAbsent(serviceId,
-                id -> !serviceIndicatorRepository.findByMedicalServiceIdAndRequiredTrue(id).isEmpty());
+                id -> !mappingRepository.findByMedicalServiceIdAndRequiredTrue(id).isEmpty());
     }
 
     private PatientVisit loadVisit(Long visitId) {
