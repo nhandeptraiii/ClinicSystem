@@ -1,7 +1,7 @@
 package vn.project.ClinicSystem.service;
 
-import java.util.List;
-
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -11,6 +11,7 @@ import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
 import vn.project.ClinicSystem.model.IndicatorTemplate;
+import vn.project.ClinicSystem.model.dto.IndicatorTemplatePageResponse;
 import vn.project.ClinicSystem.model.dto.IndicatorTemplateRequest;
 import vn.project.ClinicSystem.repository.IndicatorTemplateRepository;
 
@@ -26,16 +27,21 @@ public class IndicatorTemplateService {
         this.validator = validator;
     }
 
-    public List<IndicatorTemplate> findAll() {
-        return templateRepository.findAllByOrderByNameAsc();
-    }
+    @Transactional(readOnly = true)
+    public IndicatorTemplatePageResponse findAll(String keyword, Pageable pageable) {
+        String normalizedKeyword = (keyword != null && !keyword.isBlank()) ? keyword.trim() : null;
+        Page<IndicatorTemplate> page = templateRepository.search(normalizedKeyword, pageable);
 
-    public List<IndicatorTemplate> findAllActive() {
-        return templateRepository.findByIsActiveTrueOrderByNameAsc();
-    }
+        IndicatorTemplatePageResponse response = new IndicatorTemplatePageResponse();
+        response.setItems(page.getContent());
+        response.setPage(page.getNumber());
+        response.setSize(page.getSize());
+        response.setTotalElements(page.getTotalElements());
+        response.setTotalPages(page.getTotalPages());
+        response.setHasNext(page.hasNext());
+        response.setHasPrevious(page.hasPrevious());
 
-    public List<IndicatorTemplate> findByCategoryActive(String category) {
-        return templateRepository.findByCategoryAndIsActiveTrueOrderByNameAsc(category);
+        return response;
     }
 
     public IndicatorTemplate getById(Long id) {
@@ -55,7 +61,6 @@ public class IndicatorTemplateService {
         template.setCriticalMax(request.getCriticalMax());
         template.setReferenceNote(normalizeOptional(request.getReferenceNote()));
         template.setCategory(normalizeOptional(request.getCategory()));
-        template.setIsActive(request.getIsActive() != null ? request.getIsActive() : true);
 
         ensureCodeUnique(template.getCode(), null);
         validateBean(template);
@@ -98,10 +103,6 @@ public class IndicatorTemplateService {
 
         if (request.getCategory() != null) {
             template.setCategory(normalizeOptional(request.getCategory()));
-        }
-
-        if (request.getIsActive() != null) {
-            template.setIsActive(request.getIsActive());
         }
 
         validateBean(template);

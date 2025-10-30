@@ -1,7 +1,7 @@
 package vn.project.ClinicSystem.controller;
 
-import java.util.List;
-
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
 import vn.project.ClinicSystem.model.IndicatorTemplate;
+import vn.project.ClinicSystem.model.dto.IndicatorTemplatePageResponse;
 import vn.project.ClinicSystem.model.dto.IndicatorTemplateRequest;
 import vn.project.ClinicSystem.service.IndicatorTemplateService;
 
@@ -31,20 +32,20 @@ public class IndicatorTemplateController {
     }
 
     @GetMapping
-    public ResponseEntity<List<IndicatorTemplate>> listTemplates(
-            @RequestParam(value = "category", required = false) String category,
-            @RequestParam(value = "activeOnly", defaultValue = "true") boolean activeOnly) {
-        if (activeOnly) {
-            if (category != null && !category.isBlank()) {
-                return ResponseEntity.ok(templateService.findByCategoryActive(category));
-            }
-            return ResponseEntity.ok(templateService.findAllActive());
-        }
-        return ResponseEntity.ok(templateService.findAll());
+    public ResponseEntity<IndicatorTemplatePageResponse> getAllIndicatorTemplates(
+            @RequestParam(value = "keyword", required = false) String keyword,
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "10") int size) {
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 50);
+        Pageable pageable = PageRequest.of(safePage, safeSize);
+
+        IndicatorTemplatePageResponse response = templateService.findAll(keyword, pageable);
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<IndicatorTemplate> getTemplate(@PathVariable Long id) {
+    public ResponseEntity<IndicatorTemplate> getTemplate(@PathVariable("id") Long id) {
         return ResponseEntity.ok(templateService.getById(id));
     }
 
@@ -59,7 +60,7 @@ public class IndicatorTemplateController {
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
     public ResponseEntity<IndicatorTemplate> updateTemplate(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @Valid @RequestBody IndicatorTemplateRequest request) {
         IndicatorTemplate updated = templateService.update(id, request);
         return ResponseEntity.ok(updated);
@@ -67,7 +68,7 @@ public class IndicatorTemplateController {
 
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteTemplate(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteTemplate(@PathVariable("id") Long id) {
         templateService.delete(id);
         return ResponseEntity.noContent().build();
     }
