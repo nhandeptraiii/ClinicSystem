@@ -112,6 +112,15 @@ const templateSelectorOpen = ref(false);
 const templateSearchTerm = ref('');
 const selectedTemplateIds = ref<Set<number>>(new Set());
 
+// Template pagination
+const TEMPLATE_PAGE_SIZE = 10;
+const templateCurrentPage = ref(1);
+const templateTotalPages = ref(1);
+const templateTotalElements = ref(0);
+const templateHasNext = ref(false);
+const templateHasPrevious = ref(false);
+let templateSearchTimer: ReturnType<typeof setTimeout> | null = null;
+
 // Mappings for current service
 type MappingFormState = {
   id?: number;
@@ -216,29 +225,53 @@ const loadClinicRooms = async () => {
 
 const loadTemplates = async () => {
   loadingTemplates.value = true;
+  const keyword = templateSearchTerm.value.trim();
+  const pageIndex = Math.max(templateCurrentPage.value - 1, 0);
   try {
-    const templates = await fetchIndicatorTemplates({ activeOnly: true });
-    availableTemplates.value = templates ?? [];
+    const response = await fetchIndicatorTemplates(pageIndex, TEMPLATE_PAGE_SIZE, keyword || undefined);
+    availableTemplates.value = response?.items ?? [];
+    templateTotalElements.value = response.totalElements ?? availableTemplates.value.length;
+    const derivedTotalPages = response.totalPages && response.totalPages > 0 ? response.totalPages : 1;
+    templateTotalPages.value = derivedTotalPages;
+    templateCurrentPage.value = response.totalPages && response.totalPages > 0 ? response.page + 1 : 1;
+    templateHasNext.value = response.hasNext ?? false;
+    templateHasPrevious.value = response.hasPrevious ?? false;
   } catch (err) {
     console.error('Không thể tải danh sách template:', err);
     availableTemplates.value = [];
+    templateTotalElements.value = 0;
+    templateTotalPages.value = 1;
+    templateCurrentPage.value = 1;
+    templateHasNext.value = false;
+    templateHasPrevious.value = false;
   } finally {
     loadingTemplates.value = false;
   }
 };
 
-const filteredTemplates = computed(() => {
-  const keyword = templateSearchTerm.value.trim().toLowerCase();
-  if (!keyword) {
-    return availableTemplates.value;
+const nextTemplatePage = () => {
+  if (templateHasNext.value) {
+    templateCurrentPage.value++;
+    loadTemplates();
   }
-  return availableTemplates.value.filter(
-    (template) =>
-      template.code?.toLowerCase().includes(keyword) ||
-      template.name?.toLowerCase().includes(keyword) ||
-      template.category?.toLowerCase().includes(keyword),
-  );
-});
+};
+
+const prevTemplatePage = () => {
+  if (templateHasPrevious.value) {
+    templateCurrentPage.value--;
+    loadTemplates();
+  }
+};
+
+const handleTemplateSearch = () => {
+  if (templateSearchTimer) {
+    clearTimeout(templateSearchTimer);
+  }
+  templateSearchTimer = setTimeout(() => {
+    templateCurrentPage.value = 1;
+    loadTemplates();
+  }, 350);
+};
 
 const resetMappingsList = () => {
   mappingsList.value = [];
@@ -266,9 +299,10 @@ const loadMappingsForEdit = async (serviceId: number) => {
 };
 
 const openTemplateSelectorModal = async () => {
-  await loadTemplates();
-  templateSelectorOpen.value = true;
   templateSearchTerm.value = '';
+  templateCurrentPage.value = 1;
+  templateSelectorOpen.value = true;
+  await loadTemplates();
 };
 
 const closeTemplateSelectorModal = () => {
@@ -544,6 +578,9 @@ watch(
 onBeforeUnmount(() => {
   if (filterTimer) {
     clearTimeout(filterTimer);
+  }
+  if (templateSearchTimer) {
+    clearTimeout(templateSearchTimer);
   }
 });
 
@@ -953,43 +990,82 @@ onMounted(() => {
               type="search"
               class="w-full rounded-full border border-slate-200 bg-white py-2.5 pl-9 pr-4 text-sm text-slate-700 shadow-sm transition focus:border-sky-400 focus:outline-none focus:ring-4 focus:ring-sky-100/80"
               placeholder="Tìm chỉ số theo mã, tên hoặc danh mục..."
+              @input="handleTemplateSearch"
             />
           </div>
 
           <div v-if="loadingTemplates" class="text-center py-8 text-sm text-slate-500">
-            Đang tải danh sách chỉ số...
+            <svg class="mx-auto h-6 w-6 animate-spin text-sky-500" viewBox="0 0 24 24" fill="none">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4l3.5-3.5L12 1v4a7 7 0 0 0-7 7H4z"></path>
+            </svg>
+            <p class="mt-2">Đang tải danh sách chỉ số...</p>
           </div>
 
-          <div v-else-if="filteredTemplates.length === 0" class="text-center py-8 text-sm text-slate-500">
+          <div v-else-if="availableTemplates.length === 0" class="text-center py-8 text-sm text-slate-500">
             Không tìm thấy chỉ số phù hợp.
           </div>
 
-          <div v-else class="space-y-2 max-h-[400px] overflow-y-auto">
-            <div
-              v-for="template in filteredTemplates"
-              :key="template.id"
-              class="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/50 p-3 transition hover:border-sky-300 hover:bg-sky-50/30 cursor-pointer"
-              @click="toggleTemplate(template)"
-            >
-              <input
-                type="checkbox"
-                :checked="isTemplateSelected(template.id)"
-                class="mt-1 h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-2 focus:ring-sky-100"
-                @click.stop="toggleTemplate(template)"
-              />
-              <div class="flex-1">
-                <div class="flex items-center gap-2">
-                  <span class="text-sm font-semibold text-slate-900">{{ template.name }}</span>
-                  <span class="text-xs text-slate-500">({{ template.code }})</span>
-                  <span v-if="template.category" class="inline-flex items-center rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-700">
-                    {{ template.category }}
-                  </span>
+          <div v-else>
+            <div class="space-y-2 mb-4">
+              <div
+                v-for="template in availableTemplates"
+                :key="template.id"
+                class="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/50 p-3 transition hover:border-sky-300 hover:bg-sky-50/30 cursor-pointer"
+                @click="toggleTemplate(template)"
+              >
+                <input
+                  type="checkbox"
+                  :checked="isTemplateSelected(template.id)"
+                  class="mt-1 h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-2 focus:ring-sky-100"
+                  @click.stop="toggleTemplate(template)"
+                />
+                <div class="flex-1">
+                  <div class="flex items-center gap-2">
+                    <span class="text-sm font-semibold text-slate-900">{{ template.name }}</span>
+                    <span class="text-xs text-slate-500">({{ template.code }})</span>
+                    <span v-if="template.category" class="inline-flex items-center rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-700">
+                      {{ template.category }}
+                    </span>
+                  </div>
+                  <div class="mt-1 grid grid-cols-3 gap-2 text-xs text-slate-600">
+                    <div><span class="font-medium">Đơn vị:</span> {{ template.unit || '—' }}</div>
+                    <div><span class="font-medium">Chuẩn:</span> {{ template.normalMin ?? '—' }} - {{ template.normalMax ?? '—' }}</div>
+                    <div><span class="font-medium">Cảnh báo:</span> {{ template.criticalMin ?? '—' }} - {{ template.criticalMax ?? '—' }}</div>
+                  </div>
                 </div>
-                <div class="mt-1 grid grid-cols-3 gap-2 text-xs text-slate-600">
-                  <div><span class="font-medium">Đơn vị:</span> {{ template.unit || '—' }}</div>
-                  <div><span class="font-medium">Chuẩn:</span> {{ template.normalMin ?? '—' }} - {{ template.normalMax ?? '—' }}</div>
-                  <div><span class="font-medium">Cảnh báo:</span> {{ template.criticalMin ?? '—' }} - {{ template.criticalMax ?? '—' }}</div>
-                </div>
+              </div>
+            </div>
+
+            <!-- Pagination Controls -->
+            <div class="flex items-center justify-between border-t border-slate-200 pt-3 text-xs text-slate-600">
+              <span>Hiển thị {{ availableTemplates.length }} / {{ templateTotalElements }} chỉ số</span>
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  :disabled="!templateHasPrevious || loadingTemplates"
+                  @click="prevTemplatePage"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6" />
+                  </svg>
+                  Trước
+                </button>
+                <span class="text-xs font-semibold text-slate-700">
+                  {{ templateCurrentPage }} / {{ templateTotalPages }}
+                </span>
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  :disabled="!templateHasNext || loadingTemplates"
+                  @click="nextTemplatePage"
+                >
+                  Sau
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m9 6 6 6-6 6" />
+                  </svg>
+                </button>
               </div>
             </div>
           </div>
