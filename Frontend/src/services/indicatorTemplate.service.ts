@@ -18,7 +18,6 @@ export interface IndicatorTemplate {
   criticalMax?: number | null;
   referenceNote?: string | null;
   category?: string | null;
-  isActive: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -33,12 +32,31 @@ export interface IndicatorTemplatePayload {
   criticalMax?: number | null;
   referenceNote?: string | null;
   category?: string | null;
-  isActive?: boolean;
 }
 
-export interface IndicatorTemplateQuery {
-  category?: string;
-  activeOnly?: boolean;
+export interface IndicatorTemplatePageResponse {
+  items: IndicatorTemplate[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
+}
+
+export interface ServiceIndicatorMapping {
+  id: number;
+  medicalService: {
+    id: number;
+    code: string;
+    name: string;
+    price?: number;
+  };
+  indicatorTemplate: IndicatorTemplate;
+  required: boolean;
+  displayOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 const unwrap = <T>(input: RestResponse<T> | T): T => {
@@ -76,19 +94,25 @@ const normalizeTemplate = (template: IndicatorTemplate): IndicatorTemplate => ({
   criticalMax: normalizeOptionalNumber(template.criticalMax),
 });
 
-export const fetchIndicatorTemplates = async (params: IndicatorTemplateQuery = {}) => {
-  const { data } = await http.get<RestResponse<IndicatorTemplate[]> | IndicatorTemplate[]>(
-    '/indicator-templates',
-    {
-      params: {
-        category: params.category || undefined,
-        activeOnly: params.activeOnly !== undefined ? params.activeOnly : true,
-      },
+export const fetchIndicatorTemplates = async (
+  page: number,
+  size: number,
+  keyword?: string,
+) => {
+  const { data } = await http.get<
+    RestResponse<IndicatorTemplatePageResponse> | IndicatorTemplatePageResponse
+  >('/indicator-templates', {
+    params: {
+      page,
+      size,
+      keyword: keyword || undefined,
     },
-  );
+  });
   const unwrapped = unwrap(data);
-  const templates = Array.isArray(unwrapped) ? unwrapped : [];
-  return templates.map(normalizeTemplate);
+  return {
+    ...unwrapped,
+    items: unwrapped.items.map(normalizeTemplate),
+  };
 };
 
 export const fetchIndicatorTemplateById = async (id: number) => {
@@ -119,5 +143,12 @@ export const updateIndicatorTemplate = async (
 
 export const deleteIndicatorTemplate = async (id: number) => {
   await http.delete(`/indicator-templates/${id}`);
+};
+
+export const fetchMappingsByTemplateId = async (templateId: number) => {
+  const { data } = await http.get<
+    RestResponse<ServiceIndicatorMapping[]> | ServiceIndicatorMapping[]
+  >(`/indicator-mappings/by-template/${templateId}`);
+  return unwrap(data);
 };
 

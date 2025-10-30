@@ -200,7 +200,8 @@ onMounted(() => {
               { to: '/dashboard/schedules', title: 'Lịch làm việc', desc: 'Điều phối ca trực và phòng ban hỗ trợ.' },
               { to: '/dashboard/visits', title: 'Khám & Điều trị', desc: 'Ghi nhận chỉ định, kết quả và tiến trình.' },
               { to: '/dashboard/medications', title: 'Kho thuốc', desc: 'Quản lý tồn kho, lô nhập và cấp phát.' },
-              { to: '/dashboard/services', title: 'Dich vu kham', desc: 'Quan ly danh muc, gia va chi so chuan.' },
+              { to: '/dashboard/services', title: 'Dịch vụ khám', desc: 'Quản lý danh mục, giá và chỉ số chuẩn.' },
+              { to: '/dashboard/indicator-templates', title: 'Mẫu chỉ số', desc: 'Quản lý mẫu chỉ số xét nghiệm và khám bệnh.' },
               { to: '/dashboard/billing', title: 'Thanh toán & Hóa đơn', desc: 'Theo dõi công nợ, xuất hóa đơn và báo cáo.' },
               // { to: '/dashboard/profile', title: 'Trang cá nhân', desc: 'Xem hồ sơ và đổi mật khẩu của bạn.' },
             ]"
