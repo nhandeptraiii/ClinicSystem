@@ -649,7 +649,7 @@ onMounted(() => {
             <span>Tên Dịch Vụ</span>
             <span>Đơn Giá</span>
             <span>Phòng Thực Hiện</span>
-            <span class="flex justify-end pr-14">Thao tác</span>
+            <span class="flex justify-end pr-20">Thao tác</span>
           </div>
 
           <template v-if="loading">
