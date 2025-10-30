@@ -2,6 +2,9 @@ package vn.project.ClinicSystem.controller;
 
 import java.util.List;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -17,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
 import vn.project.ClinicSystem.model.MedicalService;
+import vn.project.ClinicSystem.model.dto.MedicalServicePageResponse;
 import vn.project.ClinicSystem.model.dto.MedicalServiceRequest;
 import vn.project.ClinicSystem.model.dto.MedicalServiceUpdateRequest;
 import vn.project.ClinicSystem.service.MedicalServiceService;
@@ -40,8 +44,21 @@ public class MedicalServiceController {
     }
 
     @GetMapping
-    public ResponseEntity<List<MedicalService>> getMedicalServices(
-            @RequestParam(value = "clinicRoomId", required = false) Long clinicRoomId) {
+    public ResponseEntity<?> getMedicalServices(
+            @RequestParam(value = "clinicRoomId", required = false) Long clinicRoomId,
+            @RequestParam(value = "keyword", required = false) String keyword,
+            @RequestParam(value = "page", required = false) Integer page,
+            @RequestParam(value = "size", required = false) Integer size) {
+        if (page != null || size != null) {
+            int safePage = page != null ? Math.max(page, 0) : 0;
+            int safeSize = size != null ? Math.min(Math.max(size, 1), 50) : 10;
+            Pageable pageable = PageRequest.of(
+                    safePage,
+                    safeSize,
+                    Sort.by(Sort.Order.asc("name"), Sort.Order.asc("code")));
+            MedicalServicePageResponse response = medicalServiceService.getPaged(keyword, clinicRoomId, pageable);
+            return ResponseEntity.ok(response);
+        }
         if (clinicRoomId != null) {
             return ResponseEntity.ok(medicalServiceService.findByClinicRoom(clinicRoomId));
         }

@@ -2,6 +2,8 @@ package vn.project.ClinicSystem.service;
 
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,6 +13,7 @@ import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
 import vn.project.ClinicSystem.model.ClinicRoom;
 import vn.project.ClinicSystem.model.MedicalService;
+import vn.project.ClinicSystem.model.dto.MedicalServicePageResponse;
 import vn.project.ClinicSystem.model.dto.MedicalServiceRequest;
 import vn.project.ClinicSystem.model.dto.MedicalServiceUpdateRequest;
 import vn.project.ClinicSystem.repository.ClinicRoomRepository;
@@ -37,6 +40,15 @@ public class MedicalServiceService {
 
     public List<MedicalService> findByClinicRoom(Long clinicRoomId) {
         return medicalServiceRepository.findByClinicRoomId(clinicRoomId);
+    }
+
+    public MedicalServicePageResponse getPaged(String keyword, Long clinicRoomId, Pageable pageable) {
+        String normalizedKeyword = normalizeKeyword(keyword);
+        Page<MedicalService> pageData = medicalServiceRepository.searchByKeywordAndClinicRoom(
+                normalizedKeyword,
+                clinicRoomId,
+                pageable);
+        return MedicalServicePageResponse.from(pageData);
     }
 
     public MedicalService getById(Long id) {
@@ -117,5 +129,13 @@ public class MedicalServiceService {
             throw new IllegalArgumentException("Mã dịch vụ không được null");
         }
         return code.trim().toUpperCase();
+    }
+
+    private String normalizeKeyword(String keyword) {
+        if (keyword == null) {
+            return null;
+        }
+        String trimmed = keyword.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }
