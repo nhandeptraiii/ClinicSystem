@@ -2,12 +2,18 @@ package vn.project.ClinicSystem.model;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -65,8 +71,9 @@ public class IndicatorTemplate {
     @Column(length = 50)
     private String category;
 
-    @Column(nullable = false)
-    private Boolean isActive = true;
+    @JsonIgnore
+    @OneToMany(mappedBy = "indicatorTemplate", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ServiceIndicatorMapping> serviceMappings = new ArrayList<>();
 
     @Column(nullable = false)
     private Instant createdAt;
@@ -79,9 +86,6 @@ public class IndicatorTemplate {
         Instant now = Instant.now();
         this.createdAt = now;
         this.updatedAt = now;
-        if (this.isActive == null) {
-            this.isActive = true;
-        }
     }
 
     @PreUpdate

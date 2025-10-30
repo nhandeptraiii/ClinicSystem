@@ -40,6 +40,4 @@ public class IndicatorTemplateRequest {
 
     @Size(max = 50, message = "Danh mục tối đa 50 ký tự")
     private String category;
-
-    private Boolean isActive = true;
 }
