@@ -12,6 +12,8 @@ public interface ServiceIndicatorMappingRepository extends JpaRepository<Service
 
     List<ServiceIndicatorMapping> findByMedicalServiceIdOrderByDisplayOrderAsc(Long medicalServiceId);
 
+    List<ServiceIndicatorMapping> findByIndicatorTemplateIdOrderByDisplayOrderAsc(Long indicatorTemplateId);
+
     boolean existsByMedicalServiceIdAndIndicatorTemplateId(Long medicalServiceId, Long indicatorTemplateId);
 
     List<ServiceIndicatorMapping> findByMedicalServiceIdAndRequiredTrue(Long medicalServiceId);

@@ -43,6 +43,11 @@ public class ServiceIndicatorMappingService {
         return mappingRepository.findByMedicalServiceIdOrderByDisplayOrderAsc(medicalServiceId);
     }
 
+    public List<ServiceIndicatorMapping> listByIndicatorTemplate(Long templateId) {
+        ensureTemplateExists(templateId);
+        return mappingRepository.findByIndicatorTemplateIdOrderByDisplayOrderAsc(templateId);
+    }
+
     @Transactional
     public ServiceIndicatorMapping create(Long medicalServiceId, ServiceIndicatorMappingRequest request) {
         MedicalService service = loadService(medicalServiceId);
@@ -87,6 +92,12 @@ public class ServiceIndicatorMappingService {
     private void ensureServiceExists(Long serviceId) {
         if (!medicalServiceRepository.existsById(serviceId)) {
             throw new EntityNotFoundException("Không tìm thấy dịch vụ với id: " + serviceId);
+        }
+    }
+
+    private void ensureTemplateExists(Long templateId) {
+        if (!templateRepository.existsById(templateId)) {
+            throw new EntityNotFoundException("Không tìm thấy template với id: " + templateId);
         }
     }
 
