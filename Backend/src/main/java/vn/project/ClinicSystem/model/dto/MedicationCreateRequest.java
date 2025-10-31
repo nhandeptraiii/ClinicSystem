@@ -1,6 +1,10 @@
 package vn.project.ClinicSystem.model.dto;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -17,11 +21,22 @@ public class MedicationCreateRequest {
     @Size(max = 150, message = "Hoạt chất tối đa 150 ký tự")
     private String activeIngredient;
 
+    @Size(max = 100, message = "Hàm lượng tối đa 100 ký tự")
+    private String strength;
+
     @Size(max = 50, message = "Dạng bào chế tối đa 50 ký tự")
     private String form;
 
     @Size(max = 30, message = "Đơn vị tối đa 30 ký tự")
     private String unit;
+
+    @NotNull(message = "Đơn giá không được bỏ trống")
+    private BigDecimal unitPrice;
+
+    @Size(max = 150, message = "Nhà sản xuất tối đa 150 ký tự")
+    private String manufacturer;
+
+    private LocalDate expiryDate;
 
     @PositiveOrZero(message = "Tồn kho phải >= 0")
     private Integer stockQuantity = 0;

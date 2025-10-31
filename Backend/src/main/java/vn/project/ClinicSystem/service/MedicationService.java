@@ -1,7 +1,11 @@
 package vn.project.ClinicSystem.service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -12,6 +16,7 @@ import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
 import vn.project.ClinicSystem.model.Medication;
 import vn.project.ClinicSystem.model.dto.MedicationCreateRequest;
+import vn.project.ClinicSystem.model.dto.MedicationPageResponse;
 import vn.project.ClinicSystem.model.dto.MedicationUpdateRequest;
 import vn.project.ClinicSystem.repository.MedicationRepository;
 
@@ -31,6 +36,19 @@ public class MedicationService {
         return medicationRepository.findAll();
     }
 
+    public MedicationPageResponse getPaged(String keyword, Pageable pageable) {
+        Page<Medication> page = medicationRepository.search(
+                normalizeKeyword(keyword),
+                pageable);
+        return MedicationPageResponse.from(page);
+    }
+
+    public List<Medication> search(String keyword) {
+        return medicationRepository
+                .search(normalizeKeyword(keyword), Pageable.unpaged())
+                .getContent();
+    }
+
     public Medication getById(Long id) {
         return medicationRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy thuốc với id: " + id));
@@ -41,8 +59,12 @@ public class MedicationService {
         Medication medication = new Medication();
         medication.setName(normalizeName(request.getName()));
         medication.setActiveIngredient(normalizeText(request.getActiveIngredient()));
+        medication.setStrength(normalizeText(request.getStrength()));
         medication.setForm(normalizeText(request.getForm()));
         medication.setUnit(normalizeText(request.getUnit()));
+        medication.setUnitPrice(normalizePrice(request.getUnitPrice()));
+        medication.setManufacturer(normalizeText(request.getManufacturer()));
+        medication.setExpiryDate(request.getExpiryDate());
         medication.setStockQuantity(request.getStockQuantity() != null ? request.getStockQuantity() : 0);
 
         ensureNameUnique(medication.getName(), null);
@@ -64,11 +86,23 @@ public class MedicationService {
         if (request.getActiveIngredient() != null) {
             medication.setActiveIngredient(normalizeText(request.getActiveIngredient()));
         }
+        if (request.getStrength() != null) {
+            medication.setStrength(normalizeText(request.getStrength()));
+        }
         if (request.getForm() != null) {
             medication.setForm(normalizeText(request.getForm()));
         }
         if (request.getUnit() != null) {
             medication.setUnit(normalizeText(request.getUnit()));
+        }
+        if (request.getUnitPrice() != null) {
+            medication.setUnitPrice(normalizePrice(request.getUnitPrice()));
+        }
+        if (request.getManufacturer() != null) {
+            medication.setManufacturer(normalizeText(request.getManufacturer()));
+        }
+        if (request.getExpiryDate() != null) {
+            medication.setExpiryDate(request.getExpiryDate());
         }
         if (request.getStockQuantity() != null) {
             if (request.getStockQuantity() < 0) {
@@ -86,9 +120,6 @@ public class MedicationService {
         Medication medication = getById(id);
         if (medication.getPrescriptionItems() != null && !medication.getPrescriptionItems().isEmpty()) {
             throw new IllegalStateException("Không thể xóa thuốc đã được kê trong đơn thuốc.");
-        }
-        if (medication.getBatches() != null && !medication.getBatches().isEmpty()) {
-            throw new IllegalStateException("Không thể xóa thuốc khi vẫn còn lô trong kho.");
         }
         medicationRepository.delete(medication);
     }
@@ -121,5 +152,20 @@ public class MedicationService {
             return null;
         }
         return input.trim();
+    }
+
+    private BigDecimal normalizePrice(BigDecimal price) {
+        if (price == null) {
+            return BigDecimal.ZERO;
+        }
+        return price.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private String normalizeKeyword(String keyword) {
+        if (keyword == null) {
+            return null;
+        }
+        String trimmed = keyword.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

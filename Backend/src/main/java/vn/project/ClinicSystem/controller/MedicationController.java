@@ -2,6 +2,9 @@ package vn.project.ClinicSystem.controller;
 
 import java.util.List;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -12,11 +15,13 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
 import vn.project.ClinicSystem.model.Medication;
 import vn.project.ClinicSystem.model.dto.MedicationCreateRequest;
+import vn.project.ClinicSystem.model.dto.MedicationPageResponse;
 import vn.project.ClinicSystem.model.dto.MedicationUpdateRequest;
 import vn.project.ClinicSystem.service.MedicationService;
 
@@ -38,7 +43,23 @@ public class MedicationController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Medication>> getMedications() {
+    public ResponseEntity<?> getMedications(
+            @RequestParam(value = "keyword", required = false) String keyword,
+            @RequestParam(value = "page", required = false) Integer page,
+            @RequestParam(value = "size", required = false) Integer size) {
+        if (page != null || size != null) {
+            int safePage = page != null ? Math.max(page, 0) : 0;
+            int safeSize = size != null ? Math.min(Math.max(size, 1), 50) : 10;
+            Pageable pageable = PageRequest.of(
+                    safePage,
+                    safeSize,
+                    Sort.by(Sort.Order.asc("name")));
+            MedicationPageResponse response = medicationService.getPaged(keyword, pageable);
+            return ResponseEntity.ok(response);
+        }
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            return ResponseEntity.ok(medicationService.search(keyword));
+        }
         return ResponseEntity.ok(medicationService.findAll());
     }
 

@@ -1,6 +1,8 @@
 package vn.project.ClinicSystem.model;
 
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -16,6 +18,7 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -40,6 +43,10 @@ public class Medication {
     @Column(length = 150)
     private String activeIngredient;
 
+    @Size(max = 100, message = "Hàm lượng tối đa 100 ký tự")
+    @Column(length = 100)
+    private String strength;
+
     @Size(max = 50, message = "Dạng bào chế tối đa 50 ký tự")
     @Column(length = 50)
     private String form;
@@ -48,16 +55,22 @@ public class Medication {
     @Column(length = 30)
     private String unit;
 
+    @NotNull(message = "Đơn giá không được bỏ trống")
+    @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal unitPrice;
+
+    @Size(max = 150, message = "Nhà sản xuất tối đa 150 ký tự")
+    @Column(length = 150)
+    private String manufacturer;
+
+    private LocalDate expiryDate;
+
     @PositiveOrZero(message = "Tồn kho phải >= 0")
     private Integer stockQuantity = 0;
 
     @JsonIgnore
     @OneToMany(mappedBy = "medication")
     private List<PrescriptionItem> prescriptionItems = new ArrayList<>();
-
-    @JsonIgnore
-    @OneToMany(mappedBy = "medication")
-    private List<MedicationBatch> batches = new ArrayList<>();
 
     @Column(nullable = false)
     private Instant createdAt;
@@ -70,6 +83,9 @@ public class Medication {
         Instant now = Instant.now();
         this.createdAt = now;
         this.updatedAt = now;
+        if (this.unitPrice == null) {
+            this.unitPrice = BigDecimal.ZERO;
+        }
     }
 
     @PreUpdate
