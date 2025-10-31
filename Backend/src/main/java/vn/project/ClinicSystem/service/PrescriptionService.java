@@ -16,7 +16,6 @@ import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
 import vn.project.ClinicSystem.model.Doctor;
 import vn.project.ClinicSystem.model.Medication;
-import vn.project.ClinicSystem.model.MedicationBatch;
 import vn.project.ClinicSystem.model.PatientVisit;
 import vn.project.ClinicSystem.model.Prescription;
 import vn.project.ClinicSystem.model.PrescriptionItem;
@@ -27,7 +26,6 @@ import vn.project.ClinicSystem.model.dto.PrescriptionUpdateRequest;
 import vn.project.ClinicSystem.model.enums.ServiceOrderStatus;
 import vn.project.ClinicSystem.model.enums.VisitStatus;
 import vn.project.ClinicSystem.repository.DoctorRepository;
-import vn.project.ClinicSystem.repository.MedicationBatchRepository;
 import vn.project.ClinicSystem.repository.MedicationRepository;
 import vn.project.ClinicSystem.repository.PatientVisitRepository;
 import vn.project.ClinicSystem.repository.PrescriptionRepository;
@@ -42,7 +40,6 @@ public class PrescriptionService {
     private final PatientVisitRepository patientVisitRepository;
     private final DoctorRepository doctorRepository;
     private final MedicationRepository medicationRepository;
-    private final MedicationBatchRepository medicationBatchRepository;
     private final ServiceOrderRepository serviceOrderRepository;
     private final ServiceIndicatorMappingRepository mappingRepository;
     private final Validator validator;
@@ -51,7 +48,6 @@ public class PrescriptionService {
             PatientVisitRepository patientVisitRepository,
             DoctorRepository doctorRepository,
             MedicationRepository medicationRepository,
-            MedicationBatchRepository medicationBatchRepository,
             ServiceOrderRepository serviceOrderRepository,
             ServiceIndicatorMappingRepository mappingRepository,
             Validator validator) {
@@ -59,7 +55,6 @@ public class PrescriptionService {
         this.patientVisitRepository = patientVisitRepository;
         this.doctorRepository = doctorRepository;
         this.medicationRepository = medicationRepository;
-        this.medicationBatchRepository = medicationBatchRepository;
         this.serviceOrderRepository = serviceOrderRepository;
         this.mappingRepository = mappingRepository;
         this.validator = validator;
@@ -156,24 +151,10 @@ public class PrescriptionService {
         for (PrescriptionItemRequest itemRequest : itemRequests) {
             PrescriptionItem item = new PrescriptionItem();
             Medication medication = null;
-            MedicationBatch batch = null;
-
-            if (itemRequest.getBatchId() != null) {
-                batch = loadBatch(itemRequest.getBatchId());
-                medication = batch.getMedication();
-                item.setMedicationBatch(batch);
-                item.setMedication(medication);
-            }
 
             if (itemRequest.getMedicationId() != null) {
-                Medication loaded = loadMedication(itemRequest.getMedicationId());
-                if (medication != null && !loaded.getId().equals(medication.getId())) {
-                    throw new IllegalArgumentException("Lô thuốc không trùng với thuốc đã chọn.");
-                }
-                medication = loaded;
                 medication = loadMedication(itemRequest.getMedicationId());
                 item.setMedication(medication);
-                item.setMedicationBatch(batch);
             }
 
             String medicationName = normalizeText(itemRequest.getMedicationName());
@@ -190,24 +171,29 @@ public class PrescriptionService {
             item.setDuration(normalizeText(itemRequest.getDuration()));
             item.setInstruction(normalizeText(itemRequest.getInstruction()));
 
+            // Số lượng là số đơn vị trực tiếp (viên hoặc gói), không còn tính theo hộp
             Integer quantity = itemRequest.getQuantity();
             if (quantity == null || quantity <= 0) {
                 throw new IllegalArgumentException("Cần nhập số lượng thuốc hợp lệ");
             }
             item.setQuantity(quantity);
 
+            // unitPrice là giá cho 1 đơn vị (1 viên hoặc 1 gói), không còn tính theo hộp
             BigDecimal unitPrice = BigDecimal.ZERO;
-            if (batch != null) {
-                if (batch.getQuantityOnHand() < quantity) {
-                    throw new IllegalStateException("Lô thuốc " + batch.getBatchCode() + " không đủ tồn kho.");
+            if (medication != null) {
+                // Kiểm tra tồn kho: quantity là số đơn vị trực tiếp
+                if (medication.getStockQuantity() == null || medication.getStockQuantity() < quantity) {
+                    throw new IllegalStateException("Thuốc " + medication.getName() + " không đủ tồn kho.");
                 }
-                deductBatchStock(batch, quantity);
-                unitPrice = batch.getUnitPrice();
-                item.setExpiryDateSnapshot(batch.getExpiryDate());
+                deductMedicationStock(medication, quantity);
+                unitPrice = medication.getUnitPrice() != null ? medication.getUnitPrice() : BigDecimal.ZERO;
+                item.setExpiryDateSnapshot(medication.getExpiryDate());
             }
 
+            // Snapshot giá tại thời điểm kê đơn
             unitPrice = unitPrice.setScale(2, RoundingMode.HALF_UP);
             item.setUnitPriceSnapshot(unitPrice);
+            // Tính amount = quantity * unitPrice (đơn giản, không còn logic hộp)
             item.setAmount(unitPrice.multiply(BigDecimal.valueOf(quantity)));
 
             prescription.addItem(item);
@@ -262,11 +248,6 @@ public class PrescriptionService {
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy thuốc với id: " + medicationId));
     }
 
-    private MedicationBatch loadBatch(Long batchId) {
-        return medicationBatchRepository.findById(batchId)
-                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy lô thuốc với id: " + batchId));
-    }
-
     private void ensureVisitExists(Long visitId) {
         if (!patientVisitRepository.existsById(visitId)) {
             throw new EntityNotFoundException("Không tìm thấy hồ sơ khám với id: " + visitId);
@@ -299,41 +280,25 @@ public class PrescriptionService {
             if (item.getMedication() != null) {
                 item.getMedication().getName();
             }
-            if (item.getMedicationBatch() != null) {
-                item.getMedicationBatch().getBatchCode();
-            }
         });
     }
 
     private void returnStockForItem(PrescriptionItem item) {
-        if (item.getMedicationBatch() != null && item.getQuantity() != null) {
-            MedicationBatch batch = item.getMedicationBatch();
-            batch.setQuantityOnHand(batch.getQuantityOnHand() + item.getQuantity());
-            medicationBatchRepository.save(batch);
-            if (batch.getMedication() != null) {
-                Medication med = batch.getMedication();
-                int current = med.getStockQuantity() != null ? med.getStockQuantity() : 0;
-                med.setStockQuantity(current + item.getQuantity());
-                medicationRepository.save(med);
-            }
+        if (item.getMedication() != null && item.getQuantity() != null) {
+            Medication med = item.getMedication();
+            int current = med.getStockQuantity() != null ? med.getStockQuantity() : 0;
+            med.setStockQuantity(current + item.getQuantity());
+            medicationRepository.save(med);
         }
     }
 
-    private void deductBatchStock(MedicationBatch batch, int quantity) {
-        if (batch.getQuantityOnHand() < quantity) {
-            throw new IllegalStateException("Lô thuốc " + batch.getBatchCode() + " không đủ tồn kho.");
+    private void deductMedicationStock(Medication medication, int quantity) {
+        if (medication.getStockQuantity() == null || medication.getStockQuantity() < quantity) {
+            throw new IllegalStateException("Thuốc " + medication.getName() + " không đủ tồn kho.");
         }
-        batch.setQuantityOnHand(batch.getQuantityOnHand() - quantity);
-        medicationBatchRepository.save(batch);
-        Medication med = batch.getMedication();
-        if (med != null) {
-            int current = med.getStockQuantity() != null ? med.getStockQuantity() : 0;
-            if (current < quantity) {
-                throw new IllegalStateException("Tồn kho thuốc không đủ.");
-            }
-            med.setStockQuantity(current - quantity);
-            medicationRepository.save(med);
-        }
+        int current = medication.getStockQuantity();
+        medication.setStockQuantity(current - quantity);
+        medicationRepository.save(medication);
     }
 
     private void validateBean(Prescription prescription) {

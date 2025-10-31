@@ -70,9 +70,6 @@ public class BillingItem {
     @Column(name = "medication_id")
     private Long medicationId;
 
-    @Column(name = "batch_id")
-    private Long batchId;
-
     private Instant createdAt;
     private Instant updatedAt;
 

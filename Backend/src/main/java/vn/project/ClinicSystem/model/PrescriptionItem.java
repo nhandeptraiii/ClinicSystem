@@ -45,11 +45,6 @@ public class PrescriptionItem {
     @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler", "prescriptionItems" })
     private Medication medication;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "batch_id")
-    @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
-    private MedicationBatch medicationBatch;
-
     @Size(max = 120, message = "Tên thuốc tối đa 120 ký tự")
     @Column(length = 120)
     private String medicationName;

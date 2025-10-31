@@ -13,8 +13,6 @@ public class PrescriptionItemRequest {
 
     private Long medicationId;
 
-    private Long batchId;
-
     @NotNull(message = "Số lượng thuốc không được để trống")
     @Min(value = 1, message = "Số lượng phải >= 1")
     private Integer quantity;

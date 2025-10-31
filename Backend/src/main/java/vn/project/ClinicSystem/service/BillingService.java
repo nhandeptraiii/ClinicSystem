@@ -12,6 +12,7 @@ import org.springframework.util.StringUtils;
 import jakarta.persistence.EntityNotFoundException;
 import vn.project.ClinicSystem.model.Billing;
 import vn.project.ClinicSystem.model.BillingItem;
+import vn.project.ClinicSystem.model.Medication;
 import vn.project.ClinicSystem.model.PatientVisit;
 import vn.project.ClinicSystem.model.Prescription;
 import vn.project.ClinicSystem.model.PrescriptionItem;
@@ -206,8 +207,10 @@ public class BillingService {
                 billingItem.setItemType(BillingItemType.MEDICATION);
 
                 String name = item.getMedicationName();
-                if (!StringUtils.hasText(name) && item.getMedication() != null) {
-                    name = item.getMedication().getName();
+                Medication medication = item.getMedication();
+
+                if (!StringUtils.hasText(name) && medication != null) {
+                    name = medication.getName();
                 }
                 if (!StringUtils.hasText(name)) {
                     name = "Thuốc";
@@ -217,30 +220,30 @@ public class BillingService {
                 }
                 billingItem.setDescription(name);
 
+                // Số lượng là số đơn vị trực tiếp (viên hoặc gói), không còn tính theo hộp
                 int quantity = item.getQuantity() != null ? item.getQuantity() : 1;
                 billingItem.setQuantity(quantity);
 
-                BigDecimal price = item.getUnitPriceSnapshot() != null
-                        ? item.getUnitPriceSnapshot()
-                        : BigDecimal.ZERO;
+                // Lấy giá từ snapshot (đã lưu khi tạo prescription) hoặc từ Medication hiện tại
+                // unitPrice là giá cho 1 đơn vị (1 viên hoặc 1 gói), không còn tính theo hộp
+                BigDecimal unitPrice = BigDecimal.ZERO;
+                if (item.getUnitPriceSnapshot() != null) {
+                    // Ưu tiên dùng giá snapshot (giá tại thời điểm kê đơn)
+                    unitPrice = item.getUnitPriceSnapshot();
+                } else if (medication != null && medication.getUnitPrice() != null) {
+                    // Fallback: lấy giá từ Medication nếu snapshot không có
+                    unitPrice = medication.getUnitPrice();
+                }
 
-                billingItem.setUnitPrice(price);
+                billingItem.setUnitPrice(unitPrice);
                 billingItem.setPrescriptionItemId(item.getId());
 
-                if (item.getMedication() != null) {
-                    billingItem.setMedicationId(item.getMedication().getId());
-                }
-                if (item.getMedicationBatch() != null) {
-                    billingItem.setBatchId(item.getMedicationBatch().getId());
-                    if (item.getMedicationBatch().getMedication() != null) {
-                        billingItem.setMedicationId(item.getMedicationBatch().getMedication().getId());
-                    }
+                if (medication != null) {
+                    billingItem.setMedicationId(medication.getId());
                 }
 
+                // Tính amount = quantity * unitPrice (đơn giản, không còn logic hộp)
                 billingItem.recalculateAmount();
-                if (item.getAmount() != null) {
-                    billingItem.setAmount(item.getAmount());
-                }
 
                 billing.addItem(billingItem);
             }
