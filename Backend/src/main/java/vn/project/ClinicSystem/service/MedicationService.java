@@ -60,10 +60,10 @@ public class MedicationService {
         medication.setName(normalizeName(request.getName()));
         medication.setActiveIngredient(normalizeText(request.getActiveIngredient()));
         medication.setStrength(normalizeText(request.getStrength()));
-        medication.setForm(normalizeText(request.getForm()));
+        medication.setBatchNo(normalizeName(request.getBatchNo()));
         medication.setUnit(normalizeText(request.getUnit()));
         medication.setUnitPrice(normalizePrice(request.getUnitPrice()));
-        medication.setManufacturer(normalizeText(request.getManufacturer()));
+        medication.setManufacturer(normalizeName(request.getManufacturer()));
         medication.setExpiryDate(request.getExpiryDate());
         medication.setStockQuantity(request.getStockQuantity() != null ? request.getStockQuantity() : 0);
 
@@ -89,8 +89,8 @@ public class MedicationService {
         if (request.getStrength() != null) {
             medication.setStrength(normalizeText(request.getStrength()));
         }
-        if (request.getForm() != null) {
-            medication.setForm(normalizeText(request.getForm()));
+        if (request.getBatchNo() != null) {
+            medication.setBatchNo(normalizeName(request.getBatchNo()));
         }
         if (request.getUnit() != null) {
             medication.setUnit(normalizeText(request.getUnit()));
@@ -99,14 +99,14 @@ public class MedicationService {
             medication.setUnitPrice(normalizePrice(request.getUnitPrice()));
         }
         if (request.getManufacturer() != null) {
-            medication.setManufacturer(normalizeText(request.getManufacturer()));
+            medication.setManufacturer(normalizeName(request.getManufacturer()));
         }
         if (request.getExpiryDate() != null) {
             medication.setExpiryDate(request.getExpiryDate());
         }
         if (request.getStockQuantity() != null) {
             if (request.getStockQuantity() < 0) {
-                throw new IllegalArgumentException("Tồn kho phải >= 0");
+                throw new IllegalArgumentException("Số lượng phải >= 0");
             }
             medication.setStockQuantity(request.getStockQuantity());
         }
@@ -142,7 +142,7 @@ public class MedicationService {
 
     private String normalizeName(String input) {
         if (!StringUtils.hasText(input)) {
-            throw new IllegalArgumentException("Tên thuốc không được để trống");
+            throw new IllegalArgumentException("Trường này không được để trống");
         }
         return input.trim();
     }

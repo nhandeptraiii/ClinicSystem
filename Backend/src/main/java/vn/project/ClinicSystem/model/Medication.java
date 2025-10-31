@@ -47,9 +47,10 @@ public class Medication {
     @Column(length = 100)
     private String strength;
 
-    @Size(max = 50, message = "Dạng bào chế tối đa 50 ký tự")
-    @Column(length = 50)
-    private String form;
+    @NotBlank(message = "Mã lô không được để trống")
+    @Size(max = 50, message = "Mã lô tối đa 50 ký tự")
+    @Column(nullable = false, length = 50)
+    private String batchNo;
 
     @Size(max = 30, message = "Đơn vị tối đa 30 ký tự")
     @Column(length = 30)
@@ -59,13 +60,18 @@ public class Medication {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal unitPrice;
 
+    @NotBlank(message = "Nhà sản xuất không được để trống")
     @Size(max = 150, message = "Nhà sản xuất tối đa 150 ký tự")
-    @Column(length = 150)
+    @Column(nullable = false, length = 150)
     private String manufacturer;
 
+    @NotNull(message = "Hạn sử dụng không được bỏ trống")
+    @Column(nullable = false)
     private LocalDate expiryDate;
 
-    @PositiveOrZero(message = "Tồn kho phải >= 0")
+    @NotNull(message = "Số lượng không được bỏ trống")
+    @PositiveOrZero(message = "Số lượng phải >= 0")
+    @Column(nullable = false)
     private Integer stockQuantity = 0;
 
     @JsonIgnore
