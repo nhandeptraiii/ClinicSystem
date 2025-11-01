@@ -5,6 +5,7 @@ import AdminHeader from '@/components/AdminHeader.vue';
 import AppointmentRequestWizard from '@/components/AppointmentRequestWizard.vue';
 import { useAuthStore } from '@/stores/authStore';
 import { fetchAppointmentRequests, type AppointmentRequest, type AppointmentRequestStatus } from '@/services/appointmentRequest.service';
+import { useToast, type ToastType } from '@/composables/useToast';
 
 type StatusFilter = AppointmentRequestStatus | 'ALL';
 type StatusCountMap = Record<StatusFilter, number>;
@@ -14,9 +15,47 @@ const router = useRouter();
 
 const userName = computed(() => authStore.user?.username ?? 'Quản trị viên');
 
+const { toast, show: showToast, hide: hideToast } = useToast();
+
+type ToastVisual = {
+  title: string;
+  container: string;
+  icon: string;
+  iconType: 'success' | 'error' | 'warning' | 'info';
+};
+
+const toastVisualMap: Record<ToastType, ToastVisual> = {
+  success: {
+    title: 'Thành công',
+    container: 'border-emerald-200 bg-emerald-50/95 text-emerald-800',
+    icon: 'bg-emerald-100 text-emerald-600',
+    iconType: 'success',
+  },
+  error: {
+    title: 'Có lỗi xảy ra',
+    container: 'border-rose-200 bg-rose-50/95 text-rose-700',
+    icon: 'bg-rose-100 text-rose-600',
+    iconType: 'error',
+  },
+  info: {
+    title: 'Thông báo',
+    container: 'border-sky-200 bg-sky-50/95 text-sky-700',
+    icon: 'bg-sky-100 text-sky-600',
+    iconType: 'info',
+  },
+  warning: {
+    title: 'Cảnh báo',
+    container: 'border-amber-200 bg-amber-50/95 text-amber-700',
+    icon: 'bg-amber-100 text-amber-600',
+    iconType: 'warning',
+  },
+};
+
+const toastVisuals = computed(() => toastVisualMap[toast.value?.type ?? 'info']);
+const dismissToast = () => hideToast();
+
 const requests = ref<AppointmentRequest[]>([]);
 const loading = ref(false);
-const error = ref<string | null>(null);
 const searchTerm = ref('');
 const selectedStatus = ref<StatusFilter>('PENDING');
 const selectedRequestId = ref<number | null>(null);
@@ -66,14 +105,13 @@ const extractErrorMessage = (input: unknown) => {
 
 const loadRequests = async () => {
   loading.value = true;
-  error.value = null;
   try {
     const result = await fetchAppointmentRequests();
     requests.value = Array.isArray(result) ? result : [];
     lastLoadedAt.value = new Date().toISOString();
   } catch (err) {
     console.error('Failed to fetch appointment requests', err);
-    error.value = extractErrorMessage(err);
+    showToast('error', extractErrorMessage(err));
   } finally {
     loading.value = false;
   }
@@ -292,21 +330,7 @@ const handleWizardCompleted = async () => {
 
       <section class="mt-10 grid gap-6 lg:grid-cols-[1.7fr_1fr]">
         <div class="rounded-[28px] border border-emerald-100 bg-white/90 p-6 shadow-[0_20px_55px_-45px_rgba(13,148,136,0.55)]">
-          <template v-if="error">
-            <div class="rounded-2xl border border-rose-100 bg-rose-50/90 p-6 text-rose-700 shadow-inner">
-              <h3 class="text-sm font-semibold uppercase tracking-wide">Không thể tải dữ liệu</h3>
-              <p class="mt-2 text-sm">{{ error }}</p>
-              <button
-                type="button"
-                class="mt-4 inline-flex items-center gap-2 rounded-full border border-rose-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-rose-600 transition hover:border-rose-300 hover:bg-rose-50"
-                @click="loadRequests"
-              >
-                Thử lại
-              </button>
-            </div>
-          </template>
-
-          <template v-else>
+          <template>
             <div v-if="loading && !requests.length" class="space-y-4">
               <div v-for="skeleton in 4" :key="skeleton" class="animate-pulse rounded-2xl border border-emerald-50 bg-emerald-50/60 p-5">
                 <div class="flex items-center justify-between">
@@ -502,5 +526,89 @@ const handleWizardCompleted = async () => {
       </section>
     </main>
     <AppointmentRequestWizard v-model="wizardOpen" :request="selectedRequest" @completed="handleWizardCompleted" />
+
+    <!-- Toast -->
+    <Teleport to="body">
+      <Transition
+        enter-active-class="transition duration-200"
+        enter-from-class="translate-y-2 opacity-0"
+        enter-to-class="translate-y-0 opacity-100"
+        leave-active-class="transition duration-200"
+        leave-from-class="translate-y-0 opacity-100"
+        leave-to-class="translate-y-2 opacity-0"
+      >
+        <div
+          v-if="toast"
+          class="fixed top-6 right-6 z-[100] w-[min(320px,90vw)] rounded-2xl border px-5 py-4 shadow-xl backdrop-blur"
+          :class="toastVisuals.container"
+        >
+          <div class="flex items-start gap-3">
+            <span
+              class="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full"
+              :class="toastVisuals.icon"
+            >
+              <svg
+                v-if="toastVisuals.iconType === 'success'"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                class="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7" />
+              </svg>
+              <svg
+                v-else-if="toastVisuals.iconType === 'error'"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                class="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="m15 9-6 6m0-6 6 6" />
+              </svg>
+              <svg
+                v-else-if="toastVisuals.iconType === 'warning'"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                class="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01m-6.938 2h13.856a1 1 0 0 0 .894-1.447L12.894 4.553a1 1 0 0 0-1.788 0l-6.918 12.004A1 1 0 0 0 5.062 19Z" />
+              </svg>
+              <svg
+                v-else
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                class="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01m0-14a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z" />
+              </svg>
+            </span>
+            <div class="flex-1">
+              <p class="text-sm font-semibold">{{ toastVisuals.title }}</p>
+              <p class="mt-1 text-sm leading-relaxed">{{ toast.message }}</p>
+            </div>
+            <button
+              type="button"
+              class="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-white/70 text-slate-500 transition hover:bg-white hover:text-slate-700"
+              @click="dismissToast"
+              aria-label="Đóng thông báo"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m16 8-8 8m0-8 8 8" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>

@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { approveAppointmentRequest, type AppointmentRequest } from '@/services/appointmentRequest.service';
 import { fetchDoctors, type Doctor } from '@/services/doctor.service';
 import { createPatient, searchPatients, type Patient } from '@/services/patient.service';
+import { useToast, type ToastType } from '@/composables/useToast';
 
 type Step = 1 | 2 | 3;
 type PatientMode = 'existing' | 'new' | 'auto';
@@ -19,13 +20,50 @@ const emit = defineEmits<{
 
 const isOpen = computed(() => props.modelValue);
 
+const { toast, show: showToast, hide: hideToast } = useToast();
+
+type ToastVisual = {
+  title: string;
+  container: string;
+  icon: string;
+  iconType: 'success' | 'error' | 'warning' | 'info';
+};
+
+const toastVisualMap: Record<ToastType, ToastVisual> = {
+  success: {
+    title: 'Thành công',
+    container: 'border-emerald-200 bg-emerald-50/95 text-emerald-800',
+    icon: 'bg-emerald-100 text-emerald-600',
+    iconType: 'success',
+  },
+  error: {
+    title: 'Có lỗi xảy ra',
+    container: 'border-rose-200 bg-rose-50/95 text-rose-700',
+    icon: 'bg-rose-100 text-rose-600',
+    iconType: 'error',
+  },
+  info: {
+    title: 'Thông báo',
+    container: 'border-sky-200 bg-sky-50/95 text-sky-700',
+    icon: 'bg-sky-100 text-sky-600',
+    iconType: 'info',
+  },
+  warning: {
+    title: 'Cảnh báo',
+    container: 'border-amber-200 bg-amber-50/95 text-amber-700',
+    icon: 'bg-amber-100 text-amber-600',
+    iconType: 'warning',
+  },
+};
+
+const toastVisuals = computed(() => toastVisualMap[toast.value?.type ?? 'info']);
+const dismissToast = () => hideToast();
+
 const currentStep = ref<Step>(1);
 const patientMode = ref<PatientMode>('existing');
-const patientStepError = ref<string | null>(null);
 
 const doctors = ref<Doctor[]>([]);
 const doctorLoading = ref(false);
-const doctorError = ref<string | null>(null);
 const doctorsLoaded = ref(false);
 
 const selectedPatient = ref<Patient | null>(null);
@@ -33,7 +71,6 @@ const selectedPatient = ref<Patient | null>(null);
 const patientSearchKeyword = ref('');
 const patientSearchResults = ref<Patient[]>([]);
 const patientSearchLoading = ref(false);
-const patientSearchError = ref<string | null>(null);
 
 const newPatientForm = ref({
   code: '',
@@ -46,7 +83,6 @@ const newPatientForm = ref({
   note: '',
 });
 const newPatientLoading = ref(false);
-const newPatientError = ref<string | null>(null);
 const newPatientSaved = ref(false);
 
 const scheduleForm = ref({
@@ -58,7 +94,6 @@ const scheduleForm = ref({
 });
 
 const submissionLoading = ref(false);
-const submissionError = ref<string | null>(null);
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -141,11 +176,9 @@ const deriveSuggestedTime = () => {
 const resetWizardState = () => {
   currentStep.value = 1;
   patientMode.value = 'existing';
-  patientStepError.value = null;
   selectedPatient.value = null;
   patientSearchKeyword.value = '';
   patientSearchResults.value = [];
-  patientSearchError.value = null;
   newPatientForm.value = {
     code: generatePatientCode(),
     fullName: props.request?.fullName ?? '',
@@ -157,7 +190,6 @@ const resetWizardState = () => {
     note: props.request?.symptomDescription ? `Ghi chú yêu cầu: ${props.request.symptomDescription}` : '',
   };
   newPatientLoading.value = false;
-  newPatientError.value = null;
   newPatientSaved.value = false;
   scheduleForm.value = {
     doctorId: null,
@@ -166,7 +198,6 @@ const resetWizardState = () => {
     duration: 30,
     staffNote: '',
   };
-  submissionError.value = null;
 };
 
 const closeWizard = () => {
@@ -176,13 +207,12 @@ const closeWizard = () => {
 const ensureDoctorsLoaded = async () => {
   if (doctorLoading.value || doctorsLoaded.value) return;
   doctorLoading.value = true;
-  doctorError.value = null;
   try {
     const data = await fetchDoctors();
     doctors.value = data;
     doctorsLoaded.value = true;
   } catch (error) {
-    doctorError.value = extractErrorMessage(error);
+    showToast('error', extractErrorMessage(error));
   } finally {
     doctorLoading.value = false;
   }
@@ -191,20 +221,19 @@ const ensureDoctorsLoaded = async () => {
 const handlePatientSearch = async () => {
   if (!patientSearchKeyword.value.trim()) {
     patientSearchResults.value = [];
-    patientSearchError.value = 'Nhập họ tên, số điện thoại hoặc mã bệnh nhân để tìm kiếm.';
+    showToast('error', 'Nhập họ tên, số điện thoại hoặc mã bệnh nhân để tìm kiếm.');
     return;
   }
   patientSearchLoading.value = true;
-  patientSearchError.value = null;
   try {
     const results = await searchPatients({ keyword: patientSearchKeyword.value.trim() });
     patientSearchResults.value = results;
     if (!results.length) {
-      patientSearchError.value = 'Không tìm thấy bệnh nhân phù hợp.';
+      showToast('error', 'Không tìm thấy bệnh nhân phù hợp.');
     }
   } catch (error) {
     patientSearchResults.value = [];
-    patientSearchError.value = extractErrorMessage(error);
+    showToast('error', extractErrorMessage(error));
   } finally {
     patientSearchLoading.value = false;
   }
@@ -212,7 +241,6 @@ const handlePatientSearch = async () => {
 
 const handleSelectPatient = (patient: Patient) => {
   selectedPatient.value = patient;
-  patientStepError.value = null;
 };
 
 const handleGeneratePatientCode = () => {
@@ -220,14 +248,12 @@ const handleGeneratePatientCode = () => {
 };
 
 const handleCreatePatient = async () => {
-  newPatientError.value = null;
-  patientStepError.value = null;
   if (!newPatientForm.value.code.trim()) {
-    newPatientError.value = 'Vui lòng nhập mã bệnh nhân.';
+    showToast('error', 'Vui lòng nhập mã bệnh nhân.');
     return;
   }
   if (!newPatientForm.value.fullName.trim()) {
-    newPatientError.value = 'Vui lòng nhập họ tên bệnh nhân.';
+    showToast('error', 'Vui lòng nhập họ tên bệnh nhân.');
     return;
   }
   newPatientLoading.value = true;
@@ -246,7 +272,7 @@ const handleCreatePatient = async () => {
     selectedPatient.value = patient;
     newPatientSaved.value = true;
   } catch (error) {
-    newPatientError.value = extractErrorMessage(error);
+    showToast('error', extractErrorMessage(error));
     selectedPatient.value = null;
     newPatientSaved.value = false;
   } finally {
@@ -261,16 +287,15 @@ const goToNextStep = () => {
   }
   if (currentStep.value === 2) {
     if (patientMode.value === 'existing' && !selectedPatient.value) {
-      patientStepError.value = 'Vui lòng chọn một bệnh nhân trước khi tiếp tục.';
+      showToast('error', 'Vui lòng chọn một bệnh nhân trước khi tiếp tục.');
       return;
     }
     if (patientMode.value === 'new') {
       if (!selectedPatient.value || !newPatientSaved.value) {
-        patientStepError.value = 'Vui lòng lưu hồ sơ bệnh nhân mới trước khi tiếp tục.';
+        showToast('error', 'Vui lòng lưu hồ sơ bệnh nhân mới trước khi tiếp tục.');
         return;
       }
     }
-    patientStepError.value = null;
     currentStep.value = 3;
   }
 };
@@ -286,15 +311,14 @@ const goToPreviousStep = () => {
 
 const submitWizard = async () => {
   if (!props.request) {
-    submissionError.value = 'Không xác định được yêu cầu cần xử lý.';
+    showToast('error', 'Không xác định được yêu cầu cần xử lý.');
     return;
   }
   if (!canProceed.value) {
-    submissionError.value = 'Vui lòng hoàn thiện thông tin trước khi xác nhận.';
+    showToast('error', 'Vui lòng hoàn thiện thông tin trước khi xác nhận.');
     return;
   }
   submissionLoading.value = true;
-  submissionError.value = null;
   try {
     const scheduledAt = `${scheduleForm.value.scheduledDate}T${scheduleForm.value.scheduledTime}:00`;
     await approveAppointmentRequest(props.request.id, {
@@ -307,7 +331,7 @@ const submitWizard = async () => {
     emit('completed');
     closeWizard();
   } catch (error) {
-    submissionError.value = extractErrorMessage(error);
+    showToast('error', extractErrorMessage(error));
   } finally {
     submissionLoading.value = false;
   }
@@ -381,7 +405,6 @@ watch(
 watch(
   () => patientMode.value,
   (mode) => {
-    patientStepError.value = null;
     if (mode === 'existing') {
       newPatientSaved.value = Boolean(selectedPatient.value);
     }
@@ -550,7 +573,6 @@ onMounted(() => {
                   <span>{{ patientSearchLoading ? 'Đang tìm...' : 'Tìm kiếm' }}</span>
                 </button>
               </div>
-              <p v-if="patientSearchError" class="mt-3 text-xs text-rose-600">{{ patientSearchError }}</p>
 
               <div v-if="patientSearchResults.length" class="mt-5 grid gap-3 sm:grid-cols-2">
                 <button
@@ -687,7 +709,6 @@ onMounted(() => {
                   <span>{{ newPatientLoading ? 'Đang lưu...' : 'Lưu bệnh nhân mới' }}</span>
                 </button>
               </div>
-              <p v-if="newPatientError" class="mt-2 text-xs text-rose-600">{{ newPatientError }}</p>
             </article>
 
             <article v-else class="rounded-[24px] border border-dashed border-emerald-200 bg-emerald-50/50 p-6 text-sm text-emerald-700">
@@ -696,8 +717,6 @@ onMounted(() => {
                 Hệ thống sẽ tự tạo hồ sơ bệnh nhân mới dựa trên thông tin trong yêu cầu hiện tại. Bạn có thể bổ sung chi tiết sau khi lịch hẹn được xác nhận.
               </p>
             </article>
-
-            <p v-if="patientStepError" class="text-xs text-rose-600">{{ patientStepError }}</p>
           </section>
 
           <section v-else class="space-y-6">
@@ -728,7 +747,6 @@ onMounted(() => {
                       {{ doctor.account?.fullName || ('Bác sĩ #' + doctor.id) }} • {{ doctor.specialty || 'Chuyên khoa' }}
                     </option>
                   </select>
-                  <p v-if="doctorError" class="mt-1 text-xs text-rose-600">{{ doctorError }}</p>
                 </div>
                 <div>
                   <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="schedule-date">Ngày khám *</label>
@@ -780,7 +798,6 @@ onMounted(() => {
                 </p>
               </div>
             </article>
-            <p v-if="submissionError" class="text-xs text-rose-600">{{ submissionError }}</p>
           </section>
 
           <footer class="flex flex-col gap-3 border-t border-emerald-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
@@ -818,6 +835,90 @@ onMounted(() => {
       </div>
     </div>
   </Transition>
+
+  <!-- Toast -->
+  <Teleport to="body">
+    <Transition
+      enter-active-class="transition duration-200"
+      enter-from-class="translate-y-2 opacity-0"
+      enter-to-class="translate-y-0 opacity-100"
+      leave-active-class="transition duration-200"
+      leave-from-class="translate-y-0 opacity-100"
+      leave-to-class="translate-y-2 opacity-0"
+    >
+      <div
+        v-if="toast"
+        class="fixed top-6 right-6 z-[100] w-[min(320px,90vw)] rounded-2xl border px-5 py-4 shadow-xl backdrop-blur"
+        :class="toastVisuals.container"
+      >
+        <div class="flex items-start gap-3">
+          <span
+            class="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full"
+            :class="toastVisuals.icon"
+          >
+            <svg
+              v-if="toastVisuals.iconType === 'success'"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              class="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7" />
+            </svg>
+            <svg
+              v-else-if="toastVisuals.iconType === 'error'"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              class="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="m15 9-6 6m0-6 6 6" />
+            </svg>
+            <svg
+              v-else-if="toastVisuals.iconType === 'warning'"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              class="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01m-6.938 2h13.856a1 1 0 0 0 .894-1.447L12.894 4.553a1 1 0 0 0-1.788 0l-6.918 12.004A1 1 0 0 0 5.062 19Z" />
+            </svg>
+            <svg
+              v-else
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              class="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01m0-14a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z" />
+            </svg>
+          </span>
+          <div class="flex-1">
+            <p class="text-sm font-semibold">{{ toastVisuals.title }}</p>
+            <p class="mt-1 text-sm leading-relaxed">{{ toast.message }}</p>
+          </div>
+          <button
+            type="button"
+            class="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-white/70 text-slate-500 transition hover:bg-white hover:text-slate-700"
+            @click="dismissToast"
+            aria-label="Đóng thông báo"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m16 8-8 8m0-8 8 8" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <style scoped>

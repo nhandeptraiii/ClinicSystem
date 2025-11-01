@@ -13,7 +13,7 @@ import {
 } from '@/services/workSchedule.service';
 import { fetchClinicRooms, type ClinicRoom } from '@/services/clinicRoom.service';
 import { http } from '@/services/http';
-import { useToast } from '@/composables/useToast';
+import { useToast, type ToastType } from '@/composables/useToast';
 
 const authStore = useAuthStore();
 const router = useRouter();
@@ -41,6 +41,43 @@ const editSubmitting = ref(false);
 const editError = ref<string | null>(null);
 
 const { toast, show: showToast, hide: hideToast } = useToast();
+
+type ToastVisual = {
+  title: string;
+  container: string;
+  icon: string;
+  iconType: 'success' | 'error' | 'warning' | 'info';
+};
+
+const toastVisualMap: Record<ToastType, ToastVisual> = {
+  success: {
+    title: 'Thành công',
+    container: 'border-emerald-200 bg-emerald-50/95 text-emerald-800',
+    icon: 'bg-emerald-100 text-emerald-600',
+    iconType: 'success',
+  },
+  error: {
+    title: 'Có lỗi xảy ra',
+    container: 'border-rose-200 bg-rose-50/95 text-rose-700',
+    icon: 'bg-rose-100 text-rose-600',
+    iconType: 'error',
+  },
+  info: {
+    title: 'Thông báo',
+    container: 'border-sky-200 bg-sky-50/95 text-sky-700',
+    icon: 'bg-sky-100 text-sky-600',
+    iconType: 'info',
+  },
+  warning: {
+    title: 'Cảnh báo',
+    container: 'border-amber-200 bg-amber-50/95 text-amber-700',
+    icon: 'bg-amber-100 text-amber-600',
+    iconType: 'warning',
+  },
+};
+
+const toastVisuals = computed(() => toastVisualMap[toast.value?.type ?? 'info']);
+const dismissToast = () => hideToast();
 
 const WEEK_DAY_META: Array<{ key: DayOfWeekKey; label: string; short: string }> = [
   { key: 'MONDAY', label: 'Thứ 2', short: 'T2' },
@@ -1464,55 +1501,67 @@ onBeforeUnmount(() => {
     >
       <div
         v-if="toast"
-        class="fixed top-6 right-6 z-[80] w-[min(320px,90vw)] rounded-2xl border px-5 py-4 shadow-xl backdrop-blur"
-        :class="toast.type === 'success'
-          ? 'border-emerald-200 bg-emerald-50/95 text-emerald-800'
-          : toast.type === 'warning'
-            ? 'border-amber-200 bg-amber-50/95 text-amber-700'
-            : toast.type === 'info'
-              ? 'border-sky-200 bg-sky-50/95 text-sky-700'
-              : 'border-rose-200 bg-rose-50/95 text-rose-700'"
+        class="fixed top-6 right-6 z-[100] w-[min(320px,90vw)] rounded-2xl border px-5 py-4 shadow-xl backdrop-blur"
+        :class="toastVisuals.container"
       >
         <div class="flex items-start gap-3">
           <span
             class="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full"
-            :class="toast.type === 'success'
-              ? 'bg-emerald-100 text-emerald-600'
-              : toast.type === 'warning'
-                ? 'bg-amber-100 text-amber-600'
-                : toast.type === 'info'
-                  ? 'bg-sky-100 text-sky-600'
-                  : 'bg-rose-100 text-rose-600'"
+            :class="toastVisuals.icon"
           >
-            <svg v-if="toast.type === 'success'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
+            <svg
+              v-if="toastVisuals.iconType === 'success'"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              class="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
               <path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7" />
             </svg>
-            <svg v-else-if="toast.type === 'info'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12Z" />
-            </svg>
-            <svg v-else-if="toast.type === 'warning'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01m-8.7 1h17.38c1.16 0 1.89-1.24 1.3-2.26L13.3 4.74c-.58-1.02-2.02-1.02-2.6 0L2.3 15.74C1.7 16.76 2.44 18 3.6 18Z" />
-            </svg>
-            <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
+            <svg
+              v-else-if="toastVisuals.iconType === 'error'"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              class="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
               <path stroke-linecap="round" stroke-linejoin="round" d="m15 9-6 6m0-6 6 6" />
+            </svg>
+            <svg
+              v-else-if="toastVisuals.iconType === 'warning'"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              class="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01m-6.938 2h13.856a1 1 0 0 0 .894-1.447L12.894 4.553a1 1 0 0 0-1.788 0l-6.918 12.004A1 1 0 0 0 5.062 19Z" />
+            </svg>
+            <svg
+              v-else
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              class="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01m0-14a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z" />
             </svg>
           </span>
           <div class="flex-1">
-            <p class="text-sm font-semibold">
-              {{ toast.type === 'success'
-                ? 'Thành công'
-                : toast.type === 'info'
-                  ? 'Thông báo'
-                  : toast.type === 'warning'
-                    ? 'Lưu ý'
-                    : 'Có lỗi xảy ra' }}
-            </p>
+            <p class="text-sm font-semibold">{{ toastVisuals.title }}</p>
             <p class="mt-1 text-sm leading-relaxed">{{ toast.message }}</p>
           </div>
           <button
             type="button"
             class="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-white/70 text-slate-500 transition hover:bg-white hover:text-slate-700"
-            @click="hideToast"
+            @click="dismissToast"
             aria-label="Đóng thông báo"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2">
