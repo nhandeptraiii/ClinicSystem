@@ -21,8 +21,20 @@ export interface Patient {
   updatedAt?: string;
 }
 
-export interface PatientSearchParams {
+export interface PatientQuery {
   keyword?: string;
+  page?: number;
+  size?: number;
+}
+
+export interface PatientPage {
+  items: Patient[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
 }
 
 export interface PatientCreatePayload {
@@ -36,31 +48,70 @@ export interface PatientCreatePayload {
   note?: string | null;
 }
 
-const normalizeResponse = <T>(payload: RestResponse<T> | T): T => {
-  if (payload && typeof payload === 'object' && 'data' in (payload as RestResponse<T>)) {
-    return (payload as RestResponse<T>).data;
+export interface PatientUpdatePayload {
+  code?: string;
+  fullName?: string;
+  gender?: string | null;
+  dateOfBirth?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  note?: string | null;
+}
+
+const unwrap = <T>(input: RestResponse<T> | T): T => {
+  if (input && typeof input === 'object' && 'data' in (input as RestResponse<T>)) {
+    return (input as RestResponse<T>).data;
   }
-  return payload as T;
+  return input as T;
 };
 
-export const searchPatients = async (params: PatientSearchParams = {}) => {
-  const { data } = await http.get<RestResponse<Patient[]>>('/patients', {
-    params: params.keyword ? { keyword: params.keyword } : undefined,
+export const fetchPatients = async (keyword?: string) => {
+  const params = keyword ? { keyword } : undefined;
+  const { data } = await http.get<RestResponse<Patient[]> | Patient[]>('/patients', { params });
+  const unwrapped = unwrap(data);
+  return Array.isArray(unwrapped) ? unwrapped : [];
+};
+
+export const searchPatients = async (query: { keyword?: string } = {}) => {
+  return fetchPatients(query.keyword);
+};
+
+export const fetchPatientPage = async (params: PatientQuery = {}) => {
+  const { data } = await http.get<RestResponse<PatientPage> | PatientPage | Patient[]>('/patients', {
+    params,
   });
-  if (Array.isArray(data)) {
-    return data as Patient[];
+  const unwrapped = unwrap(data);
+  if (Array.isArray(unwrapped)) {
+    return {
+      items: unwrapped,
+      page: params.page ?? 0,
+      size: params.size ?? unwrapped.length,
+      totalElements: unwrapped.length,
+      totalPages: 1,
+      hasNext: false,
+      hasPrevious: false,
+    } satisfies PatientPage;
   }
-  const normalized = normalizeResponse(data);
-  return Array.isArray(normalized) ? normalized : [];
+  return unwrapped as PatientPage;
 };
 
 export const fetchPatientById = async (id: number) => {
-  const { data } = await http.get<RestResponse<Patient>>(`/patients/${id}`);
-  return normalizeResponse(data);
+  const { data } = await http.get<RestResponse<Patient> | Patient>(`/patients/${id}`);
+  return unwrap(data);
 };
 
 export const createPatient = async (payload: PatientCreatePayload) => {
-  const { data } = await http.post<RestResponse<Patient>>('/patients', payload);
-  return normalizeResponse(data);
+  const { data } = await http.post<RestResponse<Patient> | Patient>('/patients', payload);
+  return unwrap(data);
+};
+
+export const updatePatient = async (id: number, payload: PatientUpdatePayload) => {
+  const { data } = await http.put<RestResponse<Patient> | Patient>(`/patients/${id}`, payload);
+  return unwrap(data);
+};
+
+export const deletePatient = async (id: number) => {
+  await http.delete(`/patients/${id}`);
 };
 
