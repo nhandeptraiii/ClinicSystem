@@ -41,11 +41,12 @@ public class Patient {
     // @JsonFormat(pattern = "dd/MM/yyyy")
     private LocalDate dateOfBirth;
 
+    @NotBlank(message = "Số điện thoại không được để trống")
     @Pattern(regexp = "^\\d{10}$", message = "Số điện thoại phải gồm đúng 10 chữ số")
-    @Column(length = 10)
+    @Column(length = 10, nullable = false, unique = true)
     private String phone;
 
-    @Column(length = 80)
+    @Column(length = 80, unique = true)
     private String email;
 
     @Column(length = 255)

@@ -4,6 +4,8 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,6 +14,7 @@ import jakarta.validation.Validator;
 import jakarta.persistence.EntityNotFoundException;
 import vn.project.ClinicSystem.model.AppointmentRequest;
 import vn.project.ClinicSystem.model.Patient;
+import vn.project.ClinicSystem.model.dto.PatientPageResponse;
 import vn.project.ClinicSystem.repository.PatientRepository;
 
 @Service
@@ -27,6 +30,13 @@ public class PatientService {
 
     public List<Patient> findAll() {
         return patientRepository.findAll();
+    }
+
+    public PatientPageResponse getPaged(String keyword, Pageable pageable) {
+        Page<Patient> page = patientRepository.search(
+                normalizeKeyword(keyword),
+                pageable);
+        return PatientPageResponse.from(page);
     }
 
     public List<Patient> searchByKeyword(String keyword) {
@@ -58,6 +68,17 @@ public class PatientService {
             throw new IllegalArgumentException("Thông tin bệnh nhân không được để trống");
         }
         patient.setCode(normalizeCode(patient.getCode()));
+        String normalizedPhone = normalizePhone(patient.getPhone());
+        if (normalizedPhone == null) {
+            throw new IllegalArgumentException("Số điện thoại không hợp lệ");
+        }
+        patient.setPhone(normalizedPhone);
+        validateUniquePhone(patient.getPhone(), null);
+        if (patient.getEmail() != null && !patient.getEmail().trim().isEmpty()) {
+            String normalizedEmail = normalizeEmail(patient.getEmail());
+            patient.setEmail(normalizedEmail);
+            validateUniqueEmail(patient.getEmail(), null);
+        }
         validateBean(patient);
         validateUniqueCode(patient.getCode(), null);
         return patientRepository.save(patient);
@@ -85,10 +106,24 @@ public class PatientService {
             existing.setDateOfBirth(changes.getDateOfBirth());
         }
         if (changes.getPhone() != null) {
-            existing.setPhone(changes.getPhone());
+            String normalizedPhone = normalizePhone(changes.getPhone());
+            if (normalizedPhone != null && !normalizedPhone.equals(existing.getPhone())) {
+                validateUniquePhone(normalizedPhone, existing.getId());
+                existing.setPhone(normalizedPhone);
+            } else if (normalizedPhone != null) {
+                existing.setPhone(normalizedPhone);
+            }
         }
         if (changes.getEmail() != null) {
-            existing.setEmail(changes.getEmail());
+            String normalizedEmail = normalizeEmail(changes.getEmail());
+            if (normalizedEmail != null && !normalizedEmail.equalsIgnoreCase(existing.getEmail())) {
+                validateUniqueEmail(normalizedEmail, existing.getId());
+                existing.setEmail(normalizedEmail);
+            } else if (normalizedEmail != null) {
+                existing.setEmail(normalizedEmail);
+            } else {
+                existing.setEmail(null);
+            }
         }
         if (changes.getAddress() != null) {
             existing.setAddress(changes.getAddress());
@@ -122,9 +157,7 @@ public class PatientService {
         patient.setFullName(request.getFullName());
         patient.setDateOfBirth(request.getDateOfBirth());
         String normalizedPhone = normalizePhone(request.getPhone());
-        if (normalizedPhone != null) {
-            patient.setPhone(normalizedPhone);
-        }
+        patient.setPhone(normalizedPhone);
         patient.setEmail(request.getEmail());
         patient.setNote(buildAutoNote(request));
         return create(patient);
@@ -135,6 +168,27 @@ public class PatientService {
             boolean sameRecord = currentId != null && existing.getId().equals(currentId);
             if (!sameRecord) {
                 throw new IllegalStateException("Mã bệnh nhân đã tồn tại: " + code);
+            }
+        });
+    }
+
+    private void validateUniquePhone(String phone, Long currentId) {
+        patientRepository.findByPhone(phone).ifPresent(existing -> {
+            boolean sameRecord = currentId != null && existing.getId().equals(currentId);
+            if (!sameRecord) {
+                throw new IllegalStateException("Số điện thoại đã tồn tại: " + phone);
+            }
+        });
+    }
+
+    private void validateUniqueEmail(String email, Long currentId) {
+        if (email == null || email.trim().isEmpty()) {
+            return;
+        }
+        patientRepository.findByEmail(email).ifPresent(existing -> {
+            boolean sameRecord = currentId != null && existing.getId().equals(currentId);
+            if (!sameRecord) {
+                throw new IllegalStateException("Email đã tồn tại: " + email);
             }
         });
     }
@@ -172,6 +226,14 @@ public class PatientService {
         return null;
     }
 
+    private String normalizeEmail(String email) {
+        if (email == null) {
+            return null;
+        }
+        String trimmed = email.trim();
+        return trimmed.isEmpty() ? null : trimmed.toLowerCase();
+    }
+
     private String buildAutoNote(AppointmentRequest request) {
         if (request.getId() != null) {
             return "Tạo từ yêu cầu đặt lịch #" + request.getId();
@@ -194,7 +256,17 @@ public class PatientService {
         return patientRepository.searchPatients(
                 hasKeyword ? normalizedKeyword : null,
                 dateOfBirth,
-                hasPhone ? normalizedPhone : null);
+                hasPhone ? normalizedPhone : null,
+                Pageable.unpaged())
+                .getContent();
+    }
+
+    private String normalizeKeyword(String keyword) {
+        if (keyword == null) {
+            return null;
+        }
+        String trimmed = keyword.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
 }

@@ -3,6 +3,9 @@ package vn.project.ClinicSystem.controller;
 import java.time.LocalDate;
 import java.util.List;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
 import vn.project.ClinicSystem.model.Patient;
+import vn.project.ClinicSystem.model.dto.PatientPageResponse;
 import vn.project.ClinicSystem.service.PatientService;
 
 @RestController
@@ -38,9 +42,24 @@ public class PatientController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Patient>> getPatients(
-            @RequestParam(value = "keyword", required = false) String keyword) {
-        return ResponseEntity.ok(patientService.searchByKeyword(keyword));
+    public ResponseEntity<?> getPatients(
+            @RequestParam(value = "keyword", required = false) String keyword,
+            @RequestParam(value = "page", required = false) Integer page,
+            @RequestParam(value = "size", required = false) Integer size) {
+        if (page != null || size != null) {
+            int safePage = page != null ? Math.max(page, 0) : 0;
+            int safeSize = size != null ? Math.min(Math.max(size, 1), 50) : 10;
+            Pageable pageable = PageRequest.of(
+                    safePage,
+                    safeSize,
+                    Sort.by(Sort.Order.asc("fullName")));
+            PatientPageResponse response = patientService.getPaged(keyword, pageable);
+            return ResponseEntity.ok(response);
+        }
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            return ResponseEntity.ok(patientService.searchByKeyword(keyword));
+        }
+        return ResponseEntity.ok(patientService.findAll());
     }
 
     @GetMapping("/{id}")
