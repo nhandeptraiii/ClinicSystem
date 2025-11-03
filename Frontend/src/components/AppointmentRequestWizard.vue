@@ -6,7 +6,7 @@ import { createPatient, fetchPatientPage, type Patient, type PatientPage } from 
 import { useToast, type ToastType } from '@/composables/useToast';
 
 type Step = 1 | 2 | 3;
-type PatientMode = 'existing' | 'new' | 'auto';
+type PatientMode = 'existing' | 'new';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -59,6 +59,12 @@ const toastVisualMap: Record<ToastType, ToastVisual> = {
 const toastVisuals = computed(() => toastVisualMap[toast.value?.type ?? 'info']);
 const dismissToast = () => hideToast();
 
+// Định nghĩa hàm trước khi sử dụng
+const generatePatientCode = () => {
+  const random = Math.floor(100000 + Math.random() * 900000).toString();
+  return `BN${random}`;
+};
+
 const currentStep = ref<Step>(1);
 const patientMode = ref<PatientMode>('existing');
 
@@ -109,7 +115,6 @@ const stepLabels: Record<Step, string> = {
 const patientModeOptions: Array<{ key: PatientMode; label: string; description: string }> = [
   { key: 'existing', label: 'Chọn bệnh nhân sẵn có', description: 'Tìm kiếm và gắn với hồ sơ bệnh nhân đã có.' },
   { key: 'new', label: 'Tạo bệnh nhân mới', description: 'Nhập nhanh thông tin và lưu hồ sơ mới.' },
-  { key: 'auto', label: 'Tạo tự động', description: 'Hệ thống tạo hồ sơ dựa trên yêu cầu hiện tại.' },
 ];
 
 const preferredAtDisplay = computed(() => {
@@ -126,6 +131,7 @@ const preferredAtDisplay = computed(() => {
     return preferredAt;
   }
 });
+
 
 const selectedDoctor = computed(() => {
   if (!scheduleForm.value.doctorId) return null;
@@ -187,8 +193,10 @@ const resetWizardState = () => {
   patientSearchResults.value = [];
   patientPage.value = null;
   patientCurrentPage.value = 0;
+  // Reset với mã mới mỗi lần mở wizard
+  const newCode = generatePatientCode();
   newPatientForm.value = {
-    code: generatePatientCode(),
+    code: newCode,
     fullName: props.request?.fullName ?? '',
     gender: '',
     dateOfBirth: props.request?.dateOfBirth ?? '',
@@ -263,9 +271,6 @@ const handleSelectPatient = (patient: Patient) => {
   selectedPatient.value = patient;
 };
 
-const handleGeneratePatientCode = () => {
-  newPatientForm.value.code = generatePatientCode();
-};
 
 const handleCreatePatient = async () => {
   if (!newPatientForm.value.code.trim()) {
@@ -342,7 +347,7 @@ const submitWizard = async () => {
   try {
     const scheduledAt = `${scheduleForm.value.scheduledDate}T${scheduleForm.value.scheduledTime}:00`;
     await approveAppointmentRequest(props.request.id, {
-      patientId: patientMode.value === 'auto' ? undefined : selectedPatient.value?.id,
+      patientId: selectedPatient.value?.id,
       doctorId: scheduleForm.value.doctorId!,
       scheduledAt,
       duration: scheduleForm.value.duration,
@@ -388,11 +393,6 @@ const extractErrorMessage = (input: unknown) => {
   return fallback;
 };
 
-const generatePatientCode = () => {
-  const random = Math.random().toString(36).slice(2, 8).toUpperCase();
-  return `BN${random}`;
-};
-
 watch(
   () => props.modelValue,
   (open) => {
@@ -427,10 +427,6 @@ watch(
   (mode) => {
     if (mode === 'existing') {
       newPatientSaved.value = Boolean(selectedPatient.value);
-    }
-    if (mode === 'auto') {
-      selectedPatient.value = null;
-      newPatientSaved.value = false;
     }
     if (mode === 'new' && !newPatientSaved.value) {
       selectedPatient.value = null;
@@ -549,7 +545,7 @@ onMounted(() => {
           </section>
 
           <section v-else-if="currentStep === 2" class="space-y-6">
-            <div class="grid gap-3 sm:grid-cols-3">
+            <div class="grid gap-3 sm:grid-cols-2">
               <button
                 v-for="option in patientModeOptions"
                 :key="option.key"
@@ -646,18 +642,9 @@ onMounted(() => {
             </article>
 
             <article v-else-if="patientMode === 'new'" class="rounded-[24px] border border-emerald-100 bg-white p-6 shadow-sm">
-              <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h3 class="text-base font-semibold text-slate-900">Tạo hồ sơ bệnh nhân mới</h3>
-                  <p class="mt-1 text-sm text-slate-600">Thông tin đã nhập sẽ được lưu lại và sử dụng cho các lần khám sau.</p>
-                </div>
-                <button
-                  type="button"
-                  class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50"
-                  @click="handleGeneratePatientCode"
-                >
-                  Tạo mã ngẫu nhiên
-                </button>
+              <div>
+                <h3 class="text-base font-semibold text-slate-900">Tạo hồ sơ bệnh nhân mới</h3>
+                <p class="mt-1 text-sm text-slate-600">Thông tin đã nhập sẽ được lưu lại và sử dụng cho các lần khám sau.</p>
               </div>
               <div class="mt-5 grid gap-4 md:grid-cols-2">
                 <div>
@@ -666,7 +653,8 @@ onMounted(() => {
                     id="patient-code"
                     v-model="newPatientForm.code"
                     type="text"
-                    class="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+                    readonly
+                    class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 shadow-sm cursor-not-allowed"
                     placeholder="BN0001"
                   />
                 </div>
@@ -751,7 +739,7 @@ onMounted(() => {
                 <button
                   type="button"
                   class="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
-                  :disabled="newPatientLoading"
+                  :disabled="newPatientLoading || newPatientSaved"
                   @click="handleCreatePatient"
                 >
                   <svg v-if="newPatientLoading" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -761,13 +749,6 @@ onMounted(() => {
                   <span>{{ newPatientLoading ? 'Đang lưu...' : 'Lưu bệnh nhân mới' }}</span>
                 </button>
               </div>
-            </article>
-
-            <article v-else class="rounded-[24px] border border-dashed border-emerald-200 bg-emerald-50/50 p-6 text-sm text-emerald-700">
-              <h3 class="text-base font-semibold text-emerald-700">Tạo hồ sơ tự động</h3>
-              <p class="mt-2 text-sm text-emerald-700/80">
-                Hệ thống sẽ tự tạo hồ sơ bệnh nhân mới dựa trên thông tin trong yêu cầu hiện tại. Bạn có thể bổ sung chi tiết sau khi lịch hẹn được xác nhận.
-              </p>
             </article>
           </section>
 

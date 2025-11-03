@@ -30,6 +30,9 @@ type InvalidMessageMap = Partial<{
 }>;
 
 const today = now.toISOString().slice(0, 10);
+const tomorrow = new Date(now);
+tomorrow.setDate(tomorrow.getDate() + 1);
+const tomorrowStr = tomorrow.toISOString().slice(0, 10);
 
 const toMinutes = (h: number, m: number) => h * 60 + m;
 const toHHMM = (mins: number) => {
@@ -105,7 +108,7 @@ const handleSubmit = async () => {
   error.value = null;
 
   // Required checks
-  if (!form.value.fullName || !form.value.phone || !form.value.email || !form.value.dateOfBirth || !form.value.preferredDate || !form.value.preferredTime || !form.value.symptomDescription) {
+  if (!form.value.fullName || !form.value.phone || !form.value.dateOfBirth || !form.value.preferredDate || !form.value.preferredTime || !form.value.symptomDescription) {
     error.value = 'Vui lòng nhập đầy đủ thông tin bắt buộc';
     return;
   }
@@ -121,7 +124,7 @@ const handleSubmit = async () => {
   const payload: AppointmentRequestPayload = {
     fullName: form.value.fullName.trim(),
     phone: form.value.phone.trim(),
-    email: form.value.email.trim(),
+    email: form.value.email.trim() || undefined,
     dateOfBirth: form.value.dateOfBirth,
     preferredAt: preferredAtISO.value,
     symptomDescription: form.value.symptomDescription.trim(),
@@ -132,10 +135,22 @@ const handleSubmit = async () => {
     await createAppointmentRequest(payload);
     success.value = 'Gửi yêu cầu đặt lịch thành công! Chúng tôi sẽ liên hệ sớm.';
     emitting('submitted');
-    // Reset các trường ngày/giờ và mô tả
-    form.value.preferredDate = '';
-    form.value.preferredTime = '';
-    form.value.symptomDescription = '';
+    
+    // Reset toàn bộ form
+    form.value = {
+      fullName: '',
+      phone: '',
+      email: '',
+      dateOfBirth: '',
+      preferredDate: '',
+      preferredTime: '',
+      symptomDescription: '',
+    };
+    
+    // Reload trang sau 1.5 giây để người dùng thấy thông báo
+    setTimeout(() => {
+      window.location.reload();
+    }, 1500);
   } catch (e: any) {
     error.value = e?.response?.data?.message || 'Gửi yêu cầu thất bại. Vui lòng thử lại.';
   } finally {
@@ -190,11 +205,10 @@ const handleSubmit = async () => {
           id="email"
           v-model="form.email"
           type="email"
-          required
           class="w-full rounded-xl border border-emerald-100 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-          placeholder="you@example.com"
+          placeholder="you@example.com (tùy chọn)"
           @input="handleInput"
-          @invalid="onInvalid($event, { required: 'Vui lòng nhập email liên hệ.', typeMismatch: 'Email chưa đúng định dạng. Vui lòng kiểm tra lại.' })"
+          @invalid="onInvalid($event, { typeMismatch: 'Email chưa đúng định dạng. Vui lòng kiểm tra lại.' })"
         />
       </div>
 
@@ -218,11 +232,11 @@ const handleSubmit = async () => {
           id="preferredDate"
           v-model="form.preferredDate"
           type="date"
-          :min="today"
+          :min="tomorrowStr"
           required
           class="w-full rounded-xl border border-emerald-100 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
           @input="handleInput"
-          @invalid="onInvalid($event, { required: 'Vui lòng chọn ngày khám.', rangeUnderflow: 'Ngày khám phải từ hôm nay trở đi.' })"
+          @invalid="onInvalid($event, { required: 'Vui lòng chọn ngày khám.', rangeUnderflow: 'Ngày khám phải từ ngày mai trở đi.' })"
         />
       </div>
 
