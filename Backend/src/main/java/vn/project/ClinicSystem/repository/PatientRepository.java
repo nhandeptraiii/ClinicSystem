@@ -15,37 +15,39 @@ import vn.project.ClinicSystem.model.Patient;
 
 @Repository
 public interface PatientRepository extends JpaRepository<Patient, Long> {
-        Optional<Patient> findByCode(String code);
+  Optional<Patient> findByCode(String code);
 
-        boolean existsByCodeIgnoreCase(String code);
+  boolean existsByCodeIgnoreCase(String code);
 
-        Optional<Patient> findByPhone(String phone);
+  Optional<Patient> findFirstByPhone(String phone);
 
-        boolean existsByPhone(String phone);
+  boolean existsByPhone(String phone);
 
-        Optional<Patient> findByEmail(String email);
+  Optional<Patient> findFirstByEmail(String email);
 
-        boolean existsByEmail(String email);
+  boolean existsByEmail(String email);
 
-        List<Patient> findByFullNameContainingIgnoreCase(String keyword);
+  Optional<Patient> findFirstByFullNameIgnoreCaseAndPhone(String fullName, String phone);
 
-        @Query("""
-                        SELECT p FROM Patient p
-                        WHERE (:keyword IS NULL OR LOWER(p.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
-                            OR LOWER(p.code) LIKE LOWER(CONCAT('%', :keyword, '%'))
-                            OR LOWER(p.phone) LIKE LOWER(CONCAT('%', :keyword, '%'))
-                            OR LOWER(p.email) LIKE LOWER(CONCAT('%', :keyword, '%')))
-                        """)
-        Page<Patient> search(@Param("keyword") String keyword, Pageable pageable);
+  List<Patient> findByFullNameContainingIgnoreCase(String keyword);
 
-        @Query("""
-                        SELECT p FROM Patient p
-                        WHERE (:keyword IS NULL OR LOWER(p.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')))
-                          AND (:dateOfBirth IS NULL OR p.dateOfBirth = :dateOfBirth)
-                          AND (:phone IS NULL OR p.phone = :phone)
-                        """)
-        Page<Patient> searchPatients(@Param("keyword") String keyword,
-                        @Param("dateOfBirth") LocalDate dateOfBirth,
-                        @Param("phone") String phone,
-                        Pageable pageable);
+  @Query("""
+      SELECT p FROM Patient p
+      WHERE (:keyword IS NULL OR LOWER(p.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
+          OR LOWER(p.code) LIKE LOWER(CONCAT('%', :keyword, '%'))
+          OR LOWER(p.phone) LIKE LOWER(CONCAT('%', :keyword, '%'))
+          OR LOWER(p.email) LIKE LOWER(CONCAT('%', :keyword, '%')))
+      """)
+  Page<Patient> search(@Param("keyword") String keyword, Pageable pageable);
+
+  @Query("""
+      SELECT p FROM Patient p
+      WHERE (:keyword IS NULL OR LOWER(p.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')))
+        AND (:dateOfBirth IS NULL OR p.dateOfBirth = :dateOfBirth)
+        AND (:phone IS NULL OR p.phone = :phone)
+      """)
+  Page<Patient> searchPatients(@Param("keyword") String keyword,
+      @Param("dateOfBirth") LocalDate dateOfBirth,
+      @Param("phone") String phone,
+      Pageable pageable);
 }

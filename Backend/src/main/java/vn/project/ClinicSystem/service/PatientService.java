@@ -73,6 +73,16 @@ public class PatientService {
             throw new IllegalArgumentException("Số điện thoại không hợp lệ");
         }
         patient.setPhone(normalizedPhone);
+
+        // Kiểm tra nếu cả tên và số điện thoại đều trùng
+        String normalizedFullName = patient.getFullName() != null ? patient.getFullName().trim() : null;
+        if (normalizedFullName != null && !normalizedFullName.isEmpty()) {
+            patientRepository.findFirstByFullNameIgnoreCaseAndPhone(normalizedFullName, normalizedPhone)
+                    .ifPresent(existing -> {
+                        throw new IllegalStateException("Bệnh nhân này đã có. Vui lòng chọn bệnh nhân đã có.");
+                    });
+        }
+
         validateUniquePhone(patient.getPhone(), null);
         if (patient.getEmail() != null && !patient.getEmail().trim().isEmpty()) {
             String normalizedEmail = normalizeEmail(patient.getEmail());
@@ -173,7 +183,7 @@ public class PatientService {
     }
 
     private void validateUniquePhone(String phone, Long currentId) {
-        patientRepository.findByPhone(phone).ifPresent(existing -> {
+        patientRepository.findFirstByPhone(phone).ifPresent(existing -> {
             boolean sameRecord = currentId != null && existing.getId().equals(currentId);
             if (!sameRecord) {
                 throw new IllegalStateException("Số điện thoại đã tồn tại: " + phone);
@@ -185,7 +195,7 @@ public class PatientService {
         if (email == null || email.trim().isEmpty()) {
             return;
         }
-        patientRepository.findByEmail(email).ifPresent(existing -> {
+        patientRepository.findFirstByEmail(email).ifPresent(existing -> {
             boolean sameRecord = currentId != null && existing.getId().equals(currentId);
             if (!sameRecord) {
                 throw new IllegalStateException("Email đã tồn tại: " + email);
