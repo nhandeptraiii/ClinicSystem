@@ -3,6 +3,8 @@ package vn.project.ClinicSystem.service;
 import java.time.Instant;
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,6 +17,7 @@ import vn.project.ClinicSystem.model.Patient;
 import vn.project.ClinicSystem.model.User;
 import vn.project.ClinicSystem.model.dto.AppointmentRequestApproveRequest;
 import vn.project.ClinicSystem.model.dto.AppointmentRequestCreateRequest;
+import vn.project.ClinicSystem.model.dto.AppointmentRequestPageResponse;
 import vn.project.ClinicSystem.model.dto.AppointmentRequestRejectRequest;
 import vn.project.ClinicSystem.model.enums.AppointmentRequestStatus;
 import vn.project.ClinicSystem.repository.AppointmentRequestRepository;
@@ -53,6 +56,14 @@ public class AppointmentRequestService {
 
     public List<AppointmentRequest> findByStatus(AppointmentRequestStatus status) {
         return appointmentRequestRepository.findByStatusOrderByCreatedAtAsc(status);
+    }
+
+    public AppointmentRequestPageResponse getPaged(String keyword, AppointmentRequestStatus status, Pageable pageable) {
+        Page<AppointmentRequest> page = appointmentRequestRepository.search(
+                normalizeKeyword(keyword),
+                status,
+                pageable);
+        return AppointmentRequestPageResponse.from(page);
     }
 
     @Transactional
@@ -127,5 +138,13 @@ public class AppointmentRequestService {
             return patientService.getById(patientId);
         }
         return patientService.createFromAppointmentRequest(request);
+    }
+
+    private String normalizeKeyword(String keyword) {
+        if (keyword == null) {
+            return null;
+        }
+        String trimmed = keyword.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

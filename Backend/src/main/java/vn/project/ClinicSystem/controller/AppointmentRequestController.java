@@ -1,7 +1,8 @@
 package vn.project.ClinicSystem.controller;
 
-import java.util.List;
-
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -17,6 +18,7 @@ import jakarta.validation.Valid;
 import vn.project.ClinicSystem.model.AppointmentRequest;
 import vn.project.ClinicSystem.model.dto.AppointmentRequestApproveRequest;
 import vn.project.ClinicSystem.model.dto.AppointmentRequestCreateRequest;
+import vn.project.ClinicSystem.model.dto.AppointmentRequestPageResponse;
 import vn.project.ClinicSystem.model.dto.AppointmentRequestRejectRequest;
 import vn.project.ClinicSystem.model.enums.AppointmentRequestStatus;
 import vn.project.ClinicSystem.service.AppointmentRequestService;
@@ -41,8 +43,21 @@ public class AppointmentRequestController {
 
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping
-    public ResponseEntity<List<AppointmentRequest>> getAppointmentRequests(
-            @RequestParam(value = "status", required = false) AppointmentRequestStatus status) {
+    public ResponseEntity<?> getAppointmentRequests(
+            @RequestParam(value = "keyword", required = false) String keyword,
+            @RequestParam(value = "status", required = false) AppointmentRequestStatus status,
+            @RequestParam(value = "page", required = false) Integer page,
+            @RequestParam(value = "size", required = false) Integer size) {
+        if (page != null || size != null) {
+            int safePage = page != null ? Math.max(page, 0) : 0;
+            int safeSize = size != null ? Math.min(Math.max(size, 1), 50) : 10;
+            Pageable pageable = PageRequest.of(
+                    safePage,
+                    safeSize,
+                    Sort.by(Sort.Order.desc("createdAt")));
+            AppointmentRequestPageResponse response = appointmentRequestService.getPaged(keyword, status, pageable);
+            return ResponseEntity.ok(response);
+        }
         if (status != null) {
             return ResponseEntity.ok(appointmentRequestService.findByStatus(status));
         }
