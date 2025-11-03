@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import AdminHeader from '@/components/AdminHeader.vue';
 import AppointmentRequestWizard from '@/components/AppointmentRequestWizard.vue';
 import { useAuthStore } from '@/stores/authStore';
-import { fetchAppointmentRequests, type AppointmentRequest, type AppointmentRequestStatus } from '@/services/appointmentRequest.service';
+import { fetchAppointmentRequestPage, type AppointmentRequest, type AppointmentRequestStatus } from '@/services/appointmentRequest.service';
 import { useToast, type ToastType } from '@/composables/useToast';
 
 type StatusFilter = AppointmentRequestStatus | 'ALL';
@@ -61,6 +61,14 @@ const selectedStatus = ref<StatusFilter>('PENDING');
 const selectedRequestId = ref<number | null>(null);
 const lastLoadedAt = ref<string | null>(null);
 const wizardOpen = ref(false);
+let searchTimer: ReturnType<typeof setTimeout> | null = null;
+
+const PAGE_SIZE = 10;
+const currentPage = ref(1);
+const totalPages = ref(1);
+const totalElements = ref(0);
+const hasNext = ref(false);
+const hasPrevious = ref(false);
 
 const statusMeta: Record<AppointmentRequestStatus, { label: string; badge: string; dot: string }> = {
   PENDING: { label: 'Chờ duyệt', badge: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500' },
@@ -106,14 +114,58 @@ const extractErrorMessage = (input: unknown) => {
 const loadRequests = async () => {
   loading.value = true;
   try {
-    const result = await fetchAppointmentRequests();
-    requests.value = Array.isArray(result) ? result : [];
+    const keyword = searchTerm.value.trim();
+    const pageIndex = Math.max(currentPage.value - 1, 0);
+    const statusParam = selectedStatus.value === 'ALL' ? undefined : selectedStatus.value;
+    
+    const response = await fetchAppointmentRequestPage({
+      page: pageIndex,
+      size: PAGE_SIZE,
+      keyword: keyword ? keyword : undefined,
+      status: statusParam,
+    });
+    
+    requests.value = response.items ?? [];
+    totalElements.value = response.totalElements ?? requests.value.length;
+    const derivedTotalPages = response.totalPages && response.totalPages > 0 ? response.totalPages : 1;
+    totalPages.value = derivedTotalPages;
+    currentPage.value = response.totalPages && response.totalPages > 0 ? response.page + 1 : 1;
+    hasNext.value = response.hasNext ?? false;
+    hasPrevious.value = response.hasPrevious ?? false;
+    
     lastLoadedAt.value = new Date().toISOString();
   } catch (err) {
     console.error('Failed to fetch appointment requests', err);
     showToast('error', extractErrorMessage(err));
+    requests.value = [];
+    totalElements.value = 0;
+    totalPages.value = 1;
+    currentPage.value = 1;
+    hasNext.value = false;
+    hasPrevious.value = false;
   } finally {
     loading.value = false;
+  }
+};
+
+const goToPage = (page: number) => {
+  const target = Math.min(Math.max(page, 1), totalPages.value || 1);
+  if (target === currentPage.value) {
+    return;
+  }
+  currentPage.value = target;
+  loadRequests();
+};
+
+const nextPage = () => {
+  if (hasNext.value) {
+    goToPage(currentPage.value + 1);
+  }
+};
+
+const prevPage = () => {
+  if (hasPrevious.value) {
+    goToPage(currentPage.value - 1);
   }
 };
 
@@ -151,42 +203,27 @@ const formatFromNow = (value?: string | Date | null) => {
 };
 
 const statusCounts = computed<StatusCountMap>(() => {
-  return requests.value.reduce(
+  const allCount = totalElements.value;
+  const currentPageCounts = requests.value.reduce(
     (acc, curr) => {
-      acc.ALL += 1;
-      acc[curr.status] += 1;
+      const status = curr.status || 'PENDING';
+      if (status in acc) {
+        acc[status as AppointmentRequestStatus] += 1;
+      }
       return acc;
     },
     { ALL: 0, PENDING: 0, CONFIRMED: 0, REJECTED: 0 } as StatusCountMap
   );
+  
+  return {
+    ALL: allCount,
+    PENDING: currentPageCounts.PENDING,
+    CONFIRMED: currentPageCounts.CONFIRMED,
+    REJECTED: currentPageCounts.REJECTED,
+  };
 });
 
-const sortedRequests = computed(() => {
-  return [...requests.value].sort((a, b) => {
-    const timeA = getDate(a.createdAt)?.getTime() ?? getDate(a.preferredAt)?.getTime() ?? 0;
-    const timeB = getDate(b.createdAt)?.getTime() ?? getDate(b.preferredAt)?.getTime() ?? 0;
-    return timeB - timeA;
-  });
-});
-
-const filteredRequests = computed(() => {
-  const keyword = searchTerm.value.trim().toLowerCase();
-  return sortedRequests.value.filter((request) => {
-    const matchStatus = selectedStatus.value === 'ALL' ? true : request.status === selectedStatus.value;
-    if (!matchStatus) return false;
-    if (!keyword) return true;
-    const haystacks = [
-      request.fullName,
-      request.phone,
-      request.email ?? '',
-      request.patient?.code ?? '',
-      request.patient?.fullName ?? '',
-    ];
-    return haystacks.some((value) => value?.toLowerCase().includes(keyword));
-  });
-});
-
-const selectedRequest = computed(() => filteredRequests.value.find((item) => item.id === selectedRequestId.value) ?? null);
+const selectedRequest = computed(() => requests.value.find((item) => item.id === selectedRequestId.value) ?? null);
 
 const selectedStatusMeta = computed(() =>
   selectedRequest.value ? statusMeta[selectedRequest.value.status] : undefined
@@ -198,7 +235,7 @@ const wizardTooltip = computed(() =>
 );
 
 watch(
-  filteredRequests,
+  requests,
   (list) => {
     if (list.length === 0) {
       selectedRequestId.value = null;
@@ -214,16 +251,35 @@ watch(
   { immediate: true }
 );
 
-const totalRequests = computed(() => statusCounts.value.ALL);
+watch(selectedStatus, () => {
+  currentPage.value = 1;
+  loadRequests();
+});
+
+watch(searchTerm, () => {
+  if (searchTimer) {
+    clearTimeout(searchTimer);
+  }
+  searchTimer = setTimeout(() => {
+    currentPage.value = 1;
+    loadRequests();
+  }, 350);
+});
+
 const pendingShare = computed(() => {
-  if (statusCounts.value.ALL === 0) return 0;
-  return Math.round((statusCounts.value.PENDING / statusCounts.value.ALL) * 100);
+  if (totalElements.value === 0) return 0;
+  return Math.round((statusCounts.value.PENDING / totalElements.value) * 100);
 });
 const lastLoadedDisplay = computed(() => (lastLoadedAt.value ? formatFromNow(lastLoadedAt.value) : 'Chưa tải'));
-const hasActiveFilters = computed(() => selectedStatus.value !== 'ALL' || Boolean(searchTerm.value.trim()));
 
 onMounted(() => {
   loadRequests();
+});
+
+onBeforeUnmount(() => {
+  if (searchTimer) {
+    clearTimeout(searchTimer);
+  }
 });
 
 watch(
@@ -274,7 +330,7 @@ const handleWizardCompleted = async () => {
               <span>{{ loading ? 'Đang tải...' : 'Làm mới' }}</span>
             </button>
             <div class="rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-2 text-sm text-emerald-700 shadow-inner">
-              <p class="font-semibold">Tổng yêu cầu: {{ totalRequests }}</p>
+              <p class="font-semibold">Tổng yêu cầu: {{ totalElements }}</p>
               <p class="text-xs text-emerald-600/80">Cập nhật {{ lastLoadedDisplay }}</p>
             </div>
           </div>
@@ -325,71 +381,74 @@ const handleWizardCompleted = async () => {
           </div>
         </div>
 
-        <p v-if="hasActiveFilters" class="mt-4 text-xs text-emerald-600">Đang hiển thị {{ filteredRequests.length }} yêu cầu phù hợp bộ lọc hiện tại.</p>
       </section>
 
       <section class="mt-10 grid gap-6 lg:grid-cols-[1.7fr_1fr]">
         <div class="rounded-[28px] border border-emerald-100 bg-white/90 p-6 shadow-[0_20px_55px_-45px_rgba(13,148,136,0.55)]">
-          <template>
-            <div v-if="loading && !requests.length" class="space-y-4">
-              <div v-for="skeleton in 4" :key="skeleton" class="animate-pulse rounded-2xl border border-emerald-50 bg-emerald-50/60 p-5">
-                <div class="flex items-center justify-between">
-                  <div class="h-4 w-32 rounded-full bg-emerald-100/80"></div>
-                  <div class="h-4 w-20 rounded-full bg-emerald-100/80"></div>
-                </div>
-                <div class="mt-4 h-3 w-full rounded-full bg-emerald-100/60"></div>
-                <div class="mt-2 h-3 w-2/3 rounded-full bg-emerald-100/50"></div>
+          <div v-if="loading && !requests.length" class="space-y-4">
+            <div v-for="skeleton in 4" :key="skeleton" class="animate-pulse rounded-2xl border border-emerald-50 bg-emerald-50/60 p-5">
+              <div class="flex items-center justify-between">
+                <div class="h-4 w-32 rounded-full bg-emerald-100/80"></div>
+                <div class="h-4 w-20 rounded-full bg-emerald-100/80"></div>
               </div>
+              <div class="mt-4 h-3 w-full rounded-full bg-emerald-100/60"></div>
+              <div class="mt-2 h-3 w-2/3 rounded-full bg-emerald-100/50"></div>
             </div>
+          </div>
 
-            <div v-else-if="filteredRequests.length === 0" class="rounded-3xl border border-dashed border-emerald-200 bg-emerald-50/30 p-8 text-center text-emerald-600">
-              <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 13h6m-3-3v6m8 1V7a2 2 0 0 0-2-2h-3.172a2 2 0 0 1-1.414-.586l-.828-.828A2 2 0 0 0 12.172 3H8a2 2 0 0 0-2 2v14m-1-1h14" />
-              </svg>
-              <h3 class="mt-4 text-base font-semibold">Không có yêu cầu phù hợp</h3>
-              <p class="mt-2 text-sm text-emerald-600/80">
-                {{ hasActiveFilters ? 'Hãy thử thay đổi bộ lọc hoặc xóa từ khóa tìm kiếm.' : 'Khi có yêu cầu mới, chúng sẽ xuất hiện tại đây.' }}
-              </p>
-            </div>
+          <div v-else-if="requests.length === 0" class="rounded-3xl border border-dashed border-emerald-200 bg-emerald-50/30 p-8 text-center text-emerald-600">
+            <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 13h6m-3-3v6m8 1V7a2 2 0 0 0-2-2h-3.172a2 2 0 0 1-1.414-.586l-.828-.828A2 2 0 0 0 12.172 3H8a2 2 0 0 0-2 2v14m-1-1h14" />
+            </svg>
+            <h3 class="mt-4 text-base font-semibold">Không có yêu cầu phù hợp</h3>
+            <p class="mt-2 text-sm text-emerald-600/80">
+              Hãy thử thay đổi bộ lọc hoặc xóa từ khóa tìm kiếm.
+            </p>
+          </div>
 
-            <div v-else class="space-y-3">
-              <button
-                v-for="request in filteredRequests"
-                :key="request.id"
-                type="button"
-                class="w-full rounded-2xl border p-5 text-left transition focus:outline-none"
-                :class="[
-                  selectedRequestId === request.id
-                    ? 'border-emerald-300 bg-emerald-50/70 shadow-md ring-2 ring-emerald-200/70'
-                    : 'border-emerald-100 bg-white hover:border-emerald-200 hover:bg-emerald-50/40'
-                ]"
-                @click="selectedRequestId = request.id"
-              >
-                <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div class="flex items-start gap-3">
-                    <span class="mt-1 flex h-2.5 w-2.5 flex-shrink-0 rounded-full" :class="statusMeta[request.status].dot"></span>
-                    <div>
-                      <p class="text-sm font-semibold uppercase tracking-wider text-slate-400">{{ formatDate(request.createdAt) }}</p>
-                      <h3 class="mt-1 text-lg font-semibold text-slate-900">{{ request.fullName }}</h3>
-                      <p class="mt-1 text-sm text-slate-600">
-                        SĐT: {{ request.phone }} <span v-if="request.email" class="text-slate-400">• {{ request.email }}</span>
-                      </p>
-                      <p class="mt-2 text-sm text-slate-600 line-clamp-2">{{ request.symptomDescription || 'Bệnh nhân chưa để lại ghi chú cụ thể.' }}</p>
-                    </div>
-                  </div>
-                  <div class="flex flex-col items-start gap-2 text-sm text-slate-500 sm:items-end">
-                    <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold" :class="statusMeta[request.status].badge">
-                      {{ statusMeta[request.status].label }}
-                    </span>
-                    <p v-if="request.preferredAt">
-                      Mong muốn: <span class="font-semibold text-slate-700">{{ formatDateTime(request.preferredAt) }}</span>
+          <div v-else class="space-y-3">
+            <button
+              v-for="request in requests"
+              :key="request.id"
+              type="button"
+              class="w-full rounded-2xl border p-5 text-left transition focus:outline-none"
+              :class="[
+                selectedRequestId === request.id
+                  ? 'border-emerald-300 bg-emerald-50/70 shadow-md ring-2 ring-emerald-200/70'
+                  : 'border-emerald-100 bg-white hover:border-emerald-200 hover:bg-emerald-50/40'
+              ]"
+              @click="selectedRequestId = request.id"
+            >
+              <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div class="flex items-start gap-3">
+                  <span 
+                    class="mt-1 flex h-2.5 w-2.5 flex-shrink-0 rounded-full" 
+                    :class="statusMeta[request.status || 'PENDING']?.dot || statusMeta.PENDING.dot"
+                  ></span>
+                  <div>
+                    <p class="text-sm font-semibold uppercase tracking-wider text-slate-400">{{ formatDate(request.createdAt) }}</p>
+                    <h3 class="mt-1 text-lg font-semibold text-slate-900">{{ request.fullName }}</h3>
+                    <p class="mt-1 text-sm text-slate-600">
+                      SĐT: {{ request.phone }} <span v-if="request.email" class="text-slate-400">• {{ request.email }}</span>
                     </p>
-                    <p>Nhận {{ formatFromNow(request.createdAt) }}</p>
+                    <p class="mt-2 text-sm text-slate-600 line-clamp-2">{{ request.symptomDescription || 'Bệnh nhân chưa để lại ghi chú cụ thể.' }}</p>
                   </div>
                 </div>
-              </button>
-            </div>
-          </template>
+                <div class="flex flex-col items-start gap-2 text-sm text-slate-500 sm:items-end">
+                  <span 
+                    class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold" 
+                    :class="statusMeta[request.status || 'PENDING']?.badge || statusMeta.PENDING.badge"
+                  >
+                    {{ statusMeta[request.status || 'PENDING']?.label || statusMeta.PENDING.label }}
+                  </span>
+                  <p v-if="request.preferredAt">
+                    Mong muốn: <span class="font-semibold text-slate-700">{{ formatDateTime(request.preferredAt) }}</span>
+                  </p>
+                  <p>Nhận {{ formatFromNow(request.createdAt) }}</p>
+                </div>
+              </div>
+            </button>
+          </div>
         </div>
 
         <aside class="rounded-[28px] border border-emerald-100 bg-white/95 p-6 shadow-[0_20px_55px_-45px_rgba(13,148,136,0.55)]">
@@ -524,6 +583,37 @@ const handleWizardCompleted = async () => {
           </template>
         </aside>
       </section>
+
+      <div class="mt-6 flex flex-col gap-4 border-t border-emerald-100 pt-4 text-sm text-slate-600 md:flex-row md:items-center md:justify-between">
+        <span>Đang hiển thị {{ requests.length }} / {{ totalElements }} yêu cầu</span>
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+            :disabled="!hasPrevious || loading"
+            @click="prevPage"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6" />
+            </svg>
+            Trước
+          </button>
+          <span class="text-sm font-semibold text-slate-700">
+            {{ currentPage }} / {{ totalPages }}
+          </span>
+          <button
+            type="button"
+            class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+            :disabled="!hasNext || loading"
+            @click="nextPage"
+          >
+            Sau
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m9 6 6 6-6 6" />
+            </svg>
+          </button>
+        </div>
+      </div>
     </main>
     <AppointmentRequestWizard v-model="wizardOpen" :request="selectedRequest" @completed="handleWizardCompleted" />
 

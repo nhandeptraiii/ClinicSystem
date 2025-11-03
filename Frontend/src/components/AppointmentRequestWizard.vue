@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { approveAppointmentRequest, type AppointmentRequest } from '@/services/appointmentRequest.service';
 import { fetchDoctors, type Doctor } from '@/services/doctor.service';
-import { createPatient, searchPatients, type Patient } from '@/services/patient.service';
+import { createPatient, fetchPatientPage, type Patient, type PatientPage } from '@/services/patient.service';
 import { useToast, type ToastType } from '@/composables/useToast';
 
 type Step = 1 | 2 | 3;
@@ -71,6 +71,9 @@ const selectedPatient = ref<Patient | null>(null);
 const patientSearchKeyword = ref('');
 const patientSearchResults = ref<Patient[]>([]);
 const patientSearchLoading = ref(false);
+const patientPage = ref<PatientPage | null>(null);
+const patientCurrentPage = ref(0);
+const patientPageSize = ref(10);
 
 const newPatientForm = ref({
   code: '',
@@ -154,15 +157,18 @@ const canProceed = computed(() => {
 
 const requestSnapshot = computed(() => props.request);
 
-const deriveSuggestedDate = () => {
+const deriveSuggestedDate = (): string => {
   const preferredAt = props.request?.preferredAt;
   if (preferredAt && preferredAt.includes('T')) {
-    return preferredAt.split('T')[0];
+    const datePart = preferredAt.split('T')[0];
+    if (datePart) {
+      return datePart;
+    }
   }
   return new Date().toISOString().slice(0, 10);
 };
 
-const deriveSuggestedTime = () => {
+const deriveSuggestedTime = (): string => {
   const preferredAt = props.request?.preferredAt;
   if (preferredAt && preferredAt.includes('T')) {
     const timePart = preferredAt.split('T')[1];
@@ -179,6 +185,8 @@ const resetWizardState = () => {
   selectedPatient.value = null;
   patientSearchKeyword.value = '';
   patientSearchResults.value = [];
+  patientPage.value = null;
+  patientCurrentPage.value = 0;
   newPatientForm.value = {
     code: generatePatientCode(),
     fullName: props.request?.fullName ?? '',
@@ -218,25 +226,37 @@ const ensureDoctorsLoaded = async () => {
   }
 };
 
-const handlePatientSearch = async () => {
+const handlePatientSearch = async (page = 0) => {
   if (!patientSearchKeyword.value.trim()) {
     patientSearchResults.value = [];
+    patientPage.value = null;
     showToast('error', 'Nhập họ tên, số điện thoại hoặc mã bệnh nhân để tìm kiếm.');
     return;
   }
   patientSearchLoading.value = true;
   try {
-    const results = await searchPatients({ keyword: patientSearchKeyword.value.trim() });
-    patientSearchResults.value = results;
-    if (!results.length) {
+    const pageData = await fetchPatientPage({
+      keyword: patientSearchKeyword.value.trim(),
+      page,
+      size: patientPageSize.value,
+    });
+    patientPage.value = pageData;
+    patientSearchResults.value = pageData.items;
+    patientCurrentPage.value = pageData.page;
+    if (!pageData.items.length) {
       showToast('error', 'Không tìm thấy bệnh nhân phù hợp.');
     }
   } catch (error) {
     patientSearchResults.value = [];
+    patientPage.value = null;
     showToast('error', extractErrorMessage(error));
   } finally {
     patientSearchLoading.value = false;
   }
+};
+
+const handlePatientPageChange = (newPage: number) => {
+  void handlePatientSearch(newPage);
 };
 
 const handleSelectPatient = (patient: Patient) => {
@@ -555,6 +575,7 @@ onMounted(() => {
                     type="search"
                     class="w-full rounded-full border border-emerald-100 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
                     placeholder="Ví dụ: Nguyễn Văn A, 0987123456, BN0001..."
+                    @keyup.enter="handlePatientSearch(0)"
                   />
                   <svg xmlns="http://www.w3.org/2000/svg" class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
                     <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35m0 0A7.35 7.35 0 1 0 6.3 6.3a7.35 7.35 0 0 0 10.35 10.35Z" />
@@ -564,7 +585,7 @@ onMounted(() => {
                   type="button"
                   class="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
                   :disabled="patientSearchLoading"
-                  @click="handlePatientSearch"
+                  @click="handlePatientSearch(0)"
                 >
                   <svg v-if="patientSearchLoading" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -574,22 +595,53 @@ onMounted(() => {
                 </button>
               </div>
 
-              <div v-if="patientSearchResults.length" class="mt-5 grid gap-3 sm:grid-cols-2">
-                <button
-                  v-for="patient in patientSearchResults"
-                  :key="patient.id"
-                  type="button"
-                  class="rounded-2xl border p-4 text-left transition"
-                  :class="selectedPatient?.id === patient.id ? 'border-emerald-300 bg-emerald-50/80 shadow-sm' : 'border-slate-200 bg-white hover:border-emerald-200 hover:bg-emerald-50/70'"
-                  @click="handleSelectPatient(patient)"
-                >
-                  <div class="flex items-center justify-between">
-                    <p class="text-sm font-semibold text-slate-900">{{ patient.fullName }}</p>
-                    <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-600">{{ patient.code }}</span>
+              <div v-if="patientSearchResults.length" class="mt-5 space-y-4">
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <button
+                    v-for="patient in patientSearchResults"
+                    :key="patient.id"
+                    type="button"
+                    class="rounded-2xl border p-4 text-left transition"
+                    :class="selectedPatient?.id === patient.id ? 'border-emerald-300 bg-emerald-50/80 shadow-sm' : 'border-slate-200 bg-white hover:border-emerald-200 hover:bg-emerald-50/70'"
+                    @click="handleSelectPatient(patient)"
+                  >
+                    <div class="flex items-center justify-between">
+                      <p class="text-sm font-semibold text-slate-900">{{ patient.fullName }}</p>
+                      <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-600">{{ patient.code }}</span>
+                    </div>
+                    <p class="mt-1 text-xs text-slate-500">SĐT: {{ patient.phone || '—' }} • Email: {{ patient.email || '—' }}</p>
+                    <p class="mt-1 text-xs text-slate-400">Ghi chú: {{ patient.note || 'Không có' }}</p>
+                  </button>
+                </div>
+                <div v-if="patientPage && patientPage.totalPages > 1" class="flex items-center justify-between rounded-2xl border border-emerald-100 bg-emerald-50/50 px-4 py-3">
+                  <p class="text-xs text-slate-600">
+                    Trang {{ patientPage.page + 1 }} / {{ patientPage.totalPages }} • Tổng {{ patientPage.totalElements }} bệnh nhân
+                  </p>
+                  <div class="flex items-center gap-2">
+                    <button
+                      type="button"
+                      class="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-600 transition hover:border-emerald-300 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      :disabled="!patientPage.hasPrevious || patientSearchLoading"
+                      @click="handlePatientPageChange(patientCurrentPage - 1)"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m15 19-7-7 7-7" />
+                      </svg>
+                      Trước
+                    </button>
+                    <button
+                      type="button"
+                      class="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-600 transition hover:border-emerald-300 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      :disabled="!patientPage.hasNext || patientSearchLoading"
+                      @click="handlePatientPageChange(patientCurrentPage + 1)"
+                    >
+                      Sau
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m9 5 7 7-7 7" />
+                      </svg>
+                    </button>
                   </div>
-                  <p class="mt-1 text-xs text-slate-500">SĐT: {{ patient.phone || '—' }} • Email: {{ patient.email || '—' }}</p>
-                  <p class="mt-1 text-xs text-slate-400">Ghi chú: {{ patient.note || 'Không có' }}</p>
-                </button>
+                </div>
               </div>
             </article>
 

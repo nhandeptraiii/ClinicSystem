@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import DashboardView from '@/views/dashboard/DashboardView.vue';
 import LoginView from '@/views/auth/LoginView.vue';
 import HomeView from '@/views/home/HomeView.vue';
+import AppointmentRequestsView from '@/views/dashboard/AppointmentRequestsView.vue';
 import { useAuthStore } from '@/stores/authStore';
 
 const router = createRouter({
@@ -33,7 +34,7 @@ const router = createRouter({
       name: 'dashboard',
       component: DashboardView,
     },
-    { path: '/dashboard/appointment-requests', name: 'appointment-requests', component: () => import('@/views/dashboard/AppointmentRequestsView.vue') },
+    { path: '/dashboard/appointment-requests', name: 'appointment-requests', component: AppointmentRequestsView },
     { path: '/dashboard/appointments', name: 'appointments', component: () => import('@/views/dashboard/AppointmentsView.vue') },
     { path: '/dashboard/patients', name: 'patients', component: () => import('@/views/dashboard/PatientsView.vue') },
     { path: '/dashboard/staff', name: 'staff', component: () => import('@/views/dashboard/StaffManagementView.vue') },

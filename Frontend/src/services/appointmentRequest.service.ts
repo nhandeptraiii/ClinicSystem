@@ -50,6 +50,19 @@ export interface AppointmentRequest {
 
 export interface AppointmentRequestQuery {
   status?: string;
+  keyword?: string;
+  page?: number;
+  size?: number;
+}
+
+export interface AppointmentRequestPage {
+  items: AppointmentRequest[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
 }
 
 export interface AppointmentRequestApprovePayload {
@@ -64,27 +77,68 @@ export interface AppointmentRequestRejectPayload {
   staffNote: string;
 }
 
-export const createAppointmentRequest = async (payload: AppointmentRequestPayload) => {
-  const { data } = await http.post<RestResponse<AppointmentRequest>>('/appointment-requests', payload);
-  return data?.data;
+const unwrap = <T>(input: RestResponse<T> | T): T => {
+  if (!input || typeof input !== 'object') {
+    return input as T;
+  }
+  if ('data' in input && 'statusCode' in input) {
+    return (input as RestResponse<T>).data;
+  }
+  return input as T;
 };
 
-export const fetchAppointmentRequests = async (params: AppointmentRequestQuery = {}) => {
-  const { data } = await http.get<RestResponse<AppointmentRequest[]>>('/appointment-requests', { params });
-  return data?.data ?? [];
+export const createAppointmentRequest = async (payload: AppointmentRequestPayload) => {
+  const { data } = await http.post<RestResponse<AppointmentRequest> | AppointmentRequest>('/appointment-requests', payload);
+  return unwrap(data);
+};
+
+export const fetchAppointmentRequests = async (params: AppointmentRequestQuery = {}): Promise<AppointmentRequest[]> => {
+  const response = await fetchAppointmentRequestPage({ ...params, size: 1000 });
+  return response.items;
+};
+
+export const fetchAppointmentRequestPage = async (params: AppointmentRequestQuery = {}) => {
+  const { data } = await http.get<RestResponse<AppointmentRequestPage> | AppointmentRequestPage>('/appointment-requests', { params });
+  const unwrapped = unwrap(data);
+  
+  if ('items' in unwrapped && 'totalPages' in unwrapped) {
+    return unwrapped as AppointmentRequestPage;
+  }
+  
+  if (Array.isArray(unwrapped)) {
+    return {
+      items: unwrapped,
+      page: 0,
+      size: unwrapped.length,
+      totalElements: unwrapped.length,
+      totalPages: 1,
+      hasNext: false,
+      hasPrevious: false,
+    };
+  }
+  
+  return {
+    items: [],
+    page: 0,
+    size: 10,
+    totalElements: 0,
+    totalPages: 1,
+    hasNext: false,
+    hasPrevious: false,
+  };
 };
 
 export const fetchAppointmentRequestById = async (id: number) => {
-  const { data } = await http.get<RestResponse<AppointmentRequest>>(`/appointment-requests/${id}`);
-  return data?.data;
+  const { data } = await http.get<RestResponse<AppointmentRequest> | AppointmentRequest>(`/appointment-requests/${id}`);
+  return unwrap(data);
 };
 
 export const approveAppointmentRequest = async (id: number, payload: AppointmentRequestApprovePayload) => {
-  const { data } = await http.post<RestResponse<AppointmentRequest>>(`/appointment-requests/${id}/approve`, payload);
-  return data?.data;
+  const { data } = await http.post<RestResponse<AppointmentRequest> | AppointmentRequest>(`/appointment-requests/${id}/approve`, payload);
+  return unwrap(data);
 };
 
 export const rejectAppointmentRequest = async (id: number, payload: AppointmentRequestRejectPayload) => {
-  const { data } = await http.post<RestResponse<AppointmentRequest>>(`/appointment-requests/${id}/reject`, payload);
-  return data?.data;
+  const { data } = await http.post<RestResponse<AppointmentRequest> | AppointmentRequest>(`/appointment-requests/${id}/reject`, payload);
+  return unwrap(data);
 };
