@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router';
 import AdminHeader from '@/components/AdminHeader.vue';
 import AppointmentRequestWizard from '@/components/AppointmentRequestWizard.vue';
 import { useAuthStore } from '@/stores/authStore';
-import { fetchAppointmentRequestPage, type AppointmentRequest, type AppointmentRequestStatus } from '@/services/appointmentRequest.service';
+import { fetchAppointmentRequestPage, rejectAppointmentRequest, type AppointmentRequest, type AppointmentRequestStatus } from '@/services/appointmentRequest.service';
 import { useToast, type ToastType } from '@/composables/useToast';
 
 type StatusFilter = AppointmentRequestStatus | 'ALL';
@@ -61,6 +61,9 @@ const selectedStatus = ref<StatusFilter>('PENDING');
 const selectedRequestId = ref<number | null>(null);
 const lastLoadedAt = ref<string | null>(null);
 const wizardOpen = ref(false);
+const rejectModalOpen = ref(false);
+const rejectNote = ref('');
+const rejecting = ref(false);
 let searchTimer: ReturnType<typeof setTimeout> | null = null;
 
 const PAGE_SIZE = 10;
@@ -69,6 +72,14 @@ const totalPages = ref(1);
 const totalElements = ref(0);
 const hasNext = ref(false);
 const hasPrevious = ref(false);
+
+// Cache tổng số theo từng status
+const statusCountsCache = ref<StatusCountMap>({
+  ALL: 0,
+  PENDING: 0,
+  CONFIRMED: 0,
+  REJECTED: 0,
+});
 
 const statusMeta: Record<AppointmentRequestStatus, { label: string; badge: string; dot: string }> = {
   PENDING: { label: 'Chờ duyệt', badge: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500' },
@@ -111,6 +122,23 @@ const extractErrorMessage = (input: unknown) => {
   return fallback;
 };
 
+const loadStatusCounts = async () => {
+  try {
+    const [pendingResponse, confirmedResponse, rejectedResponse] = await Promise.all([
+      fetchAppointmentRequestPage({ status: 'PENDING', page: 0, size: 1 }),
+      fetchAppointmentRequestPage({ status: 'CONFIRMED', page: 0, size: 1 }),
+      fetchAppointmentRequestPage({ status: 'REJECTED', page: 0, size: 1 }),
+    ]);
+    
+    statusCountsCache.value.PENDING = pendingResponse.totalElements;
+    statusCountsCache.value.CONFIRMED = confirmedResponse.totalElements;
+    statusCountsCache.value.REJECTED = rejectedResponse.totalElements;
+    statusCountsCache.value.ALL = statusCountsCache.value.PENDING + statusCountsCache.value.CONFIRMED + statusCountsCache.value.REJECTED;
+  } catch (err) {
+    console.error('Failed to load status counts', err);
+  }
+};
+
 const loadRequests = async () => {
   loading.value = true;
   try {
@@ -132,6 +160,18 @@ const loadRequests = async () => {
     currentPage.value = response.totalPages && response.totalPages > 0 ? response.page + 1 : 1;
     hasNext.value = response.hasNext ?? false;
     hasPrevious.value = response.hasPrevious ?? false;
+    
+    // Khi không có keyword, cập nhật cache cho status hiện tại
+    if (!keyword) {
+      if (selectedStatus.value === 'ALL') {
+        // Khi xem ALL, load tất cả counts
+        await loadStatusCounts();
+      } else {
+        // Khi filter theo status, chỉ cập nhật status đó
+        statusCountsCache.value[selectedStatus.value] = totalElements.value;
+        statusCountsCache.value.ALL = statusCountsCache.value.PENDING + statusCountsCache.value.CONFIRMED + statusCountsCache.value.REJECTED;
+      }
+    }
     
     lastLoadedAt.value = new Date().toISOString();
   } catch (err) {
@@ -203,24 +243,7 @@ const formatFromNow = (value?: string | Date | null) => {
 };
 
 const statusCounts = computed<StatusCountMap>(() => {
-  const allCount = totalElements.value;
-  const currentPageCounts = requests.value.reduce(
-    (acc, curr) => {
-      const status = curr.status || 'PENDING';
-      if (status in acc) {
-        acc[status as AppointmentRequestStatus] += 1;
-      }
-      return acc;
-    },
-    { ALL: 0, PENDING: 0, CONFIRMED: 0, REJECTED: 0 } as StatusCountMap
-  );
-  
-  return {
-    ALL: allCount,
-    PENDING: currentPageCounts.PENDING,
-    CONFIRMED: currentPageCounts.CONFIRMED,
-    REJECTED: currentPageCounts.REJECTED,
-  };
+  return { ...statusCountsCache.value };
 });
 
 const selectedRequest = computed(() => requests.value.find((item) => item.id === selectedRequestId.value) ?? null);
@@ -273,6 +296,7 @@ const pendingShare = computed(() => {
 const lastLoadedDisplay = computed(() => (lastLoadedAt.value ? formatFromNow(lastLoadedAt.value) : 'Chưa tải'));
 
 onMounted(() => {
+  loadStatusCounts();
   loadRequests();
 });
 
@@ -292,7 +316,42 @@ watch(
 );
 
 const handleWizardCompleted = async () => {
+  await loadStatusCounts();
   await loadRequests();
+};
+
+const openRejectModal = () => {
+  rejectNote.value = '';
+  rejectModalOpen.value = true;
+};
+
+const closeRejectModal = () => {
+  rejectModalOpen.value = false;
+  rejectNote.value = '';
+};
+
+const handleReject = async () => {
+  if (!selectedRequest.value || rejecting.value) return;
+  
+  if (!rejectNote.value.trim()) {
+    showToast('error', 'Vui lòng nhập lý do từ chối.');
+    return;
+  }
+  
+  rejecting.value = true;
+  try {
+    await rejectAppointmentRequest(selectedRequest.value.id, {
+      staffNote: rejectNote.value.trim(),
+    });
+    showToast('success', 'Đã từ chối yêu cầu đặt lịch.');
+    closeRejectModal();
+    await loadStatusCounts();
+    await loadRequests();
+  } catch (err) {
+    showToast('error', extractErrorMessage(err));
+  } finally {
+    rejecting.value = false;
+  }
 };
 </script>
 
@@ -546,6 +605,7 @@ const handleWizardCompleted = async () => {
                 Gọi điện cho bệnh nhân
               </a>
               <button
+                v-if="selectedRequest.status === 'PENDING'"
                 type="button"
                 class="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-200 bg-white px-5 py-2 text-sm font-semibold uppercase tracking-wide text-emerald-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-emerald-200 disabled:hover:bg-white"
                 :disabled="!canOpenWizard"
@@ -557,6 +617,18 @@ const handleWizardCompleted = async () => {
                   <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
                 </svg>
               </button>
+              <button
+                v-if="selectedRequest.status === 'PENDING'"
+                type="button"
+                class="inline-flex items-center justify-center gap-2 rounded-full border border-rose-200 bg-white px-5 py-2 text-sm font-semibold uppercase tracking-wide text-rose-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                :disabled="rejecting"
+                @click="openRejectModal"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Từ chối yêu cầu
+              </button>
               <RouterLink
                 to="/dashboard/appointments"
                 class="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-5 py-2 text-sm font-semibold uppercase tracking-wide text-emerald-600 shadow-sm transition hover:border-emerald-200 hover:bg-emerald-100"
@@ -567,7 +639,7 @@ const handleWizardCompleted = async () => {
                 </svg>
               </RouterLink>
               <p v-if="selectedRequest.status !== 'PENDING'" class="text-center text-xs text-slate-400">
-                Yêu cầu đã được xử lý. Không thể tạo lịch mới từ yêu cầu này.
+                Yêu cầu đã được xử lý. Không thể tạo lịch mới hoặc từ chối yêu cầu này.
               </p>
             </div>
           </template>
@@ -616,6 +688,77 @@ const handleWizardCompleted = async () => {
       </div>
     </main>
     <AppointmentRequestWizard v-model="wizardOpen" :request="selectedRequest" @completed="handleWizardCompleted" />
+
+    <!-- Modal Từ chối -->
+    <Transition name="fade">
+      <div
+        v-if="rejectModalOpen"
+        class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm px-4"
+      >
+        <div class="w-full max-w-md rounded-3xl border border-rose-100 bg-white p-6 shadow-xl">
+          <div class="flex items-start gap-3">
+            <div class="flex h-10 w-10 items-center justify-center rounded-full bg-rose-50 text-rose-600">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </div>
+            <div class="flex-1">
+              <h3 class="text-lg font-semibold text-slate-900">Từ chối yêu cầu đặt lịch</h3>
+              <p class="mt-1 text-sm text-slate-600">
+                Bạn sắp từ chối yêu cầu từ <span class="font-semibold">{{ selectedRequest?.fullName }}</span>. Vui lòng nhập lý do từ chối.
+              </p>
+            </div>
+            <button
+              type="button"
+              class="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+              @click="closeRejectModal"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m16 8-8 8m0-8 8 8" />
+              </svg>
+            </button>
+          </div>
+
+          <div class="mt-6">
+            <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="reject-note">
+              Lý do từ chối *
+            </label>
+            <textarea
+              id="reject-note"
+              v-model="rejectNote"
+              rows="4"
+              class="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 shadow-sm transition focus:border-rose-400 focus:outline-none focus:ring-4 focus:ring-rose-100/80"
+              placeholder="Nhập lý do từ chối yêu cầu đặt lịch..."
+              maxlength="255"
+            ></textarea>
+            <p class="mt-1 text-xs text-slate-400">{{ rejectNote.length }}/255 ký tự</p>
+          </div>
+
+          <div class="mt-6 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+              :disabled="rejecting"
+              @click="closeRejectModal"
+            >
+              Hủy
+            </button>
+            <button
+              type="button"
+              class="inline-flex items-center gap-2 rounded-full bg-rose-600 px-5 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-70"
+              :disabled="rejecting || !rejectNote.trim()"
+              @click="handleReject"
+            >
+              <svg v-if="rejecting" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4l3.5-3.5L12 1v4a7 7 0 0 0-7 7H4z"></path>
+              </svg>
+              <span>{{ rejecting ? 'Đang xử lý...' : 'Từ chối yêu cầu' }}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
 
     <!-- Toast -->
     <Teleport to="body">
@@ -702,3 +845,14 @@ const handleWizardCompleted = async () => {
     </Teleport>
   </div>
 </template>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.18s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>
