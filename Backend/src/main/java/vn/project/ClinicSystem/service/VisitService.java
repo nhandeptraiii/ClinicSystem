@@ -16,8 +16,10 @@ import vn.project.ClinicSystem.model.dto.PatientVisitCreateRequest;
 import vn.project.ClinicSystem.model.dto.PatientVisitStatusUpdateRequest;
 import vn.project.ClinicSystem.model.dto.ServiceOrderCreateRequest;
 import vn.project.ClinicSystem.model.dto.ServiceOrderStatusUpdateRequest;
+import vn.project.ClinicSystem.model.enums.AppointmentLifecycleStatus;
 import vn.project.ClinicSystem.model.enums.ServiceOrderStatus;
 import vn.project.ClinicSystem.model.enums.VisitStatus;
+import vn.project.ClinicSystem.repository.AppointmentRepository;
 import vn.project.ClinicSystem.repository.DoctorRepository;
 import vn.project.ClinicSystem.repository.MedicalServiceRepository;
 import vn.project.ClinicSystem.repository.PatientVisitRepository;
@@ -30,17 +32,20 @@ public class VisitService {
     private final PatientVisitRepository patientVisitRepository;
     private final ServiceOrderRepository serviceOrderRepository;
     private final AppointmentService appointmentService;
+    private final AppointmentRepository appointmentRepository;
     private final MedicalServiceRepository medicalServiceRepository;
     private final DoctorRepository doctorRepository;
 
     public VisitService(PatientVisitRepository patientVisitRepository,
             ServiceOrderRepository serviceOrderRepository,
             AppointmentService appointmentService,
+            AppointmentRepository appointmentRepository,
             MedicalServiceRepository medicalServiceRepository,
             DoctorRepository doctorRepository) {
         this.patientVisitRepository = patientVisitRepository;
         this.serviceOrderRepository = serviceOrderRepository;
         this.appointmentService = appointmentService;
+        this.appointmentRepository = appointmentRepository;
         this.medicalServiceRepository = medicalServiceRepository;
         this.doctorRepository = doctorRepository;
     }
@@ -73,6 +78,13 @@ public class VisitService {
         if (primaryAppointment.getPatient() == null) {
             throw new IllegalStateException("Lịch khám chưa gắn bệnh nhân, không thể tạo hồ sơ khám");
         }
+        if (primaryAppointment.getStatus() != AppointmentLifecycleStatus.CONFIRMED) {
+            throw new IllegalStateException("Chỉ có thể tạo hồ sơ khám cho lịch hẹn đã xác nhận");
+        }
+
+        // ✅ Tự động cập nhật Appointment status thành CHECKED_IN
+        primaryAppointment.setStatus(AppointmentLifecycleStatus.CHECKED_IN);
+        appointmentRepository.save(primaryAppointment);
 
         PatientVisit visit = new PatientVisit();
         visit.setPrimaryAppointment(primaryAppointment);
