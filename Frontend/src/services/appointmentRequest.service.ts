@@ -7,7 +7,10 @@ interface RestResponse<T> {
   data: T;
 }
 
-export type AppointmentRequestStatus = 'PENDING' | 'CONFIRMED' | 'REJECTED';
+export type AppointmentLifecycleStatus = 'PENDING' | 'CONFIRMED' | 'CHECKED_IN' | 'COMPLETED' | 'CANCELLED';
+
+// Backward compatibility - map old type to new
+export type AppointmentRequestStatus = AppointmentLifecycleStatus;
 
 export interface AppointmentRequestPayload {
   fullName: string;
@@ -26,7 +29,7 @@ export interface AppointmentRequest {
   dateOfBirth?: string | null;
   preferredAt?: string | null;
   symptomDescription?: string | null;
-  status: AppointmentRequestStatus;
+  status: AppointmentLifecycleStatus;
   staffNote?: string | null;
   createdAt?: string;
   updatedAt?: string;

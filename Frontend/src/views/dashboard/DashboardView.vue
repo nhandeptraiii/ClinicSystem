@@ -192,8 +192,7 @@ onMounted(() => {
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           <RouterLink
             v-for="item in [
-              { to: '/dashboard/appointment-requests', title: 'Yêu cầu đặt lịch', desc: 'Duyệt và phân luồng yêu cầu từ trang chủ.' },
-              { to: '/dashboard/appointments', title: 'Lịch hẹn', desc: 'Tạo, cập nhật, sắp xếp phòng khám & bác sĩ.' },
+              { to: '/dashboard/appointment-requests', title: 'Yêu cầu đặt lịch', desc: 'Duyệt và phân luồng yêu cầu từ trang chủ. Xem lịch hẹn đã xác nhận.' },
               { to: '/dashboard/patients', title: 'Bệnh nhân', desc: 'Theo dõi hồ sơ, lịch sử và tài liệu đính kèm.' },
               { to: '/dashboard/staff', title: 'Nhân viên', desc: 'Quản lý hồ sơ nhân sự, phân quyền vai trò.' },
               // { to: '/dashboard/doctors', title: 'Bác sĩ', desc: 'Quản lý đội ngũ chuyên môn và lịch làm việc.' },
