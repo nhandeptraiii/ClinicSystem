@@ -3,6 +3,8 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { approveAppointmentRequest, type AppointmentRequest } from '@/services/appointmentRequest.service';
 import { fetchDoctors, type Doctor } from '@/services/doctor.service';
 import { createPatient, fetchPatientPage, type Patient, type PatientPage } from '@/services/patient.service';
+import { createAppointment } from '@/services/appointment.service';
+import { fetchClinicRooms, fetchAvailableGeneralRooms, type ClinicRoom, type ClinicRoomAvailability } from '@/services/clinicRoom.service';
 import { useToast, type ToastType } from '@/composables/useToast';
 
 type Step = 1 | 2 | 3;
@@ -69,8 +71,14 @@ const currentStep = ref<Step>(1);
 const patientMode = ref<PatientMode>('existing');
 
 const doctors = ref<Doctor[]>([]);
-const doctorLoading = ref(false);
 const doctorsLoaded = ref(false);
+
+const clinicRooms = ref<ClinicRoom[]>([]);
+const clinicRoomLoading = ref(false);
+const clinicRoomsLoaded = ref(false);
+
+const availableRooms = ref<ClinicRoomAvailability[]>([]);
+const availableRoomsLoading = ref(false);
 
 const selectedPatient = ref<Patient | null>(null);
 
@@ -95,22 +103,47 @@ const newPatientLoading = ref(false);
 const newPatientSaved = ref(false);
 
 const scheduleForm = ref({
-  doctorId: null as number | null,
+  clinicRoomId: null as number | null, // Chọn phòng khám trước
+  doctorId: null as number | null, // Tự động lấy từ phòng khám
   scheduledDate: '',
   scheduledTime: '',
-  duration: 30,
+  reason: '',
   staffNote: '',
 });
+
+// Thời lượng luôn luôn là 30 phút
+const APPOINTMENT_DURATION = 30;
+
+const doctorLoading = ref(false);
 
 const submissionLoading = ref(false);
 
 const today = new Date().toISOString().slice(0, 10);
 
-const stepLabels: Record<Step, string> = {
-  1: 'Xác nhận yêu cầu',
+// Tạo các khung giờ từ 8h đến 17h (giống AppointmentRequestForm.vue)
+const toMinutes = (h: number, m: number) => h * 60 + m;
+const toHHMM = (mins: number) => {
+  const h = Math.floor(mins / 60).toString().padStart(2, '0');
+  const m = (mins % 60).toString().padStart(2, '0');
+  return `${h}:${m}`;
+};
+const makeSlots = (start: number, end: number, step = 30) => {
+  const out: string[] = [];
+  for (let t = start; t <= end; t += step) out.push(toHHMM(t));
+  return out;
+};
+
+const MORNING_SLOTS = makeSlots(toMinutes(8, 0), toMinutes(12, 0));
+const AFTERNOON_SLOTS = makeSlots(toMinutes(13, 0), toMinutes(17, 0));
+const ALL_TIME_SLOTS = [...MORNING_SLOTS, ...AFTERNOON_SLOTS];
+
+const isDirectAppointmentMode = computed(() => !props.request);
+
+const stepLabels = computed<Record<Step, string>>(() => ({
+  1: isDirectAppointmentMode.value ? 'Thông tin bệnh nhân' : 'Xác nhận yêu cầu',
   2: 'Chọn bệnh nhân',
   3: 'Lên lịch khám',
-};
+}));
 
 const patientModeOptions: Array<{ key: PatientMode; label: string; description: string }> = [
   { key: 'existing', label: 'Chọn bệnh nhân sẵn có', description: 'Tìm kiếm và gắn với hồ sơ bệnh nhân đã có.' },
@@ -139,6 +172,10 @@ const selectedDoctor = computed(() => {
 });
 
 const canProceed = computed(() => {
+  // Nếu là direct appointment mode, bỏ qua step 1
+  if (isDirectAppointmentMode.value && currentStep.value === 1) {
+    return true; // Luôn có thể tiếp tục từ step 1 (sẽ tự động chuyển sang step 2)
+  }
   if (currentStep.value === 1) return true;
   if (currentStep.value === 2) {
     if (patientMode.value === 'existing') {
@@ -152,10 +189,10 @@ const canProceed = computed(() => {
   if (currentStep.value === 3) {
     return (
       !submissionLoading.value &&
-      !!scheduleForm.value.doctorId &&
+      !!scheduleForm.value.clinicRoomId && // Phòng khám bắt buộc
+      !!scheduleForm.value.doctorId && // Bác sĩ tự động (phải có)
       !!scheduleForm.value.scheduledDate &&
-      !!scheduleForm.value.scheduledTime &&
-      scheduleForm.value.duration > 0
+      !!scheduleForm.value.scheduledTime
     );
   }
   return false;
@@ -168,10 +205,19 @@ const deriveSuggestedDate = (): string => {
   if (preferredAt && preferredAt.includes('T')) {
     const datePart = preferredAt.split('T')[0];
     if (datePart) {
-      return datePart;
+      // Kiểm tra xem ngày có hợp lệ không (phải >= hôm nay)
+      const date = new Date(datePart);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (date >= today) {
+        return datePart;
+      }
     }
   }
-  return new Date().toISOString().slice(0, 10);
+  // Mặc định là ngày mai
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return tomorrow.toISOString().slice(0, 10);
 };
 
 const deriveSuggestedTime = (): string => {
@@ -179,14 +225,33 @@ const deriveSuggestedTime = (): string => {
   if (preferredAt && preferredAt.includes('T')) {
     const timePart = preferredAt.split('T')[1];
     if (timePart) {
-      return timePart.slice(0, 5);
+      const timeStr = timePart.slice(0, 5);
+      // Nếu thời gian có trong danh sách khung giờ, trả về nó
+      if (ALL_TIME_SLOTS.includes(timeStr)) {
+        return timeStr;
+      }
+      // Nếu không, tìm khung giờ gần nhất
+      const timeMinutes = timeStr.split(':').map(Number).reduce((h, m) => h * 60 + m, 0);
+      let closestTime = MORNING_SLOTS[0] || '08:00';
+      let minDiff = Math.abs(toMinutes(8, 0) - timeMinutes);
+      
+      for (const slot of ALL_TIME_SLOTS) {
+        const slotMinutes = slot.split(':').map(Number).reduce((h, m) => h * 60 + m, 0);
+        const diff = Math.abs(slotMinutes - timeMinutes);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestTime = slot;
+        }
+      }
+      return closestTime;
     }
   }
-  return '08:00';
+  return MORNING_SLOTS[0] || '08:00'; // Mặc định là 08:00
 };
 
 const resetWizardState = () => {
-  currentStep.value = 1;
+  // Nếu là direct appointment mode, bắt đầu từ step 2 (chọn bệnh nhân)
+  currentStep.value = isDirectAppointmentMode.value ? 2 : 1;
   patientMode.value = 'existing';
   selectedPatient.value = null;
   patientSearchKeyword.value = '';
@@ -209,9 +274,10 @@ const resetWizardState = () => {
   newPatientSaved.value = false;
   scheduleForm.value = {
     doctorId: null,
+    clinicRoomId: null,
     scheduledDate: deriveSuggestedDate(),
     scheduledTime: deriveSuggestedTime(),
-    duration: 30,
+    reason: '',
     staffNote: '',
   };
 };
@@ -221,16 +287,69 @@ const closeWizard = () => {
 };
 
 const ensureDoctorsLoaded = async () => {
-  if (doctorLoading.value || doctorsLoaded.value) return;
-  doctorLoading.value = true;
+  if (doctorsLoaded.value) return;
   try {
     const data = await fetchDoctors();
     doctors.value = data;
     doctorsLoaded.value = true;
   } catch (error) {
     showToast('error', extractErrorMessage(error));
+  }
+};
+
+// Tự động lấy bác sĩ theo phòng khám, ngày và giờ
+const fetchDoctorByClinicRoom = async () => {
+  if (!scheduleForm.value.clinicRoomId || !scheduleForm.value.scheduledDate || !scheduleForm.value.scheduledTime) {
+    scheduleForm.value.doctorId = null;
+    return;
+  }
+
+  try {
+    const date = new Date(scheduleForm.value.scheduledDate);
+    const dayOfWeek = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'][date.getDay()] as 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY' | 'SUNDAY';
+    
+    doctorLoading.value = true;
+    const availableDoctors = await fetchDoctors({
+      clinicRoomId: scheduleForm.value.clinicRoomId,
+      dayOfWeek,
+      time: scheduleForm.value.scheduledTime,
+    });
+
+    // Cập nhật danh sách doctors để có thể hiển thị thông tin bác sĩ
+    if (availableDoctors.length > 0) {
+      availableDoctors.forEach(doc => {
+        if (!doctors.value.find(d => d.id === doc.id)) {
+          doctors.value.push(doc);
+        }
+      });
+    }
+
+    if (availableDoctors.length > 0 && availableDoctors[0]) {
+      // Tự động chọn bác sĩ đầu tiên
+      scheduleForm.value.doctorId = availableDoctors[0].id;
+    } else {
+      scheduleForm.value.doctorId = null;
+      showToast('warning', 'Không có bác sĩ nào làm việc tại phòng khám này vào thời gian đã chọn.');
+    }
+  } catch (error) {
+    scheduleForm.value.doctorId = null;
+    showToast('error', extractErrorMessage(error));
   } finally {
     doctorLoading.value = false;
+  }
+};
+
+const ensureClinicRoomsLoaded = async () => {
+  if (clinicRoomLoading.value || clinicRoomsLoaded.value) return;
+  clinicRoomLoading.value = true;
+  try {
+    const data = await fetchClinicRooms();
+    clinicRooms.value = Array.isArray(data) ? data : [];
+    clinicRoomsLoaded.value = true;
+  } catch (error) {
+    showToast('error', extractErrorMessage(error));
+  } finally {
+    clinicRoomLoading.value = false;
   }
 };
 
@@ -306,8 +425,13 @@ const handleCreatePatient = async () => {
 };
 
 const goToNextStep = () => {
+  // Nếu là direct appointment mode, step 1 sẽ tự động chuyển sang step 2
   if (currentStep.value === 1) {
-    currentStep.value = 2;
+    if (isDirectAppointmentMode.value) {
+      currentStep.value = 2;
+    } else {
+      currentStep.value = 2;
+    }
     return;
   }
   if (currentStep.value === 2) {
@@ -328,6 +452,11 @@ const goToNextStep = () => {
 const goToPreviousStep = () => {
   if (submissionLoading.value) return;
   if (currentStep.value > 1) {
+    // Nếu là direct appointment mode và đang ở step 2, về step 1 sẽ đóng wizard
+    if (isDirectAppointmentMode.value && currentStep.value === 2) {
+      closeWizard();
+      return;
+    }
     currentStep.value = (currentStep.value - 1) as Step;
     return;
   }
@@ -335,24 +464,48 @@ const goToPreviousStep = () => {
 };
 
 const submitWizard = async () => {
-  if (!props.request) {
-    showToast('error', 'Không xác định được yêu cầu cần xử lý.');
-    return;
-  }
   if (!canProceed.value) {
     showToast('error', 'Vui lòng hoàn thiện thông tin trước khi xác nhận.');
+    return;
+  }
+  if (!selectedPatient.value) {
+    showToast('error', 'Vui lòng chọn bệnh nhân.');
     return;
   }
   submissionLoading.value = true;
   try {
     const scheduledAt = `${scheduleForm.value.scheduledDate}T${scheduleForm.value.scheduledTime}:00`;
-    await approveAppointmentRequest(props.request.id, {
-      patientId: selectedPatient.value?.id,
-      doctorId: scheduleForm.value.doctorId!,
-      scheduledAt,
-      duration: scheduleForm.value.duration,
-      staffNote: scheduleForm.value.staffNote || undefined,
-    });
+    
+    if (isDirectAppointmentMode.value) {
+      // Tạo appointment trực tiếp (không có request)
+      if (!scheduleForm.value.clinicRoomId) {
+        showToast('error', 'Vui lòng chọn phòng khám.');
+        return;
+      }
+      await createAppointment({
+        patientId: selectedPatient.value.id,
+        doctorId: scheduleForm.value.doctorId!,
+        clinicRoomId: scheduleForm.value.clinicRoomId,
+        scheduledAt,
+        duration: APPOINTMENT_DURATION,
+        reason: scheduleForm.value.reason || null,
+        notes: scheduleForm.value.staffNote || null,
+      });
+      showToast('success', 'Đã tạo lịch hẹn thành công.');
+    } else {
+      // Duyệt appointment request
+      if (!props.request) {
+        showToast('error', 'Không xác định được yêu cầu cần xử lý.');
+        return;
+      }
+      await approveAppointmentRequest(props.request.id, {
+        patientId: selectedPatient.value.id,
+        doctorId: scheduleForm.value.doctorId!,
+        scheduledAt,
+        duration: APPOINTMENT_DURATION,
+        staffNote: scheduleForm.value.staffNote || undefined,
+      });
+    }
     emit('completed');
     closeWizard();
   } catch (error) {
@@ -399,6 +552,7 @@ watch(
     if (open) {
       resetWizardState();
       void ensureDoctorsLoaded();
+      void ensureClinicRoomsLoaded();
       if (props.request?.patient) {
         const basePatient = props.request.patient;
         selectedPatient.value = {
@@ -434,10 +588,92 @@ watch(
   }
 );
 
+// Lấy danh sách phòng khám có sẵn
+const fetchAvailableRooms = async () => {
+  if (!scheduleForm.value.scheduledDate || !scheduleForm.value.scheduledTime) {
+    availableRooms.value = [];
+    return;
+  }
+
+  try {
+    availableRoomsLoading.value = true;
+    // Format: yyyy-MM-ddTHH:mm:ss
+    const scheduledAt = `${scheduleForm.value.scheduledDate}T${scheduleForm.value.scheduledTime}:00`;
+    const rooms = await fetchAvailableGeneralRooms(scheduledAt, APPOINTMENT_DURATION);
+    availableRooms.value = Array.isArray(rooms) ? rooms : [];
+    console.log('Fetched available rooms:', rooms);
+  } catch (error) {
+    console.error('Error fetching available rooms:', error);
+    availableRooms.value = [];
+    // Chỉ hiển thị toast nếu lỗi nghiêm trọng, không hiển thị nếu chỉ là không có dữ liệu
+    const errorMsg = extractErrorMessage(error);
+    if (errorMsg && !errorMsg.includes('404') && !errorMsg.includes('Not Found')) {
+      showToast('error', errorMsg);
+    }
+  } finally {
+    availableRoomsLoading.value = false;
+  }
+};
+
+// Watch để tự động lấy phòng khám có sẵn khi thay đổi ngày hoặc giờ
+watch(
+  () => [scheduleForm.value.scheduledDate, scheduleForm.value.scheduledTime],
+  ([newDate, newTime]) => {
+    if (currentStep.value === 3) {
+      // Nếu có cả ngày và giờ, tự động fetch phòng khám
+      if (newDate && newTime) {
+        void fetchAvailableRooms();
+      } else {
+        availableRooms.value = [];
+      }
+      // Nếu đã chọn phòng khám, tự động lấy bác sĩ
+      if (scheduleForm.value.clinicRoomId && newDate && newTime) {
+        void fetchDoctorByClinicRoom();
+      }
+    }
+  },
+  { immediate: false }
+);
+
+// Watch để tự động gọi API khi chuyển sang step 3
+watch(
+  () => currentStep.value,
+  (newStep) => {
+    if (newStep === 3) {
+      // Đảm bảo có giá trị mặc định cho ngày nếu chưa có
+      if (!scheduleForm.value.scheduledDate) {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        scheduleForm.value.scheduledDate = tomorrow.toISOString().slice(0, 10);
+      }
+      // Đảm bảo có giá trị mặc định cho giờ nếu chưa có
+      if (!scheduleForm.value.scheduledTime) {
+        scheduleForm.value.scheduledTime = MORNING_SLOTS[0] || '08:00';
+      }
+      // Nếu đã có ngày và giờ, tự động fetch phòng khám
+      if (scheduleForm.value.scheduledDate && scheduleForm.value.scheduledTime) {
+        void fetchAvailableRooms();
+      }
+    }
+  },
+  { immediate: true }
+);
+
+// Watch để tự động lấy bác sĩ khi thay đổi phòng khám
+watch(
+  () => scheduleForm.value.clinicRoomId,
+  () => {
+    if (currentStep.value === 3 && scheduleForm.value.scheduledDate && scheduleForm.value.scheduledTime) {
+      void fetchDoctorByClinicRoom();
+    }
+  }
+);
+
 onMounted(() => {
   if (isOpen.value) {
     resetWizardState();
     void ensureDoctorsLoaded();
+    void ensureClinicRoomsLoaded();
   }
 });
 </script>
@@ -470,16 +706,20 @@ onMounted(() => {
         <div class="relative grid max-h-[90vh] grid-rows-[auto_1fr_auto] gap-6 overflow-y-auto px-10 pb-8 pt-12">
           <header class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.35em] text-emerald-500">Tạo lịch từ yêu cầu</p>
-              <h2 class="mt-2 text-2xl font-semibold text-slate-900">Bệnh nhân: {{ requestSnapshot?.fullName }}</h2>
+              <p class="text-xs font-semibold uppercase tracking-[0.35em] text-emerald-500">
+                {{ isDirectAppointmentMode ? 'Tạo lịch hẹn trực tiếp' : 'Tạo lịch từ yêu cầu' }}
+              </p>
+              <h2 class="mt-2 text-2xl font-semibold text-slate-900">
+                {{ isDirectAppointmentMode ? 'Tạo lịch hẹn mới' : `Bệnh nhân: ${requestSnapshot?.fullName}` }}
+              </h2>
               <p class="mt-1 text-sm text-slate-600">
-                Hoàn thành 3 bước để ghép yêu cầu vào lịch khám chính thức.
+                {{ isDirectAppointmentMode ? 'Hoàn thành 2 bước để tạo lịch hẹn cho bệnh nhân đến trực tiếp.' : 'Hoàn thành 3 bước để ghép yêu cầu vào lịch khám chính thức.' }}
               </p>
             </div>
             <div class="flex flex-wrap items-center gap-3">
               <ol class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-emerald-600">
                 <li
-                  v-for="step in [1, 2, 3]"
+                  v-for="step in (isDirectAppointmentMode ? [2, 3] : [1, 2, 3])"
                   :key="step"
                   class="flex items-center gap-2 rounded-full border px-3 py-1 transition"
                   :class="currentStep === step ? 'border-emerald-300 bg-emerald-50 text-emerald-700 shadow-sm' : 'border-emerald-100 bg-white text-emerald-500'"
@@ -491,7 +731,7 @@ onMounted(() => {
             </div>
           </header>
 
-          <section v-if="currentStep === 1" class="space-y-6">
+          <section v-if="currentStep === 1 && !isDirectAppointmentMode" class="space-y-6">
             <article class="rounded-[24px] border border-emerald-100 bg-emerald-50/70 p-6 text-sm text-slate-700">
               <h3 class="text-base font-semibold text-slate-900">Thông tin yêu cầu</h3>
               <div class="mt-4 grid gap-4 sm:grid-cols-2">
@@ -757,29 +997,65 @@ onMounted(() => {
               <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h3 class="text-base font-semibold text-slate-900">Lên lịch khám</h3>
-                  <p class="mt-1 text-sm text-slate-600">Chọn bác sĩ, thời gian phù hợp và ghi chú xử lý yêu cầu.</p>
+                  <p class="mt-1 text-sm text-slate-600">Chọn phòng khám, thời gian phù hợp và ghi chú xử lý yêu cầu. Bác sĩ sẽ được tự động chọn theo lịch làm việc.</p>
                 </div>
                 <span v-if="selectedDoctor" class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
-                  Bác sĩ: {{ selectedDoctor.account?.fullName || ('#' + selectedDoctor.id) }}
+                  <svg v-if="doctorLoading" class="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4l3.5-3.5L12 1v4a7 7 0 0 0-7 7h-1z"></path>
+                  </svg>
+                  <span v-else>Bác sĩ: {{ selectedDoctor.account?.fullName || ('#' + selectedDoctor.id) }}</span>
                 </span>
               </div>
               <div class="mt-5 grid gap-4 md:grid-cols-2">
                 <div>
-                  <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="schedule-doctor">Bác sĩ phụ trách *</label>
-                  <select
-                    id="schedule-doctor"
-                    v-model.number="scheduleForm.doctorId"
-                    class="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-                  >
-                    <option :value="null">Chọn bác sĩ</option>
-                    <option
-                      v-for="doctor in doctors"
-                      :key="doctor.id"
-                      :value="doctor.id"
+                  <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="schedule-clinic-room">Phòng khám *</label>
+                  <div v-if="availableRoomsLoading" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-400">
+                    Đang kiểm tra phòng khám...
+                  </div>
+                  <div v-else-if="availableRooms.length > 0" class="grid grid-cols-1 gap-2">
+                    <button
+                      v-for="room in availableRooms"
+                      :key="room.id"
+                      type="button"
+                      @click="scheduleForm.clinicRoomId = room.id"
+                      class="rounded-xl border px-4 py-2.5 text-left text-sm transition"
+                      :class="scheduleForm.clinicRoomId === room.id
+                        ? 'border-emerald-400 bg-emerald-50 text-emerald-700 shadow-sm'
+                        : room.available
+                        ? 'border-emerald-200 bg-white text-slate-700 hover:border-emerald-300 hover:bg-emerald-50/50'
+                        : 'border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed opacity-60'"
+                      :disabled="!room.available"
                     >
-                      {{ doctor.account?.fullName || ('Bác sĩ #' + doctor.id) }} • {{ doctor.specialty || 'Chuyên khoa' }}
-                    </option>
-                  </select>
+                      <div class="flex items-center justify-between">
+                        <span class="font-semibold">{{ room.code }} - {{ room.name }}</span>
+                        <span
+                          class="rounded-full px-2 py-0.5 text-xs font-semibold"
+                          :class="room.available
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-rose-100 text-rose-700'"
+                        >
+                          {{ room.available ? 'Trống' : 'Đã đặt' }}
+                        </span>
+                      </div>
+                    </button>
+                  </div>
+                  <div v-else class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-400">
+                    Vui lòng chọn ngày và giờ khám để xem phòng khám có sẵn
+                  </div>
+                  <p class="mt-1 text-xs text-slate-400">Bác sĩ sẽ tự động được chọn theo lịch làm việc</p>
+                </div>
+                <div>
+                  <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="schedule-doctor">Bác sĩ phụ trách *</label>
+                  <input
+                    id="schedule-doctor"
+                    type="text"
+                    :value="selectedDoctor ? `${selectedDoctor.account?.fullName || 'Bác sĩ #' + selectedDoctor.id} • ${selectedDoctor.specialty || 'Chuyên khoa'}` : (doctorLoading ? 'Đang tìm bác sĩ...' : 'Chưa chọn phòng khám')"
+                    readonly
+                    class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 shadow-sm cursor-not-allowed"
+                    :class="!selectedDoctor && !doctorLoading ? 'text-slate-400' : ''"
+                  />
+                  <p class="mt-1 text-xs text-slate-400">Tự động chọn từ lịch làm việc</p>
                 </div>
                 <div>
                   <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="schedule-date">Ngày khám *</label>
@@ -788,27 +1064,35 @@ onMounted(() => {
                     v-model="scheduleForm.scheduledDate"
                     type="date"
                     :min="today"
+                    required
                     class="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
                   />
                 </div>
                 <div>
                   <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="schedule-time">Giờ khám *</label>
-                  <input
+                  <select
                     id="schedule-time"
                     v-model="scheduleForm.scheduledTime"
-                    type="time"
+                    required
                     class="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-                  />
+                  >
+                    <option :value="''">Chọn giờ khám</option>
+                    <optgroup label="Buổi sáng">
+                      <option v-for="time in MORNING_SLOTS" :key="time" :value="time">{{ time }}</option>
+                    </optgroup>
+                    <optgroup label="Buổi chiều">
+                      <option v-for="time in AFTERNOON_SLOTS" :key="time" :value="time">{{ time }}</option>
+                    </optgroup>
+                  </select>
                 </div>
-                <div>
-                  <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="schedule-duration">Thời lượng (phút)</label>
+                <div v-if="isDirectAppointmentMode" class="md:col-span-2">
+                  <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="schedule-reason">Lý do khám</label>
                   <input
-                    id="schedule-duration"
-                    v-model.number="scheduleForm.duration"
-                    type="number"
-                    min="15"
-                    step="5"
+                    id="schedule-reason"
+                    v-model="scheduleForm.reason"
+                    type="text"
                     class="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+                    placeholder="Ví dụ: Khám tổng quát, tái khám..."
                   />
                 </div>
                 <div class="md:col-span-2">
@@ -818,11 +1102,11 @@ onMounted(() => {
                     v-model="scheduleForm.staffNote"
                     rows="3"
                     class="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-                    placeholder="Ví dụ: Liên hệ trước khi khám, ưu tiên sắp phòng siêu âm..."
+                    :placeholder="isDirectAppointmentMode ? 'Ví dụ: Bệnh nhân đến trực tiếp, cần chuẩn bị...' : 'Ví dụ: Liên hệ trước khi khám, ưu tiên sắp phòng siêu âm...'"
                   ></textarea>
                 </div>
               </div>
-              <div class="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 text-xs text-emerald-700">
+              <div v-if="!isDirectAppointmentMode" class="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 text-xs text-emerald-700">
                 <p v-if="preferredAtDisplay">
                   Khung giờ bệnh nhân mong muốn: <span class="font-semibold text-emerald-800">{{ preferredAtDisplay }}</span>
                 </p>
@@ -835,7 +1119,7 @@ onMounted(() => {
 
           <footer class="flex flex-col gap-3 border-t border-emerald-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
             <div class="text-xs text-slate-500">
-              Bước {{ currentStep }} / 3 • {{ stepLabels[currentStep] }}
+              Bước {{ currentStep }} / {{ isDirectAppointmentMode ? 2 : 3 }} • {{ stepLabels[currentStep] }}
             </div>
             <div class="flex flex-wrap items-center gap-3">
               <button

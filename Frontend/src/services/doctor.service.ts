@@ -9,10 +9,22 @@ export interface Doctor {
   };
 }
 
-export const fetchDoctors = async (specialty?: string) => {
+export interface DoctorQueryParams {
+  specialty?: string;
+  clinicRoomId?: number;
+  dayOfWeek?: 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY' | 'SUNDAY';
+  time?: string; // HH:mm format
+}
+
+export const fetchDoctors = async (params?: DoctorQueryParams | string) => {
+  // Backward compatibility: nếu là string thì coi như specialty
+  const queryParams: DoctorQueryParams = typeof params === 'string' 
+    ? { specialty: params }
+    : (params || {});
+  
   const { data } = await http.get(
     '/doctors',
-    { params: specialty ? { specialty } : undefined },
+    { params: queryParams },
   );
   // Normalize various possible shapes (array or wrapped content)
   if (Array.isArray(data)) return data as Doctor[];

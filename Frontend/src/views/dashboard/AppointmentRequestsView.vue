@@ -67,6 +67,7 @@ const selectedRequestId = ref<number | null>(null);
 const selectedAppointmentId = ref<number | null>(null);
 const lastLoadedAt = ref<string | null>(null);
 const wizardOpen = ref(false);
+const createAppointmentWizardOpen = ref(false);
 const rejectModalOpen = ref(false);
 const rejectNote = ref('');
 const rejecting = ref(false);
@@ -110,16 +111,16 @@ const statusMeta: Record<AppointmentLifecycleStatus, { label: string; badge: str
   CONFIRMED: { label: 'Đã xác nhận', badge: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
   CHECKED_IN: { label: 'Đã đến', badge: 'bg-blue-100 text-blue-700', dot: 'bg-blue-500' },
   COMPLETED: { label: 'Hoàn thành', badge: 'bg-slate-100 text-slate-700', dot: 'bg-slate-500' },
-  CANCELLED: { label: 'Đã hủy/Từ chối', badge: 'bg-rose-100 text-rose-700', dot: 'bg-rose-500' },
+  CANCELLED: { label: 'Đã hủy', badge: 'bg-rose-100 text-rose-700', dot: 'bg-rose-500' },
 };
 
 const statusFilters: Array<{ key: StatusFilter; label: string }> = [
   { key: 'ALL', label: 'Tất cả' },
   { key: 'PENDING', label: 'Chờ duyệt' },
   { key: 'CONFIRMED', label: 'Đã xác nhận' },
-  { key: 'CHECKED_IN', label: 'Đã đến' },
   { key: 'COMPLETED', label: 'Hoàn thành' },
-  { key: 'CANCELLED', label: 'Đã hủy/Từ chối' },
+  { key: 'CHECKED_IN', label: 'Đã đến' },
+  { key: 'CANCELLED', label: 'Đã hủy' },
 ];
 
 // Computed để merge và sort cancelled items
@@ -133,7 +134,7 @@ const cancelledItems = computed(() => {
     displayInfo: string;
     displaySubInfo?: string;
   }> = [];
-  
+
   cancelledRequests.value.forEach(req => {
     items.push({
       type: 'request',
@@ -145,7 +146,7 @@ const cancelledItems = computed(() => {
       displaySubInfo: req.symptomDescription || undefined,
     });
   });
-  
+
   cancelledAppointments.value.forEach(apt => {
     items.push({
       type: 'appointment',
@@ -157,7 +158,7 @@ const cancelledItems = computed(() => {
       displaySubInfo: `Phòng: ${apt.clinicRoom?.name || '—'}`,
     });
   });
-  
+
   // Sort theo ngày (mới nhất trước)
   return items.sort((a, b) => {
     const dateA = a.displayDate ? new Date(a.displayDate).getTime() : 0;
@@ -210,9 +211,9 @@ const loadStatusCounts = async () => {
     statusCountsCache.value.CHECKED_IN = checkedInResponse.totalElements;
     statusCountsCache.value.COMPLETED = completedResponse.totalElements;
     statusCountsCache.value.CANCELLED = cancelledRequestsResponse.totalElements + cancelledAppointmentsResponse.totalElements;
-    statusCountsCache.value.ALL = 
-      statusCountsCache.value.PENDING + 
-      statusCountsCache.value.CONFIRMED + 
+    statusCountsCache.value.ALL =
+      statusCountsCache.value.PENDING +
+      statusCountsCache.value.CONFIRMED +
       statusCountsCache.value.CHECKED_IN +
       statusCountsCache.value.COMPLETED +
       statusCountsCache.value.CANCELLED;
@@ -227,7 +228,7 @@ const loadAppointments = async (status?: AppointmentLifecycleStatus) => {
     const keyword = searchTerm.value.trim();
     const pageIndex = Math.max(currentPage.value - 1, 0);
     const statusParam = status || selectedStatus.value;
-    
+
     // Chỉ load appointments cho các status hợp lệ
     if (statusParam !== 'CONFIRMED' && statusParam !== 'CHECKED_IN' && statusParam !== 'COMPLETED') {
       appointments.value = [];
@@ -238,14 +239,14 @@ const loadAppointments = async (status?: AppointmentLifecycleStatus) => {
       hasPrevious.value = false;
       return;
     }
-    
+
     const response = await fetchAppointmentPage({
       page: pageIndex,
       size: PAGE_SIZE,
       keyword: keyword ? keyword : undefined,
       status: statusParam as AppointmentLifecycleStatus,
     });
-    
+
     appointments.value = response.items ?? [];
     totalElements.value = response.totalElements ?? appointments.value.length;
     const derivedTotalPages = response.totalPages && response.totalPages > 0 ? response.totalPages : 1;
@@ -253,7 +254,7 @@ const loadAppointments = async (status?: AppointmentLifecycleStatus) => {
     currentPage.value = response.totalPages && response.totalPages > 0 ? response.page + 1 : 1;
     hasNext.value = response.hasNext ?? false;
     hasPrevious.value = response.hasPrevious ?? false;
-    
+
     lastLoadedAt.value = new Date().toISOString();
   } catch (err) {
     console.error('Failed to fetch appointments', err);
@@ -273,14 +274,14 @@ const loadCancelledRequests = async () => {
   try {
     const keyword = searchTerm.value.trim();
     const pageIndex = Math.max(currentPage.value - 1, 0);
-    
+
     const response = await fetchAppointmentRequestPage({
       page: pageIndex,
       size: PAGE_SIZE,
       keyword: keyword ? keyword : undefined,
       status: 'CANCELLED',
     });
-    
+
     cancelledRequests.value = response.items ?? [];
   } catch (err) {
     console.error('Failed to fetch cancelled requests', err);
@@ -548,9 +549,19 @@ watch(searchTerm, () => {
 });
 
 const pendingShare = computed(() => {
-  if (statusCounts.value.ALL === 0) return 0;
-  return Math.round((statusCounts.value.PENDING / statusCounts.value.ALL) * 100);
+  const all = statusCounts.value.ALL ?? 0;
+  const pending = statusCounts.value.PENDING ?? 0;
+  if (all === 0) return 0;
+  const percentage = Math.round((pending / all) * 100);
+  // Đảm bảo kết quả là số hợp lệ (0-100)
+  return Number.isNaN(percentage) || percentage < 0 ? 0 : Math.min(percentage, 100);
 });
+
+// Tổng số của 3 status: CONFIRMED, CHECKED_IN, COMPLETED
+const confirmedTotal = computed(() => {
+  return statusCounts.value.CONFIRMED + statusCounts.value.CHECKED_IN + statusCounts.value.COMPLETED;
+});
+
 const lastLoadedDisplay = computed(() => (lastLoadedAt.value ? formatFromNow(lastLoadedAt.value) : 'Chưa tải'));
 
 onMounted(() => {
@@ -574,6 +585,11 @@ watch(
 );
 
 const handleWizardCompleted = async () => {
+  await loadStatusCounts();
+  await loadData();
+};
+
+const handleCreateAppointmentWizardCompleted = async () => {
   await loadStatusCounts();
   await loadData();
 };
@@ -662,19 +678,31 @@ const handleCheckIn = async () => {
             </p>
           </div>
           <div class="flex flex-col items-start gap-3 sm:flex-row sm:items-center lg:flex-col lg:items-end">
+            <div class="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-600 px-5 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700"
+                @click="createAppointmentWizardOpen = true"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+                <span>Tạo lịch hẹn</span>
+              </button>
             <button
               type="button"
               class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-5 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 disabled:opacity-50"
               :disabled="loading"
-              @click="loadData"
+                @click="loadData"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 0 0 5.582 9H4m0 0a8.003 8.003 0 0 1 14.9-3m1.518 9H20v5h.004m-.586-2A8.001 8.001 0 0 1 5.518 15H4m0 0a8.003 8.003 0 0 0 14.9 3" />
               </svg>
               <span>{{ loading ? 'Đang tải...' : 'Làm mới' }}</span>
             </button>
+            </div>
             <div class="rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-2 text-sm text-emerald-700 shadow-inner">
-              <p class="font-semibold">{{ viewMode === 'appointments' ? 'Tổng lịch hẹn' : 'Tổng yêu cầu' }}: {{ totalElements }}</p>
+              <p class="font-semibold">Tổng yêu cầu: {{ statusCounts.ALL }}</p>
               <p class="text-xs text-emerald-600/80">Cập nhật {{ lastLoadedDisplay }}</p>
             </div>
           </div>
@@ -687,24 +715,24 @@ const handleCheckIn = async () => {
             <p class="mt-2 text-xs text-amber-600/80">{{ pendingShare }}% tổng số yêu cầu đang chờ phản hồi</p>
           </div>
           <div class="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-5 text-emerald-700 shadow-sm">
-            <p class="text-xs font-semibold uppercase tracking-wide text-emerald-600/80">Đã xác nhận</p>
-            <p class="mt-2 text-3xl font-semibold">{{ statusCounts.CONFIRMED }}</p>
-            <p class="mt-2 text-xs text-emerald-600/80">Đã tạo lịch hẹn hoặc liên hệ bệnh nhân</p>
+            <p class="text-xs font-semibold uppercase tracking-wide text-emerald-600/80">Lịch hẹn</p>
+            <p class="mt-2 text-3xl font-semibold">{{ confirmedTotal }}</p>
+            <p class="mt-2 text-xs text-emerald-600/80">Bao gồm: Đã xác nhận, Đã đến, Hoàn thành</p>
           </div>
           <div class="rounded-2xl border border-rose-100 bg-rose-50/70 p-5 text-rose-700 shadow-sm">
-            <p class="text-xs font-semibold uppercase tracking-wide text-rose-600/80">Đã hủy/Từ chối</p>
+            <p class="text-xs font-semibold uppercase tracking-wide text-rose-600/80">Đã hủy</p>
             <p class="mt-2 text-3xl font-semibold">{{ statusCounts.CANCELLED }}</p>
             <p class="mt-2 text-xs text-rose-600/80">Ghi chú rõ lý do để tiện tra cứu</p>
           </div>
         </div>
 
         <div class="mt-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div class="flex flex-wrap items-center gap-2">
+          <div class="grid grid-cols-3 gap-2 max-w-2xl">
             <button
               v-for="filter in statusFilters"
               :key="filter.key"
               type="button"
-              class="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-wide shadow-sm transition"
+              class="inline-flex items-center justify-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-wide shadow-sm transition"
               :class="selectedStatus === filter.key ? 'border-emerald-300 bg-emerald-50 text-emerald-700 shadow-md' : 'border-emerald-100 bg-white text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50/70'"
               @click="selectedStatus = filter.key"
             >
@@ -1257,6 +1285,7 @@ const handleCheckIn = async () => {
       </div>
     </main>
     <AppointmentRequestWizard v-model="wizardOpen" :request="selectedRequest" @completed="handleWizardCompleted" />
+    <AppointmentRequestWizard v-model="createAppointmentWizardOpen" :request="null" @completed="handleCreateAppointmentWizardCompleted" />
 
     <!-- Modal Từ chối -->
     <Transition name="fade">

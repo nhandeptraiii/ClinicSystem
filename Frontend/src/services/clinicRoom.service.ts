@@ -91,3 +91,18 @@ export const updateClinicRoom = async (id: number, payload: Partial<ClinicRoomPa
 export const deleteClinicRoom = async (id: number) => {
   await http.delete(`/clinic-rooms/${id}`);
 };
+
+export interface ClinicRoomAvailability {
+  id: number;
+  code: string;
+  name: string;
+  floor?: string | null;
+  available: boolean;
+}
+
+export const fetchAvailableGeneralRooms = async (scheduledAt: string, duration: number): Promise<ClinicRoomAvailability[]> => {
+  const { data } = await http.get<RestResponse<ClinicRoomAvailability[]> | ClinicRoomAvailability[]>('/clinic-rooms/available', {
+    params: { scheduledAt, duration },
+  });
+  return unwrap(data);
+};
