@@ -1,5 +1,6 @@
 package vn.project.ClinicSystem.service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
@@ -11,7 +12,9 @@ import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
 import vn.project.ClinicSystem.model.ClinicRoom;
+import vn.project.ClinicSystem.model.dto.ClinicRoomAvailabilityDto;
 import vn.project.ClinicSystem.model.dto.ClinicRoomPageResponse;
+import vn.project.ClinicSystem.repository.AppointmentRepository;
 import vn.project.ClinicSystem.repository.ClinicRoomRepository;
 import vn.project.ClinicSystem.repository.UserWorkScheduleRepository;
 
@@ -21,13 +24,16 @@ public class ClinicRoomService {
     private final ClinicRoomRepository clinicRoomRepository;
     private final Validator validator;
     private final UserWorkScheduleRepository userWorkScheduleRepository;
+    private final AppointmentRepository appointmentRepository;
 
     public ClinicRoomService(ClinicRoomRepository clinicRoomRepository,
             Validator validator,
-            UserWorkScheduleRepository userWorkScheduleRepository) {
+            UserWorkScheduleRepository userWorkScheduleRepository,
+            AppointmentRepository appointmentRepository) {
         this.clinicRoomRepository = clinicRoomRepository;
         this.validator = validator;
         this.userWorkScheduleRepository = userWorkScheduleRepository;
+        this.appointmentRepository = appointmentRepository;
     }
 
     public List<ClinicRoom> findAll() {
@@ -145,5 +151,46 @@ public class ClinicRoomService {
             throw new IllegalArgumentException("Mã phòng khám không được null");
         }
         return code.trim().toUpperCase();
+    }
+
+    /**
+     * Lấy danh sách phòng khám tổng quát với trạng thái có sẵn tại thời điểm cụ thể
+     * Lấy các phòng khám có code bắt đầu bằng "TQ" (tổng quát)
+     * 
+     * @param scheduledAt Thời gian bắt đầu
+     * @param duration    Thời lượng (phút)
+     * @return Danh sách phòng khám với trạng thái available
+     */
+    public List<ClinicRoomAvailabilityDto> getAvailableGeneralRooms(LocalDateTime scheduledAt, Integer duration) {
+        if (scheduledAt == null || duration == null || duration <= 0) {
+            return List.of();
+        }
+
+        LocalDateTime endAt = scheduledAt.plusMinutes(duration);
+
+        // Lấy các phòng khám có code bắt đầu bằng "TQ" (tổng quát)
+        List<ClinicRoom> generalRooms = clinicRoomRepository.findByCodeStartingWithIgnoreCase("TQ");
+
+        if (generalRooms.isEmpty()) {
+            return List.of();
+        }
+
+        // Kiểm tra availability cho từng phòng
+        List<ClinicRoomAvailabilityDto> result = new java.util.ArrayList<>();
+
+        for (ClinicRoom room : generalRooms) {
+            // Kiểm tra xem phòng có bị trùng lịch không
+            // existsClinicRoomOverlap trả về 0 (không trùng) hoặc 1 (có trùng)
+            int overlapCount = appointmentRepository.existsClinicRoomOverlap(
+                    room.getId(),
+                    scheduledAt,
+                    endAt,
+                    null);
+
+            boolean available = overlapCount == 0;
+            result.add(new ClinicRoomAvailabilityDto(room, available));
+        }
+
+        return result;
     }
 }

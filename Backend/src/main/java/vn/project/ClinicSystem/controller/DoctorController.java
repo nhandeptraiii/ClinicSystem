@@ -1,7 +1,10 @@
 package vn.project.ClinicSystem.controller;
 
+import java.time.DayOfWeek;
+import java.time.LocalTime;
 import java.util.List;
 
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -37,7 +40,19 @@ public class DoctorController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Doctor>> getDoctors(@RequestParam(value = "specialty", required = false) String specialty) {
+    public ResponseEntity<List<Doctor>> getDoctors(
+            @RequestParam(value = "specialty", required = false) String specialty,
+            @RequestParam(value = "clinicRoomId", required = false) Long clinicRoomId,
+            @RequestParam(value = "dayOfWeek", required = false) DayOfWeek dayOfWeek,
+            @RequestParam(value = "time", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime time) {
+
+        // Nếu có đầy đủ thông tin phòng khám, ngày và giờ, lấy bác sĩ theo lịch làm
+        // việc
+        if (clinicRoomId != null && dayOfWeek != null && time != null) {
+            return ResponseEntity.ok(doctorService.findByClinicRoomAndDateTime(clinicRoomId, dayOfWeek, time));
+        }
+
+        // Nếu không, lấy theo specialty như cũ
         return ResponseEntity.ok(doctorService.searchBySpecialty(specialty));
     }
 

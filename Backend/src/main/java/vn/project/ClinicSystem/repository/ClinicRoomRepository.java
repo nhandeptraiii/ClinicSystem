@@ -14,17 +14,20 @@ import vn.project.ClinicSystem.model.ClinicRoom;
 
 @Repository
 public interface ClinicRoomRepository extends JpaRepository<ClinicRoom, Long> {
-    Optional<ClinicRoom> findByCode(String code);
+  Optional<ClinicRoom> findByCode(String code);
 
-    boolean existsByCodeIgnoreCase(String code);
+  boolean existsByCodeIgnoreCase(String code);
 
-    List<ClinicRoom> findByFloorIgnoreCase(String floor);
+  List<ClinicRoom> findByFloorIgnoreCase(String floor);
 
-    @Query("""
-            SELECT cr FROM ClinicRoom cr
-            WHERE (:keyword IS NULL OR LOWER(cr.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
-                OR LOWER(cr.code) LIKE LOWER(CONCAT('%', :keyword, '%')))
-              AND (:floor IS NULL OR LOWER(cr.floor) = LOWER(:floor))
-            """)
-    Page<ClinicRoom> search(@Param("keyword") String keyword, @Param("floor") String floor, Pageable pageable);
+  @Query("""
+      SELECT cr FROM ClinicRoom cr
+      WHERE (:keyword IS NULL OR LOWER(cr.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+          OR LOWER(cr.code) LIKE LOWER(CONCAT('%', :keyword, '%')))
+        AND (:floor IS NULL OR LOWER(cr.floor) = LOWER(:floor))
+      """)
+  Page<ClinicRoom> search(@Param("keyword") String keyword, @Param("floor") String floor, Pageable pageable);
+
+  // Lấy các phòng khám có code bắt đầu bằng prefix
+  List<ClinicRoom> findByCodeStartingWithIgnoreCase(String prefix);
 }

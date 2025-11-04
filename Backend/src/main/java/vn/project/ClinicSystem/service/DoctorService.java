@@ -1,5 +1,7 @@
 package vn.project.ClinicSystem.service;
 
+import java.time.DayOfWeek;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Set;
 
@@ -57,6 +59,40 @@ public class DoctorService {
     public Doctor getByAccountId(Long accountId) {
         return doctorRepository.findByAccountId(accountId)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy bác sĩ với account id: " + accountId));
+    }
+
+    private static final LocalTime MORNING_SHIFT_START = LocalTime.of(8, 0);
+    private static final LocalTime MORNING_SHIFT_END = LocalTime.of(12, 0);
+    private static final LocalTime AFTERNOON_SHIFT_START = LocalTime.of(13, 0);
+    private static final LocalTime AFTERNOON_SHIFT_END = LocalTime.of(17, 0);
+
+    /**
+     * Lấy danh sách bác sĩ có lịch làm việc tại phòng khám vào ngày và thời gian cụ
+     * thể
+     * Sử dụng UserWorkSchedule để lấy trực tiếp từ quan hệ qua JOIN query
+     * 
+     * @param clinicRoomId ID phòng khám
+     * @param dayOfWeek    Ngày trong tuần
+     * @param time         Thời gian (để xác định ca sáng hay chiều)
+     * @return Danh sách bác sĩ
+     */
+    public List<Doctor> findByClinicRoomAndDateTime(Long clinicRoomId, DayOfWeek dayOfWeek, LocalTime time) {
+        if (clinicRoomId == null || dayOfWeek == null || time == null) {
+            return List.of();
+        }
+
+        // Xác định ca sáng hay chiều dựa trên thời gian
+        boolean isMorningShift = !time.isBefore(MORNING_SHIFT_START) && !time.isAfter(MORNING_SHIFT_END);
+        boolean isAfternoonShift = !time.isBefore(AFTERNOON_SHIFT_START) && !time.isAfter(AFTERNOON_SHIFT_END);
+
+        if (!isMorningShift && !isAfternoonShift) {
+            // Thời gian không nằm trong ca làm việc
+            return List.of();
+        }
+
+        // Sử dụng query JOIN trực tiếp từ UserWorkSchedule -> User -> Doctor
+        boolean isMorning = isMorningShift;
+        return doctorRepository.findByClinicRoomAndDayAndShift(clinicRoomId, dayOfWeek, isMorning);
     }
 
     @Transactional

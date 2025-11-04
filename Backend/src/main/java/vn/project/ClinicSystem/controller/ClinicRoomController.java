@@ -1,5 +1,9 @@
 package vn.project.ClinicSystem.controller;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -19,6 +23,7 @@ import org.springframework.data.domain.Sort;
 
 import jakarta.validation.Valid;
 import vn.project.ClinicSystem.model.ClinicRoom;
+import vn.project.ClinicSystem.model.dto.ClinicRoomAvailabilityDto;
 import vn.project.ClinicSystem.model.dto.ClinicRoomPageResponse;
 import vn.project.ClinicSystem.service.ClinicRoomService;
 
@@ -80,5 +85,20 @@ public class ClinicRoomController {
     public ResponseEntity<Void> deleteClinicRoom(@PathVariable("id") Long id) {
         clinicRoomService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Lấy danh sách phòng khám tổng quát có sẵn tại thời điểm cụ thể
+     * 
+     * @param scheduledAt Thời gian bắt đầu (ISO format: yyyy-MM-ddTHH:mm)
+     * @param duration    Thời lượng (phút)
+     * @return Danh sách phòng khám với trạng thái available
+     */
+    @GetMapping("/available")
+    public ResponseEntity<List<ClinicRoomAvailabilityDto>> getAvailableGeneralRooms(
+            @RequestParam("scheduledAt") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime scheduledAt,
+            @RequestParam("duration") Integer duration) {
+        List<ClinicRoomAvailabilityDto> rooms = clinicRoomService.getAvailableGeneralRooms(scheduledAt, duration);
+        return ResponseEntity.ok(rooms);
     }
 }
