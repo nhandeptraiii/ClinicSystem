@@ -27,7 +27,7 @@ import jakarta.validation.constraints.PastOrPresent;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
-import vn.project.ClinicSystem.model.enums.AppointmentRequestStatus;
+import vn.project.ClinicSystem.model.enums.AppointmentLifecycleStatus;
 
 @Getter
 @Setter
@@ -66,7 +66,7 @@ public class AppointmentRequest {
 
     @Enumerated(EnumType.STRING)
     @Column(length = 30, nullable = false)
-    private AppointmentRequestStatus status = AppointmentRequestStatus.PENDING;
+    private AppointmentLifecycleStatus status = AppointmentLifecycleStatus.PENDING;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "patient_id")

@@ -24,7 +24,7 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
-import vn.project.ClinicSystem.model.enums.AppointmentStatus;
+import vn.project.ClinicSystem.model.enums.AppointmentLifecycleStatus;
 
 @Getter
 @Setter
@@ -56,7 +56,7 @@ public class Appointment {
 
     @Enumerated(EnumType.STRING)
     @Column(length = 30, nullable = false)
-    private AppointmentStatus status = AppointmentStatus.CONFIRMED;
+    private AppointmentLifecycleStatus status = AppointmentLifecycleStatus.CONFIRMED;
 
     @Size(max = 500)
     @Column(length = 500)

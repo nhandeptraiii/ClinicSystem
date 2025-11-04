@@ -1,7 +1,8 @@
 package vn.project.ClinicSystem.controller;
 
-import java.util.List;
-
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -19,9 +20,10 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import vn.project.ClinicSystem.model.Appointment;
 import vn.project.ClinicSystem.model.dto.AppointmentCreateRequest;
+import vn.project.ClinicSystem.model.dto.AppointmentPageResponse;
 import vn.project.ClinicSystem.model.dto.AppointmentStatusUpdateRequest;
 import vn.project.ClinicSystem.model.dto.AppointmentUpdateRequest;
-import vn.project.ClinicSystem.model.enums.AppointmentStatus;
+import vn.project.ClinicSystem.model.enums.AppointmentLifecycleStatus;
 import vn.project.ClinicSystem.service.AppointmentService;
 import vn.project.ClinicSystem.util.SecurityUtil;
 
@@ -47,11 +49,27 @@ public class AppointmentController {
 
     @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
     @GetMapping
-    public ResponseEntity<List<Appointment>> getAppointments(
+    public ResponseEntity<?> getAppointments(
             @RequestParam(value = "doctorId", required = false) Long doctorId,
             @RequestParam(value = "patientId", required = false) Long patientId,
-            @RequestParam(value = "status", required = false) AppointmentStatus status) {
+            @RequestParam(value = "status", required = false) AppointmentLifecycleStatus status,
+            @RequestParam(value = "keyword", required = false) String keyword,
+            @RequestParam(value = "page", required = false) Integer page,
+            @RequestParam(value = "size", required = false) Integer size) {
 
+        // Hỗ trợ phân trang khi có page hoặc size
+        if (page != null || size != null) {
+            int safePage = page != null ? Math.max(page, 0) : 0;
+            int safeSize = size != null ? Math.min(Math.max(size, 1), 50) : 10;
+            Pageable pageable = PageRequest.of(
+                    safePage,
+                    safeSize,
+                    Sort.by(Sort.Order.desc("scheduledAt")));
+            AppointmentPageResponse response = appointmentService.getPaged(keyword, status, pageable);
+            return ResponseEntity.ok(response);
+        }
+
+        // Giữ nguyên logic cũ cho các trường hợp filter đặc biệt
         if (doctorId != null) {
             return ResponseEntity.ok(appointmentService.findByDoctor(doctorId));
         }

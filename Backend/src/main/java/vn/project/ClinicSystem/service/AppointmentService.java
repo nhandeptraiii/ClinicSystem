@@ -6,6 +6,8 @@ import java.time.LocalTime;
 import java.util.List;
 import java.util.Objects;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,9 +22,10 @@ import vn.project.ClinicSystem.model.Patient;
 import vn.project.ClinicSystem.model.User;
 import vn.project.ClinicSystem.model.UserWorkSchedule;
 import vn.project.ClinicSystem.model.dto.AppointmentCreateRequest;
+import vn.project.ClinicSystem.model.dto.AppointmentPageResponse;
 import vn.project.ClinicSystem.model.dto.AppointmentStatusUpdateRequest;
 import vn.project.ClinicSystem.model.dto.AppointmentUpdateRequest;
-import vn.project.ClinicSystem.model.enums.AppointmentStatus;
+import vn.project.ClinicSystem.model.enums.AppointmentLifecycleStatus;
 import vn.project.ClinicSystem.repository.AppointmentRepository;
 import vn.project.ClinicSystem.repository.ClinicRoomRepository;
 import vn.project.ClinicSystem.repository.DoctorRepository;
@@ -80,8 +83,24 @@ public class AppointmentService {
         return appointmentRepository.findByPatientIdOrderByScheduledAtDesc(patientId);
     }
 
-    public List<Appointment> findByStatus(AppointmentStatus status) {
+    public List<Appointment> findByStatus(AppointmentLifecycleStatus status) {
         return appointmentRepository.findByStatus(status);
+    }
+
+    public AppointmentPageResponse getPaged(String keyword, AppointmentLifecycleStatus status, Pageable pageable) {
+        Page<Appointment> page = appointmentRepository.search(
+                normalizeKeyword(keyword),
+                status,
+                pageable);
+        return AppointmentPageResponse.from(page);
+    }
+
+    private String normalizeKeyword(String keyword) {
+        if (keyword == null) {
+            return null;
+        }
+        String trimmed = keyword.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     @Transactional
@@ -98,7 +117,7 @@ public class AppointmentService {
         appointment.setDuration(resolveDuration(request.getDuration()));
         appointment.setReason(request.getReason());
         appointment.setNotes(request.getNotes());
-        appointment.setStatus(AppointmentStatus.CONFIRMED);
+        appointment.setStatus(AppointmentLifecycleStatus.CONFIRMED);
 
         if (createdByUsername != null) {
             appointment.setCreatedBy(loadUserByUsername(createdByUsername));
@@ -132,7 +151,7 @@ public class AppointmentService {
         appointment.setScheduledAt(scheduledAt);
         appointment.setDuration(resolvedDuration);
         appointment.setReason(requestEntity.getSymptomDescription());
-        appointment.setStatus(AppointmentStatus.CONFIRMED);
+        appointment.setStatus(AppointmentLifecycleStatus.CONFIRMED);
         appointment.setRequest(requestEntity);
         appointment.setCreatedBy(staffUser);
 

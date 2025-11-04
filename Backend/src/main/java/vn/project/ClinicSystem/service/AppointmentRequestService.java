@@ -19,7 +19,7 @@ import vn.project.ClinicSystem.model.dto.AppointmentRequestApproveRequest;
 import vn.project.ClinicSystem.model.dto.AppointmentRequestCreateRequest;
 import vn.project.ClinicSystem.model.dto.AppointmentRequestPageResponse;
 import vn.project.ClinicSystem.model.dto.AppointmentRequestRejectRequest;
-import vn.project.ClinicSystem.model.enums.AppointmentRequestStatus;
+import vn.project.ClinicSystem.model.enums.AppointmentLifecycleStatus;
 import vn.project.ClinicSystem.repository.AppointmentRequestRepository;
 import vn.project.ClinicSystem.repository.UserRepository;
 
@@ -54,11 +54,12 @@ public class AppointmentRequestService {
         return appointmentRequestRepository.findAllByOrderByCreatedAtDesc();
     }
 
-    public List<AppointmentRequest> findByStatus(AppointmentRequestStatus status) {
+    public List<AppointmentRequest> findByStatus(AppointmentLifecycleStatus status) {
         return appointmentRequestRepository.findByStatusOrderByCreatedAtAsc(status);
     }
 
-    public AppointmentRequestPageResponse getPaged(String keyword, AppointmentRequestStatus status, Pageable pageable) {
+    public AppointmentRequestPageResponse getPaged(String keyword, AppointmentLifecycleStatus status,
+            Pageable pageable) {
         Page<AppointmentRequest> page = appointmentRequestRepository.search(
                 normalizeKeyword(keyword),
                 status,
@@ -75,7 +76,7 @@ public class AppointmentRequestService {
         entity.setDateOfBirth(request.getDateOfBirth());
         entity.setPreferredAt(request.getPreferredAt());
         entity.setSymptomDescription(request.getSymptomDescription());
-        entity.setStatus(AppointmentRequestStatus.PENDING);
+        entity.setStatus(AppointmentLifecycleStatus.PENDING);
 
         validateBean(entity);
         return appointmentRequestRepository.save(entity);
@@ -84,7 +85,7 @@ public class AppointmentRequestService {
     @Transactional
     public AppointmentRequest approve(Long id, AppointmentRequestApproveRequest approveRequest, String staffUsername) {
         AppointmentRequest request = appointmentRequestRepository
-                .findByIdAndStatus(id, AppointmentRequestStatus.PENDING)
+                .findByIdAndStatus(id, AppointmentLifecycleStatus.PENDING)
                 .orElseThrow(() -> new EntityNotFoundException("Yêu cầu không tồn tại hoặc đã xử lý"));
 
         User staff = userRepository.findByEmail(staffUsername)
@@ -101,7 +102,7 @@ public class AppointmentRequestService {
                 approveRequest.getDuration());
 
         request.setAppointment(appointment);
-        request.setStatus(AppointmentRequestStatus.CONFIRMED);
+        request.setStatus(AppointmentLifecycleStatus.CONFIRMED);
         request.setStaffNote(approveRequest.getStaffNote());
         request.setProcessedAt(Instant.now());
         request.setProcessedBy(staff);
@@ -112,13 +113,13 @@ public class AppointmentRequestService {
     @Transactional
     public AppointmentRequest reject(Long id, AppointmentRequestRejectRequest rejectRequest, String staffUsername) {
         AppointmentRequest request = appointmentRequestRepository
-                .findByIdAndStatus(id, AppointmentRequestStatus.PENDING)
+                .findByIdAndStatus(id, AppointmentLifecycleStatus.PENDING)
                 .orElseThrow(() -> new EntityNotFoundException("Yêu cầu không tồn tại hoặc đã xử lý"));
 
         User staff = userRepository.findByEmail(staffUsername)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy tài khoản nhân viên: " + staffUsername));
 
-        request.setStatus(AppointmentRequestStatus.REJECTED);
+        request.setStatus(AppointmentLifecycleStatus.CANCELLED);
         request.setStaffNote(rejectRequest.getStaffNote());
         request.setProcessedAt(Instant.now());
         request.setProcessedBy(staff);

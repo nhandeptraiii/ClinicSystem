@@ -20,7 +20,7 @@ import vn.project.ClinicSystem.model.dto.AppointmentRequestApproveRequest;
 import vn.project.ClinicSystem.model.dto.AppointmentRequestCreateRequest;
 import vn.project.ClinicSystem.model.dto.AppointmentRequestPageResponse;
 import vn.project.ClinicSystem.model.dto.AppointmentRequestRejectRequest;
-import vn.project.ClinicSystem.model.enums.AppointmentRequestStatus;
+import vn.project.ClinicSystem.model.enums.AppointmentLifecycleStatus;
 import vn.project.ClinicSystem.service.AppointmentRequestService;
 import vn.project.ClinicSystem.util.SecurityUtil;
 
@@ -45,7 +45,7 @@ public class AppointmentRequestController {
     @GetMapping
     public ResponseEntity<?> getAppointmentRequests(
             @RequestParam(value = "keyword", required = false) String keyword,
-            @RequestParam(value = "status", required = false) AppointmentRequestStatus status,
+            @RequestParam(value = "status", required = false) AppointmentLifecycleStatus status,
             @RequestParam(value = "page", required = false) Integer page,
             @RequestParam(value = "size", required = false) Integer size) {
         if (page != null || size != null) {
