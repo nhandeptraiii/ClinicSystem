@@ -80,6 +80,22 @@ public class VisitController {
     }
 
     @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
+    @GetMapping("/completed-without-billing")
+    public ResponseEntity<PatientVisitPageResponse> getCompletedVisitsWithoutBilling(
+            @RequestParam(value = "keyword", required = false) String keyword,
+            @RequestParam(value = "page", required = false) Integer page,
+            @RequestParam(value = "size", required = false) Integer size) {
+        int safePage = page != null ? Math.max(page, 0) : 0;
+        int safeSize = size != null ? Math.min(Math.max(size, 1), 50) : 10;
+        Pageable pageable = PageRequest.of(
+                safePage,
+                safeSize,
+                Sort.by(Sort.Order.desc("createdAt")));
+        PatientVisitPageResponse response = visitService.getCompletedWithoutBilling(keyword, pageable);
+        return ResponseEntity.ok(response);
+    }
+
+    @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
     @GetMapping("/{id}/service-orders")
     public ResponseEntity<List<ServiceOrder>> getServiceOrders(@PathVariable("id") Long id) {
         return ResponseEntity.ok(visitService.findServiceOrders(id));

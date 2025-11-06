@@ -79,6 +79,13 @@ public class VisitService {
         return PatientVisitPageResponse.from(page);
     }
 
+    public PatientVisitPageResponse getCompletedWithoutBilling(String keyword, Pageable pageable) {
+        Page<PatientVisit> page = patientVisitRepository.searchCompletedWithoutBilling(
+                normalizeKeyword(keyword),
+                pageable);
+        return PatientVisitPageResponse.from(page);
+    }
+
     private String normalizeKeyword(String keyword) {
         if (keyword == null) {
             return null;

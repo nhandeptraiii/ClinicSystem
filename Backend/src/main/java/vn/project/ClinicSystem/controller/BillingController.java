@@ -2,6 +2,9 @@ package vn.project.ClinicSystem.controller;
 
 import java.util.List;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -20,7 +23,9 @@ import vn.project.ClinicSystem.model.Billing;
 import vn.project.ClinicSystem.model.BillingItem;
 import vn.project.ClinicSystem.model.dto.BillingItemCreateRequest;
 import vn.project.ClinicSystem.model.dto.BillingItemUpdateRequest;
+import vn.project.ClinicSystem.model.dto.BillingPageResponse;
 import vn.project.ClinicSystem.model.dto.BillingStatusUpdateRequest;
+import vn.project.ClinicSystem.model.enums.BillingStatus;
 import vn.project.ClinicSystem.service.BillingService;
 
 @RestController
@@ -41,16 +46,25 @@ public class BillingController {
 
     @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
     @GetMapping
-    public ResponseEntity<List<Billing>> getBillings(
+    public ResponseEntity<?> getBillings(
             @RequestParam(value = "patientId", required = false) Long patientId,
-            @RequestParam(value = "visitId", required = false) Long visitId) {
+            @RequestParam(value = "visitId", required = false) Long visitId,
+            @RequestParam(value = "keyword", required = false) String keyword,
+            @RequestParam(value = "status", required = false) BillingStatus status,
+            @RequestParam(value = "page", required = false) Integer page,
+            @RequestParam(value = "size", required = false) Integer size) {
         if (visitId != null) {
             return ResponseEntity.ok(List.of(billingService.getByVisit(visitId)));
         }
-        if (patientId != null) {
-            return ResponseEntity.ok(billingService.findByPatient(patientId));
-        }
-        return ResponseEntity.ok(billingService.findAll());
+
+        int safePage = page != null ? Math.max(page, 0) : 0;
+        int safeSize = size != null ? Math.min(Math.max(size, 1), 50) : 10;
+        Pageable pageable = PageRequest.of(
+                safePage,
+                safeSize,
+                Sort.by(Sort.Order.desc("issuedAt")));
+        BillingPageResponse response = billingService.getPaged(keyword, status, patientId, pageable);
+        return ResponseEntity.ok(response);
     }
 
     @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")

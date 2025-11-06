@@ -36,4 +36,18 @@ public interface PatientVisitRepository extends JpaRepository<PatientVisit, Long
             @Param("keyword") String keyword,
             @Param("status") VisitStatus status,
             Pageable pageable);
+
+    @Query("""
+            SELECT v FROM PatientVisit v
+            LEFT JOIN v.patient p
+            LEFT JOIN v.billing b
+            WHERE v.status = vn.project.ClinicSystem.model.enums.VisitStatus.COMPLETED
+            AND b IS NULL
+            AND (:keyword IS NULL OR
+                LOWER(p.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR LOWER(p.code) LIKE LOWER(CONCAT('%', :keyword, '%')))
+            """)
+    Page<PatientVisit> searchCompletedWithoutBilling(
+            @Param("keyword") String keyword,
+            Pageable pageable);
 }

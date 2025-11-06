@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +24,7 @@ import vn.project.ClinicSystem.model.enums.BillingStatus;
 import vn.project.ClinicSystem.model.enums.ServiceOrderStatus;
 import vn.project.ClinicSystem.model.dto.BillingItemCreateRequest;
 import vn.project.ClinicSystem.model.dto.BillingItemUpdateRequest;
+import vn.project.ClinicSystem.model.dto.BillingPageResponse;
 import vn.project.ClinicSystem.model.dto.BillingStatusUpdateRequest;
 import vn.project.ClinicSystem.repository.BillingItemRepository;
 import vn.project.ClinicSystem.repository.BillingRepository;
@@ -67,6 +70,12 @@ public class BillingService {
 
     public List<Billing> findAll() {
         return billingRepository.findAll(Sort.by(Sort.Direction.DESC, "issuedAt"));
+    }
+
+    public BillingPageResponse getPaged(String keyword, BillingStatus status, Long patientId, Pageable pageable) {
+        String normalizedKeyword = normalizeKeyword(keyword);
+        Page<Billing> page = billingRepository.search(normalizedKeyword, status, patientId, pageable);
+        return BillingPageResponse.from(page);
     }
 
     @Transactional
@@ -252,5 +261,13 @@ public class BillingService {
 
     private String normalizeText(String text) {
         return StringUtils.hasText(text) ? text.trim() : null;
+    }
+
+    private String normalizeKeyword(String keyword) {
+        if (!StringUtils.hasText(keyword)) {
+            return null;
+        }
+        String trimmed = keyword.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }
