@@ -60,6 +60,16 @@ export interface PatientVisit {
   updatedAt?: string;
 }
 
+export interface PatientVisitPage {
+  items: PatientVisit[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
+}
+
 export interface ServiceOrder {
   id: number;
   visit?: {
@@ -172,6 +182,69 @@ export const updateVisitClinicalInfo = async (
 ): Promise<PatientVisit> => {
   const { data } = await http.patch<RestResponse<PatientVisit>>(`/visits/${id}`, payload);
   return normalizeResponse(data);
+};
+
+export const fetchVisitPage = async (
+  params?: {
+    keyword?: string;
+    status?: string;
+    page?: number;
+    size?: number;
+    patientId?: number;
+  },
+): Promise<PatientVisitPage> => {
+  const { data } = await http.get<RestResponse<PatientVisitPage> | PatientVisitPage | PatientVisit[]>('/visits', {
+    params,
+  });
+  const unwrapped = normalizeResponse(data);
+  if (Array.isArray(unwrapped)) {
+    const items = unwrapped as PatientVisit[];
+    return {
+      items,
+      page: params?.page ?? 0,
+      size: params?.size ?? items.length,
+      totalElements: items.length,
+      totalPages: 1,
+      hasNext: false,
+      hasPrevious: false,
+    };
+  }
+  const typed = unwrapped as PatientVisitPage;
+  return {
+    ...typed,
+    items: Array.isArray(typed.items) ? typed.items : [],
+  };
+};
+
+export const fetchCompletedVisitsWithoutBilling = async (
+  params?: {
+    keyword?: string;
+    page?: number;
+    size?: number;
+  },
+): Promise<PatientVisitPage> => {
+  const { data } = await http.get<RestResponse<PatientVisitPage> | PatientVisitPage>(
+    '/visits/completed-without-billing',
+    { params },
+  );
+  const unwrapped = normalizeResponse(data);
+  if (Array.isArray(unwrapped)) {
+    const items = unwrapped as PatientVisit[];
+    return {
+      items,
+      page: params?.page ?? 0,
+      size: params?.size ?? items.length,
+      totalElements: items.length,
+      totalPages: 1,
+      hasNext: false,
+      hasPrevious: false,
+    };
+  }
+  const typed = unwrapped as PatientVisitPage;
+  return {
+    ...typed,
+    items: Array.isArray(typed.items) ? typed.items : [],
+  };
 };
 
 export const fetchServiceOrders = async (visitId: number): Promise<ServiceOrder[]> => {

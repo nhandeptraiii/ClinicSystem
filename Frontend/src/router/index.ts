@@ -41,6 +41,7 @@ const router = createRouter({
     { path: '/dashboard/clinic-rooms', name: 'clinic-rooms', component: () => import('@/views/dashboard/ClinicRoomsView.vue') },
     { path: '/dashboard/schedules', name: 'schedules', component: () => import('@/views/dashboard/SchedulesView.vue') },
     { path: '/dashboard/visits', name: 'visits', component: () => import('@/views/dashboard/VisitsView.vue') },
+    { path: '/dashboard/visits/:id', name: 'visit-detail', component: () => import('@/views/dashboard/VisitDetailView.vue') },
     { path: '/dashboard/medications', name: 'medications', component: () => import('@/views/dashboard/MedicationsView.vue') },
     { path: '/dashboard/services', name: 'services', component: () => import('@/views/dashboard/ServicesView.vue') },
     { path: '/dashboard/indicator-templates', name: 'indicator-templates', component: () => import('@/views/dashboard/IndicatorTemplatesView.vue') },
