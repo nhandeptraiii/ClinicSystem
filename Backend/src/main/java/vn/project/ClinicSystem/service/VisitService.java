@@ -1,19 +1,27 @@
 package vn.project.ClinicSystem.service;
 
+import java.time.DayOfWeek;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import jakarta.persistence.EntityNotFoundException;
 import vn.project.ClinicSystem.model.Appointment;
+import vn.project.ClinicSystem.model.ClinicRoom;
 import vn.project.ClinicSystem.model.Doctor;
 import vn.project.ClinicSystem.model.MedicalService;
 import vn.project.ClinicSystem.model.PatientVisit;
 import vn.project.ClinicSystem.model.ServiceOrder;
 import vn.project.ClinicSystem.model.dto.PatientVisitCreateRequest;
+import vn.project.ClinicSystem.model.dto.PatientVisitPageResponse;
 import vn.project.ClinicSystem.model.dto.PatientVisitStatusUpdateRequest;
+import vn.project.ClinicSystem.model.dto.PatientVisitUpdateRequest;
 import vn.project.ClinicSystem.model.dto.ServiceOrderCreateRequest;
 import vn.project.ClinicSystem.model.dto.ServiceOrderStatusUpdateRequest;
 import vn.project.ClinicSystem.model.enums.AppointmentLifecycleStatus;
@@ -61,6 +69,22 @@ public class VisitService {
 
     public List<PatientVisit> findAll() {
         return patientVisitRepository.findAll();
+    }
+
+    public PatientVisitPageResponse getPaged(String keyword, VisitStatus status, Pageable pageable) {
+        Page<PatientVisit> page = patientVisitRepository.search(
+                normalizeKeyword(keyword),
+                status,
+                pageable);
+        return PatientVisitPageResponse.from(page);
+    }
+
+    private String normalizeKeyword(String keyword) {
+        if (keyword == null) {
+            return null;
+        }
+        String trimmed = keyword.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     public List<ServiceOrder> findServiceOrders(Long visitId) {
@@ -138,6 +162,16 @@ public class VisitService {
     }
 
     @Transactional
+    public PatientVisit updateClinicalInfo(Long visitId, PatientVisitUpdateRequest request) {
+        PatientVisit visit = getById(visitId);
+
+        visit.setProvisionalDiagnosis(normalizeNullableText(request.getProvisionalDiagnosis()));
+        visit.setClinicalNote(normalizeNullableText(request.getClinicalNote()));
+
+        return patientVisitRepository.save(visit);
+    }
+
+    @Transactional
     public ServiceOrder updateServiceOrderStatus(Long orderId, ServiceOrderStatusUpdateRequest request) {
         ServiceOrder order = serviceOrderRepository.findById(orderId)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy phiếu dịch vụ với id: " + orderId));
@@ -148,6 +182,13 @@ public class VisitService {
         return serviceOrderRepository.save(order);
     }
 
+    private String normalizeNullableText(String input) {
+        if (!StringUtils.hasText(input)) {
+            return null;
+        }
+        return input.trim();
+    }
+
     private ServiceOrder createSingleOrder(PatientVisit visit,
             ServiceOrderCreateRequest request) {
 
@@ -155,18 +196,67 @@ public class VisitService {
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Không tìm thấy dịch vụ với id: " + request.getMedicalServiceId()));
 
-        Doctor doctor = doctorRepository.findById(request.getAssignedDoctorId())
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Không tìm thấy bác sĩ với id: " + request.getAssignedDoctorId()));
+        ClinicRoom clinicRoom = medicalService.getClinicRoom();
+        if (clinicRoom == null) {
+            throw new IllegalStateException("Dịch vụ chưa được gán vào phòng khám, không thể tạo chỉ định");
+        }
+
+        // Tự động tìm bác sĩ phụ trách từ ClinicRoom thông qua UserWorkSchedule
+        Doctor assignedDoctor = findAssignedDoctorForClinicRoom(clinicRoom.getId());
 
         ServiceOrder order = new ServiceOrder();
         order.setVisit(visit);
         order.setMedicalService(medicalService);
-        order.setAssignedDoctor(doctor);
+        order.setAssignedDoctor(assignedDoctor);
         order.setStatus(ServiceOrderStatus.PENDING);
         order.setNote(request.getNote());
 
         return serviceOrderRepository.save(order);
+    }
+
+    /**
+     * Tìm bác sĩ phụ trách từ ClinicRoom thông qua UserWorkSchedule.
+     * Ưu tiên tìm bác sĩ đang làm việc vào ngày hiện tại, nếu không có thì lấy bất
+     * kỳ bác sĩ nào.
+     */
+    private Doctor findAssignedDoctorForClinicRoom(Long clinicRoomId) {
+        DayOfWeek currentDay = LocalDateTime.now().getDayOfWeek();
+        boolean isMorning = LocalDateTime.now().getHour() < 12;
+
+        // Thử tìm bác sĩ đang làm việc vào ca hiện tại
+        List<Doctor> doctors = doctorRepository.findByClinicRoomAndDayAndShift(
+                clinicRoomId, currentDay, isMorning);
+
+        if (!doctors.isEmpty()) {
+            return doctors.get(0); // Lấy bác sĩ đầu tiên
+        }
+
+        // Nếu không có, thử tìm bác sĩ làm ca còn lại trong ngày
+        doctors = doctorRepository.findByClinicRoomAndDayAndShift(
+                clinicRoomId, currentDay, !isMorning);
+
+        if (!doctors.isEmpty()) {
+            return doctors.get(0);
+        }
+
+        // Nếu vẫn không có, tìm bất kỳ bác sĩ nào có lịch làm việc tại phòng này
+        // (tìm trong tất cả các ngày)
+        List<DayOfWeek> allDays = List.of(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY,
+                DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY);
+
+        for (DayOfWeek day : allDays) {
+            doctors = doctorRepository.findByClinicRoomAndDayAndShift(clinicRoomId, day, true);
+            if (!doctors.isEmpty()) {
+                return doctors.get(0);
+            }
+            doctors = doctorRepository.findByClinicRoomAndDayAndShift(clinicRoomId, day, false);
+            if (!doctors.isEmpty()) {
+                return doctors.get(0);
+            }
+        }
+
+        throw new IllegalStateException(
+                "Không tìm thấy bác sĩ phụ trách cho phòng khám của dịch vụ này. Vui lòng kiểm tra lịch làm việc.");
     }
 
     private void ensureVisitExists(Long visitId) {
