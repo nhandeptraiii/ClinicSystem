@@ -1,43 +1,24 @@
 {
-  "folders": [
-    {
-      "name": "Backend",
-      "path": "Backend"
-    },
-    {
-      "name": "Frontend",
-      "path": "Frontend"
-    },
-    {
-      "name": "Root",
-      "path": "."
-    }
-  ],
-  "settings": {
-    // Java configuration for Backend
-    "java.configuration.updateBuildConfiguration": "automatic",
-    "java.import.gradle.enabled": true,
-    "java.import.gradle.wrapper.enabled": true,
-    
-    // TypeScript configuration for Frontend
-    "typescript.tsdk": "Frontend/node_modules/typescript/lib",
-    "typescript.enablePromptUseWorkspaceTsdk": true,
-    
-    // File exclusions
-    "files.exclude": {
-      "**/node_modules": true,
-      "**/.git": true,
-      "**/build": false
-    },
-    
-    // Search exclusions
-    "search.exclude": {
-      "**/node_modules": true,
-      "**/build": true,
-      "**/dist": true
-    }
-  }
+	"folders": [
+		{
+			"path": "Backend"
+		},
+		{
+			"path": "Frontend"
+		}
+	],
+	"settings": {
+		"java.configuration.updateBuildConfiguration": "automatic",
+		"java.compile.nullAnalysis.mode": "automatic",
+		"java.import.gradle.enabled": true,
+		"java.import.gradle.wrapper.enabled": true,
+		"typescript.tsdk": "Frontend/node_modules/typescript/lib",
+		"typescript.enablePromptUseWorkspaceTsdk": true,
+		"files.associations": {
+			"*.vue": "vue"
+		},
+		"files.readonlyInclude": {
+			"{**/.c4z/.extsrcs/*.PROTSYM.cbl,**/.c4z/.extsrcs/*.PROTSYM.listing}": true
+		}
+	}
 }
-
-
-
