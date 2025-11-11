@@ -52,7 +52,7 @@ const onLogoClick = () => {
 
       <!-- Hotline + Auth quick links -->
       <div class="flex items-center gap-3">
-        <a :href="`tel:${HOTLINE}`" class="flex items-center gap-2 rounded-full bg-rose-500 px-3 py-1.5 text-sm font-semibold text-white shadow hover:bg-rose-600">
+        <a :href="`tel:${HOTLINE}`" class="flex items-center gap-2 rounded-full bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white shadow hover:bg-emerald-600">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path d="M2.003 5.884c.06-1.07.993-1.92 2.064-1.82 1.27.12 2.77.41 3.96 1.6 1.19 1.19 1.48 2.69 1.6 3.96.1 1.07-.75 2.004-1.82 2.064-.87.049-1.69.258-2.45.61a11.036 11.036 0 005.72 5.72c.352-.76.561-1.58.61-2.45.06-1.07.993-1.92 2.064-1.82 1.27.12 2.77.41 3.96 1.6 1.19 1.19 1.48 2.69 1.6 3.96.1 1.07-.75 2.004-1.82 2.064-4.79.272-9.74-1.57-13.29-5.12C.433 10.91-1.41 5.96-1.137 1.17c.06-1.07.993-1.92 2.064-1.82 1.27.12 2.77.41 3.96 1.6 1.19 1.19 1.48 2.69 1.6 3.96.1 1.07-.75 2.004-1.82 2.064-.87.049-1.69.258-2.45.61a11.036 11.036 0 005.72 5.72c.352-.76.561-1.58.61-2.45z"/></svg>
           {{ HOTLINE }}
         </a>

@@ -30,9 +30,6 @@ type InvalidMessageMap = Partial<{
 }>;
 
 const today = now.toISOString().slice(0, 10);
-const tomorrow = new Date(now);
-tomorrow.setDate(tomorrow.getDate() + 1);
-const tomorrowStr = tomorrow.toISOString().slice(0, 10);
 
 const toMinutes = (h: number, m: number) => h * 60 + m;
 const toHHMM = (mins: number) => {
@@ -58,6 +55,18 @@ const preferredAtISO = computed(() => {
 const handleInput = (event: Event) => {
   const target = event.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
   target.setCustomValidity('');
+};
+
+const sanitizePhoneValue = (value: string) => value.replace(/\D/g, '').slice(0, 10);
+
+const handlePhoneInput = (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const sanitized = sanitizePhoneValue(target.value);
+  if (sanitized !== target.value) {
+    target.value = sanitized;
+  }
+  form.value.phone = sanitized;
+  handleInput(event);
 };
 
 const onInvalid = (event: Event, messages: InvalidMessageMap) => {
@@ -102,6 +111,47 @@ const dismissToast = () => {
 
 const validatePhone = (value: string) => /^\d{10}$/.test(value);
 
+const isTimeSelectable = (date: string, time: string) => {
+  if (!date || !time || !ALL_SLOTS.includes(time)) return false;
+  if (date !== today) return true;
+
+  const [hourStr = '0', minuteStr = '0'] = time.split(':');
+  const slotMinutes = toMinutes(Number(hourStr), Number(minuteStr));
+  const nowTime = new Date();
+  const currentMinutes = toMinutes(nowTime.getHours(), nowTime.getMinutes());
+  return slotMinutes >= currentMinutes;
+};
+
+const availableSlots = computed(() => {
+  if (!form.value.preferredDate) {
+    return {
+      morning: MORNING_SLOTS,
+      afternoon: AFTERNOON_SLOTS,
+    };
+  }
+
+  const filterByDate = (slots: string[]) => slots.filter((slot) => isTimeSelectable(form.value.preferredDate, slot));
+
+  return {
+    morning: filterByDate(MORNING_SLOTS),
+    afternoon: filterByDate(AFTERNOON_SLOTS),
+  };
+});
+
+const hasAvailableSlots = computed(() => availableSlots.value.morning.length > 0 || availableSlots.value.afternoon.length > 0);
+
+watch(
+  () => [form.value.preferredDate, form.value.preferredTime],
+  ([date, time]) => {
+    const currentDate = date ?? '';
+    const currentTime = time ?? '';
+    if (!currentTime) return;
+    if (!isTimeSelectable(currentDate, currentTime)) {
+      form.value.preferredTime = '';
+    }
+  }
+);
+
 const handleSubmit = async () => {
   if (loading.value) return;
   success.value = null;
@@ -116,8 +166,10 @@ const handleSubmit = async () => {
     error.value = 'Số điện thoại phải gồm đúng 10 chữ số';
     return;
   }
-  if (!ALL_SLOTS.includes(form.value.preferredTime)) {
-    error.value = 'Giờ khám không hợp lệ, vui lòng chọn lại';
+  if (!isTimeSelectable(form.value.preferredDate, form.value.preferredTime)) {
+    error.value = form.value.preferredDate === today
+      ? 'Khung giờ đã trôi qua. Vui lòng chọn giờ khác hoặc ngày khác.'
+      : 'Giờ khám không hợp lệ, vui lòng chọn lại';
     return;
   }
 
@@ -190,23 +242,25 @@ const handleSubmit = async () => {
           id="phone"
           v-model="form.phone"
           type="tel"
+          inputmode="numeric"
+          maxlength="10"
           required
           pattern="\d{10}"
           class="w-full rounded-xl border border-emerald-100 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-          placeholder="0987654321"
-          @input="handleInput"
+          placeholder="Hãy nhập đúng 10 số"
+          @input="handlePhoneInput"
           @invalid="onInvalid($event, { required: 'Vui lòng nhập số điện thoại.', patternMismatch: 'Số điện thoại phải gồm đúng 10 chữ số.' })"
         />
       </div>
 
       <div class="sm:col-span-1">
-        <label class="mb-1.5 block text-sm font-semibold text-slate-700" for="email">Email</label>
+        <label class="mb-1.5 block text-sm font-semibold text-slate-700" for="email">Email (Tùy chọn)</label>
         <input
           id="email"
           v-model="form.email"
           type="email"
           class="w-full rounded-xl border border-emerald-100 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-          placeholder="you@example.com (tùy chọn)"
+          placeholder="you@example.com"
           @input="handleInput"
           @invalid="onInvalid($event, { typeMismatch: 'Email chưa đúng định dạng. Vui lòng kiểm tra lại.' })"
         />
@@ -232,11 +286,11 @@ const handleSubmit = async () => {
           id="preferredDate"
           v-model="form.preferredDate"
           type="date"
-          :min="tomorrowStr"
+          :min="today"
           required
           class="w-full rounded-xl border border-emerald-100 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
           @input="handleInput"
-          @invalid="onInvalid($event, { required: 'Vui lòng chọn ngày khám.', rangeUnderflow: 'Ngày khám phải từ ngày mai trở đi.' })"
+          @invalid="onInvalid($event, { required: 'Vui lòng chọn ngày khám.', rangeUnderflow: 'Ngày khám phải từ hôm nay trở đi.' })"
         />
       </div>
 
@@ -252,11 +306,14 @@ const handleSubmit = async () => {
           @invalid="onInvalid($event, { required: 'Vui lòng chọn giờ khám.' })"
         >
           <option disabled value="">Chọn giờ khám</option>
-          <optgroup label="Buổi sáng">
-            <option v-for="t in MORNING_SLOTS" :key="t" :value="t">{{ t }}</option>
+          <option v-if="form.preferredDate === today && !hasAvailableSlots" disabled value="__no-slots">
+            Không còn khung giờ phù hợp trong hôm nay
+          </option>
+          <optgroup v-if="availableSlots.morning.length" label="Buổi sáng">
+            <option v-for="t in availableSlots.morning" :key="`morning-${t}`" :value="t">{{ t }}</option>
           </optgroup>
-          <optgroup label="Buổi chiều">
-            <option v-for="t in AFTERNOON_SLOTS" :key="t" :value="t">{{ t }}</option>
+          <optgroup v-if="availableSlots.afternoon.length" label="Buổi chiều">
+            <option v-for="t in availableSlots.afternoon" :key="`afternoon-${t}`" :value="t">{{ t }}</option>
           </optgroup>
         </select>
       </div>
