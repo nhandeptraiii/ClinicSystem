@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import AdminHeader from '@/components/AdminHeader.vue';
 import { useAuthStore } from '@/stores/authStore';
@@ -7,6 +7,7 @@ import { useToast, type ToastType } from '@/composables/useToast';
 import { fetchAppointmentPage, type AppointmentDetail } from '@/services/appointment.service';
 import { fetchAppointmentRequests } from '@/services/appointmentRequest.service';
 import { fetchBillingPage, type Billing } from '@/services/billing.service';
+import { fetchBookingFunnel, type BookingFunnel } from '@/services/analytics.service';
 
 type ToastVisual = {
   title: string;
@@ -71,6 +72,7 @@ const error = ref<string | null>(null);
 const appointments = ref<AppointmentDetail[]>([]);
 const billings = ref<Billing[]>([]);
 const pendingRequests = ref<number>(0);
+const bookingFunnel = ref<BookingFunnel | null>(null);
 
 const inRange = (iso?: string | null) => {
   if (!iso) return false;
@@ -154,14 +156,16 @@ const loadAnalytics = async () => {
   loading.value = true;
   error.value = null;
   try {
-    const [apptPage, pendingList, billingPage] = await Promise.all([
+    const [apptPage, pendingList, billingPage, funnel] = await Promise.all([
       fetchAppointmentPage({ page: 0, size: 500 }),
       fetchAppointmentRequests({ status: 'PENDING' }),
       fetchBillingPage({ page: 0, size: 500, status: 'PAID' }),
+      fetchBookingFunnel(selectedMonth.value),
     ]);
     appointments.value = Array.isArray(apptPage.items) ? apptPage.items : [];
     pendingRequests.value = Array.isArray(pendingList) ? pendingList.length : 0;
     billings.value = Array.isArray(billingPage.items) ? billingPage.items : [];
+    bookingFunnel.value = funnel;
   } catch (err: any) {
     const message = err?.response?.data?.message || err?.message || 'Không thể tải dữ liệu thống kê.';
     error.value = message;
@@ -177,6 +181,9 @@ const handleSignOut = async () => {
 };
 
 onMounted(loadAnalytics);
+watch(selectedMonth, () => {
+  loadAnalytics();
+});
 </script>
 
 <template>
@@ -271,6 +278,71 @@ onMounted(loadAnalytics);
             </svg>
             <div class="mt-2 text-xs text-slate-500">
               Tổng: <span class="font-semibold text-emerald-700">{{ formatCurrency(totalRevenue) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-5 rounded-[28px] border border-emerald-100 bg-white/95 p-6">
+          <div class="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.4em] text-emerald-500">Funnel</p>
+              <h3 class="text-lg font-semibold text-slate-900">Hành trình đặt lịch</h3>
+              <p class="text-xs text-slate-500">Yêu cầu → tạo lịch → khám → hủy</p>
+            </div>
+            <div class="text-xs text-slate-500">
+              Dữ liệu tháng <span class="font-semibold text-slate-800">{{ monthRange.startIso.slice(0, 7) }}</span>
+            </div>
+          </div>
+          <div class="mt-5 grid gap-4 md:grid-cols-4">
+            <div
+              v-for="step in [
+                { label: 'Yêu cầu', value: bookingFunnel?.requestsTotal ?? 0 },
+                { label: 'Đã duyệt', value: bookingFunnel?.requestsApproved ?? 0 },
+                { label: 'Lịch tạo', value: bookingFunnel?.appointmentsCreated ?? 0 },
+                { label: 'Hoàn thành', value: bookingFunnel?.appointmentsCompleted ?? 0 }
+              ]"
+              :key="step.label"
+              class="flex flex-col gap-2 rounded-2xl border border-slate-100 bg-slate-50/70 p-4"
+            >
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ step.label }}</p>
+              <p class="text-2xl font-semibold text-slate-900">{{ step.value }}</p>
+            </div>
+          </div>
+          <div class="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50/80 p-4">
+            <div class="flex flex-wrap items-center gap-6 text-sm text-emerald-800">
+              <div>
+                <p class="text-xs uppercase tracking-wide text-emerald-600">Tỉ lệ chuyển đổi</p>
+                <p class="text-base font-semibold">
+                  {{
+                    bookingFunnel && bookingFunnel.requestsTotal
+                      ? Math.round((bookingFunnel.requestsApproved / bookingFunnel.requestsTotal) * 100)
+                      : 0
+                  }}%
+                  yêu cầu được duyệt
+                </p>
+              </div>
+              <div>
+                <p class="text-xs uppercase tracking-wide text-emerald-600">Tỉ lệ hoàn tất</p>
+                <p class="text-base font-semibold">
+                  {{
+                    bookingFunnel && bookingFunnel.appointmentsCreated
+                      ? Math.round((bookingFunnel.appointmentsCompleted / bookingFunnel.appointmentsCreated) * 100)
+                      : 0
+                  }}%
+                  lịch hoàn thành
+                </p>
+              </div>
+              <div>
+                <p class="text-xs uppercase tracking-wide text-emerald-600">Hủy / No-show</p>
+                <p class="text-base font-semibold">
+                  {{
+                    bookingFunnel && bookingFunnel.appointmentsCreated
+                      ? Math.round((bookingFunnel.appointmentsCancelled / bookingFunnel.appointmentsCreated) * 100)
+                      : 0
+                  }}%
+                  bị hủy
+                </p>
+              </div>
             </div>
           </div>
         </div>
