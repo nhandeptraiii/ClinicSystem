@@ -15,6 +15,7 @@ const route = useRoute();
 
 const navItems = [
   { to: { name: 'dashboard' }, label: 'Tổng quan' },
+  { to: { name: 'analytics' }, label: 'Thống kê' },
   { to: { name: 'appointment-requests' }, label: 'Yêu cầu' },
   { to: { name: 'patients' }, label: 'Bệnh nhân' },
   { to: { name: 'staff' }, label: 'Nhân viên' },
