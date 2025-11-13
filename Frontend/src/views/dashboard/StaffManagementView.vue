@@ -170,6 +170,13 @@ const form = reactive({
   },
 });
 
+const setSingleRole = (role?: StaffRole | null) => {
+  form.roles.splice(0, form.roles.length);
+  if (role) {
+    form.roles.push(role);
+  }
+};
+
 const isDoctorSelected = computed(() => form.roles.includes(doctorRoleName));
 const roleFilters = computed(() => ["ALL", ...supportedRoles] as RoleFilter[]);
 const roleCards = computed(() =>
@@ -377,7 +384,7 @@ const resetForm = () => {
   form.confirmPassword = "";
   form.status = "ACTIVE";
   form.avatarUrl = "";
-  form.roles.splice(0, form.roles.length);
+  setSingleRole(null);
   form.doctor.specialty = "";
   form.doctor.licenseNumber = "";
   form.doctor.biography = "";
@@ -404,11 +411,8 @@ const openEditModal = (member: StaffMember) => {
   form.confirmPassword = "";
   form.status = member.status ?? "ACTIVE";
   form.avatarUrl = member.avatarUrl ?? "";
-  form.roles.splice(
-    0,
-    form.roles.length,
-    ...(member.roles ?? []).filter((role): role is StaffRole => supportedRoles.includes(role)),
-  );
+  const nextRole = (member.roles ?? []).find((role): role is StaffRole => supportedRoles.includes(role));
+  setSingleRole(nextRole ?? null);
   form.doctor.specialty = member.doctor?.specialty ?? "";
   form.doctor.licenseNumber = member.doctor?.licenseNumber ?? "";
   form.doctor.biography = member.doctor?.biography ?? "";
@@ -527,12 +531,16 @@ const buildUpdatePayload = (): StaffUpdatePayload => {
 };
 
 const toggleRole = (role: StaffRole, checked: boolean) => {
-  const index = form.roles.indexOf(role);
-  if (checked && index === -1) {
-    form.roles.push(role);
-  } else if (!checked && index >= 0) {
-    form.roles.splice(index, 1);
+  if (checked) {
+    setSingleRole(role);
+  } else if (form.roles.includes(role)) {
+    setSingleRole(null);
   }
+};
+
+const resolveStatusClass = (status?: string | null) => {
+  const normalized = (status ?? "ACTIVE").toUpperCase();
+  return normalized === "ACTIVE" ? "text-emerald-700" : "text-rose-600";
 };
 
 const formatDate = (value?: string | Date | null) => {
@@ -825,7 +833,9 @@ onBeforeUnmount(() => {
                 </div>
                 <div class="flex items-center gap-2">
                   <span class="text-slate-400">Trạng thái:</span>
-                  <span class="font-semibold text-emerald-700">{{ member.status || 'ACTIVE' }}</span>
+                  <span class="font-semibold" :class="resolveStatusClass(member.status)">
+                    {{ member.status || 'ACTIVE' }}
+                  </span>
                 </div>
                 <div class="flex items-center gap-2">
                   <span class="text-slate-400">Tạo lúc:</span>
@@ -1118,7 +1128,7 @@ onBeforeUnmount(() => {
             <div class="mt-6 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-5">
               <p class="text-xs font-semibold uppercase tracking-wide text-emerald-600">Vai trò hệ thống</p>
               <p class="mt-1 text-sm text-emerald-700/90">
-                Chọn một hoặc nhiều vai trò cho nhân viên. Vai trò sẽ quyết định quyền truy cập trên hệ thống.
+                Chọn một vai trò duy nhất cho nhân viên. Vai trò sẽ quyết định quyền truy cập trên hệ thống.
               </p>
               <p v-if="rolesError" class="mt-2 text-xs text-rose-600">
                 {{ rolesError }}
@@ -1181,11 +1191,6 @@ onBeforeUnmount(() => {
                 </div>
               </div>
             </div>
-
-            <p v-if="modalError" class="mt-4 rounded-2xl border border-rose-100 bg-rose-50/90 px-4 py-3 text-sm text-rose-600">
-              {{ modalError }}
-            </p>
-
             <div class="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
               <button
                 type="button"
