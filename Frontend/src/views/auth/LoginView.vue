@@ -49,6 +49,49 @@ onBeforeUnmount(() => {
   }
 });
 
+const extractErrorMessage = (input: unknown): string | null => {
+  if (!input || typeof input !== "object") {
+    return null;
+  }
+  const maybeAxiosError = input as {
+    message?: string;
+    response?: { data?: { message?: unknown; error?: string } };
+  };
+  const serverMessage = maybeAxiosError.response?.data?.message;
+  if (typeof serverMessage === "string" && serverMessage.trim()) {
+    return serverMessage;
+  }
+  if (Array.isArray(serverMessage) && serverMessage.length > 0) {
+    const first = serverMessage[0];
+    if (typeof first === "string" && first.trim()) {
+      return first;
+    }
+  }
+  const errorField = maybeAxiosError.response?.data?.error;
+  if (typeof errorField === "string" && errorField.trim()) {
+    return errorField;
+  }
+  const fallbackMessage = maybeAxiosError.message;
+  if (typeof fallbackMessage === "string" && fallbackMessage.trim()) {
+    return fallbackMessage;
+  }
+  return null;
+};
+
+const extractErrorCode = (input: unknown): string | null => {
+  if (!input || typeof input !== "object") {
+    return null;
+  }
+  const maybeAxiosError = input as { response?: { data?: { error?: string } } };
+  const code = maybeAxiosError.response?.data?.error;
+  return typeof code === "string" && code.trim() ? code : null;
+};
+
+const disabledAccountMessages = new Set([
+  "Tài khoản đang tạm ngưng. Vui lòng liên hệ quản trị viên.",
+  "Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên.",
+]);
+
 const handleSubmit = async () => {
   if (authStore.loading) return;
   try {
@@ -62,7 +105,14 @@ const handleSubmit = async () => {
       router.replace(redirectPath);
     }, 1000);
   } catch (error) {
-    const message = authStore.error ?? "Đăng nhập thất bại. Kiểm tra lại tài khoản và mật khẩu.";
+    const serverMessage = extractErrorMessage(error) ?? authStore.error ?? "";
+    const errorCode = extractErrorCode(error);
+    const isDisabledAccount =
+      errorCode === "DisabledAccount" ||
+      (serverMessage && disabledAccountMessages.has(serverMessage));
+    const message = isDisabledAccount
+      ? (serverMessage || "Tài khoản đang tạm ngưng. Vui lòng liên hệ quản trị viên.")
+      : "Đăng nhập thất bại. Kiểm tra lại tài khoản và mật khẩu.";
     showToast("error", message, 4500);
   }
 };
