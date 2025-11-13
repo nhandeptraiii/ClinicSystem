@@ -3,9 +3,13 @@ import { http } from './http';
 export interface Doctor {
   id: number;
   specialty?: string;
+  licenseNumber?: string;
+  biography?: string;
   account?: {
     id: number;
     fullName?: string;
+    avatarUrl?: string;
+    gender?: string;
   };
 }
 
