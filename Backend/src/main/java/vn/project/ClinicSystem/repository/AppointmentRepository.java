@@ -1,5 +1,6 @@
 package vn.project.ClinicSystem.repository;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -9,6 +10,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+
 import vn.project.ClinicSystem.model.Appointment;
 import vn.project.ClinicSystem.model.enums.AppointmentLifecycleStatus;
 
@@ -68,4 +70,15 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
             @Param("endAt") LocalDateTime endAt,
             @Param("ignoreAppointmentId") Long ignoreAppointmentId);
 
+    long countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(Instant start, Instant endExclusive);
+
+    long countByStatusAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+            AppointmentLifecycleStatus status,
+            Instant start,
+            Instant endExclusive);
+
+    long countByRequestIsNotNullAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+            Instant start,
+            Instant endExclusive);
 }
+

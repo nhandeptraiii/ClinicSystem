@@ -1,5 +1,6 @@
 package vn.project.ClinicSystem.repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -51,4 +52,11 @@ public interface AppointmentRequestRepository extends JpaRepository<AppointmentR
                         @Param("keyword") String keyword,
                         @Param("status") AppointmentLifecycleStatus status,
                         Pageable pageable);
+
+        long countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(Instant start, Instant endExclusive);
+
+        long countByStatusAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+                        AppointmentLifecycleStatus status,
+                        Instant start,
+                        Instant endExclusive);
 }
