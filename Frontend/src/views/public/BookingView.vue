@@ -1,8 +1,58 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import PublicHeader from '@/components/PublicHeader.vue';
 import AppointmentRequestForm from '@/components/AppointmentRequestForm.vue';
 import PublicFooter from '@/components/PublicFooter.vue';
 import bookingHeroImage from '@/assets/DatLich/DatLich.png';
+import { useToast, type ToastType } from '@/composables/useToast';
+
+type ToastVisual = {
+  title: string;
+  container: string;
+  icon: string;
+  iconType: 'success' | 'error' | 'warning' | 'info';
+};
+
+type ToastPayload = {
+  type: ToastType;
+  message: string;
+};
+
+const { toast, show: showToast, hide: hideToast } = useToast();
+
+const toastVisualMap: Record<ToastType, ToastVisual> = {
+  success: {
+    title: 'Thành công',
+    container: 'border-emerald-200 bg-emerald-50/95 text-emerald-800',
+    icon: 'bg-emerald-100 text-emerald-600',
+    iconType: 'success',
+  },
+  error: {
+    title: 'Có lỗi xảy ra',
+    container: 'border-rose-200 bg-rose-50/95 text-rose-700',
+    icon: 'bg-rose-100 text-rose-600',
+    iconType: 'error',
+  },
+  info: {
+    title: 'Thông báo',
+    container: 'border-sky-200 bg-sky-50/95 text-sky-700',
+    icon: 'bg-sky-100 text-sky-600',
+    iconType: 'info',
+  },
+  warning: {
+    title: 'Cảnh báo',
+    container: 'border-amber-200 bg-amber-50/95 text-amber-700',
+    icon: 'bg-amber-100 text-amber-600',
+    iconType: 'warning',
+  },
+};
+
+const toastVisuals = computed(() => toastVisualMap[toast.value?.type ?? 'info']);
+const dismissToast = () => hideToast();
+
+const handleFormToast = ({ type, message }: ToastPayload) => {
+  showToast(type, message);
+};
 </script>
 
 <template>
@@ -95,7 +145,7 @@ import bookingHeroImage from '@/assets/DatLich/DatLich.png';
               </div>
             </div>
 
-            <AppointmentRequestForm @submitted="() => {}" />
+            <AppointmentRequestForm @notify="handleFormToast" />
           </div>
         </div>
       </section>
@@ -137,4 +187,87 @@ import bookingHeroImage from '@/assets/DatLich/DatLich.png';
     </main>
     <PublicFooter />
   </div>
+
+  <Teleport to="body">
+    <Transition
+      enter-active-class="transition duration-200"
+      enter-from-class="translate-y-2 opacity-0"
+      enter-to-class="translate-y-0 opacity-100"
+      leave-active-class="transition duration-200"
+      leave-from-class="translate-y-0 opacity-100"
+      leave-to-class="translate-y-2 opacity-0"
+    >
+      <div
+        v-if="toast"
+        class="fixed top-6 right-6 z-[90] w-[min(320px,90vw)] rounded-2xl border px-5 py-4 shadow-xl backdrop-blur"
+        :class="toastVisuals.container"
+      >
+        <div class="flex items-start gap-3">
+          <span
+            class="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full"
+            :class="toastVisuals.icon"
+          >
+            <svg
+              v-if="toastVisuals.iconType === 'success'"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              class="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7" />
+            </svg>
+            <svg
+              v-else-if="toastVisuals.iconType === 'error'"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              class="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+            <svg
+              v-else-if="toastVisuals.iconType === 'warning'"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              class="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+            </svg>
+            <svg
+              v-else
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              class="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z" />
+            </svg>
+          </span>
+          <div class="flex-1">
+            <p class="text-sm font-semibold">{{ toastVisuals.title }}</p>
+            <p class="mt-1 text-sm leading-relaxed">{{ toast.message }}</p>
+          </div>
+          <button
+            type="button"
+            class="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-white/70 text-slate-500 transition hover:bg-white hover:text-slate-700"
+            @click="dismissToast"
+            aria-label="Đóng thông báo"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m16 8-8 8m0-8 8 8" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>

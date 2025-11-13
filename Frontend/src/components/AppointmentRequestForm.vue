@@ -1,9 +1,17 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { createAppointmentRequest, type AppointmentRequestPayload } from '@/services/appointmentRequest.service';
-import { useToast } from '@/composables/useToast';
+import type { ToastType } from '@/composables/useToast';
 
-const emitting = defineEmits<{ (e: 'submitted'): void }>();
+type ToastPayload = {
+  type: ToastType;
+  message: string;
+};
+
+const emitting = defineEmits<{
+  (e: 'submitted'): void;
+  (e: 'notify', payload: ToastPayload): void;
+}>();
 
 const now = new Date();
 const form = ref({
@@ -17,9 +25,6 @@ const form = ref({
 });
 
 const loading = ref(false);
-const success = ref<string | null>(null);
-const error = ref<string | null>(null);
-const { toast, show: showToast, hide: hideToast } = useToast();
 
 type InvalidMessageMap = Partial<{
   required: string;
@@ -47,14 +52,44 @@ const MORNING_SLOTS = makeSlots(toMinutes(7, 30), toMinutes(10, 30));
 const AFTERNOON_SLOTS = makeSlots(toMinutes(13, 0), toMinutes(17, 0));
 const ALL_SLOTS = [...MORNING_SLOTS, ...AFTERNOON_SLOTS];
 
+type FieldKey = 'fullName' | 'phone' | 'email' | 'dateOfBirth' | 'preferredDate' | 'preferredTime' | 'symptomDescription';
+
 const preferredAtISO = computed(() => {
   if (!form.value.preferredDate || !form.value.preferredTime) return '';
   return `${form.value.preferredDate}T${form.value.preferredTime}:00`;
 });
 
-const handleInput = (event: Event) => {
+const invalidFields = ref<Set<FieldKey>>(new Set());
+
+const updateInvalidFields = (updater: (current: Set<FieldKey>) => Set<FieldKey>) => {
+  invalidFields.value = updater(new Set(invalidFields.value));
+};
+
+const markInvalid = (field: FieldKey) => {
+  updateInvalidFields((current) => {
+    current.add(field);
+    return current;
+  });
+};
+
+const clearInvalid = (field: FieldKey) => {
+  if (!invalidFields.value.has(field)) return;
+  updateInvalidFields((current) => {
+    current.delete(field);
+    return current;
+  });
+};
+
+const isFieldInvalid = (field: FieldKey) => invalidFields.value.has(field);
+
+const resetInvalidFields = () => {
+  invalidFields.value = new Set();
+};
+
+const handleInput = (field: FieldKey, event: Event) => {
   const target = event.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
   target.setCustomValidity('');
+  clearInvalid(field);
 };
 
 const sanitizePhoneValue = (value: string) => value.replace(/\D/g, '').slice(0, 10);
@@ -66,47 +101,38 @@ const handlePhoneInput = (event: Event) => {
     target.value = sanitized;
   }
   form.value.phone = sanitized;
-  handleInput(event);
+  handleInput('phone', event);
 };
 
-const onInvalid = (event: Event, messages: InvalidMessageMap) => {
+const onInvalid = (field: FieldKey, event: Event, messages: InvalidMessageMap) => {
   const target = event.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+  event.preventDefault();
   target.setCustomValidity('');
   const { validity } = target;
 
+  let toastMessage = '';
   if (validity.valueMissing && messages.required) {
-    target.setCustomValidity(messages.required);
-    return;
+    toastMessage = messages.required;
   }
-  if (validity.patternMismatch && messages.patternMismatch) {
-    target.setCustomValidity(messages.patternMismatch);
-    return;
+  if (!toastMessage && validity.patternMismatch && messages.patternMismatch) {
+    toastMessage = messages.patternMismatch;
   }
-  if (validity.typeMismatch && messages.typeMismatch) {
-    target.setCustomValidity(messages.typeMismatch);
-    return;
+  if (!toastMessage && validity.typeMismatch && messages.typeMismatch) {
+    toastMessage = messages.typeMismatch;
   }
-  if (validity.rangeUnderflow && messages.rangeUnderflow) {
-    target.setCustomValidity(messages.rangeUnderflow);
-    return;
+  if (!toastMessage && validity.rangeUnderflow && messages.rangeUnderflow) {
+    toastMessage = messages.rangeUnderflow;
   }
-  if (validity.rangeOverflow && messages.rangeOverflow) {
-    target.setCustomValidity(messages.rangeOverflow);
+  if (!toastMessage && validity.rangeOverflow && messages.rangeOverflow) {
+    toastMessage = messages.rangeOverflow;
   }
+
+  markInvalid(field);
+  emitToast('error', toastMessage || 'Thông tin chưa hợp lệ, vui lòng kiểm tra lại.');
 };
 
-watch([success, error], ([successMessage, errorMessage]) => {
-  if (successMessage) {
-    showToast('success', successMessage);
-    success.value = null;
-  } else if (errorMessage) {
-    showToast('error', errorMessage);
-    error.value = null;
-  }
-});
-
-const dismissToast = () => {
-  hideToast();
+const emitToast = (type: ToastType, message: string) => {
+  emitting('notify', { type, message });
 };
 
 const validatePhone = (value: string) => /^\d{10}$/.test(value);
@@ -154,22 +180,35 @@ watch(
 
 const handleSubmit = async () => {
   if (loading.value) return;
-  success.value = null;
-  error.value = null;
+  resetInvalidFields();
 
   // Required checks
-  if (!form.value.fullName || !form.value.phone || !form.value.dateOfBirth || !form.value.preferredDate || !form.value.preferredTime || !form.value.symptomDescription) {
-    error.value = 'Vui lòng nhập đầy đủ thông tin bắt buộc';
+  const missingFields: FieldKey[] = [];
+  if (!form.value.fullName) missingFields.push('fullName');
+  if (!form.value.phone) missingFields.push('phone');
+  if (!form.value.dateOfBirth) missingFields.push('dateOfBirth');
+  if (!form.value.preferredDate) missingFields.push('preferredDate');
+  if (!form.value.preferredTime) missingFields.push('preferredTime');
+  if (!form.value.symptomDescription) missingFields.push('symptomDescription');
+
+  if (missingFields.length > 0) {
+    missingFields.forEach(markInvalid);
+    emitToast('error', 'Vui lòng nhập đầy đủ thông tin bắt buộc');
     return;
   }
   if (!validatePhone(form.value.phone)) {
-    error.value = 'Số điện thoại phải gồm đúng 10 chữ số';
+    markInvalid('phone');
+    emitToast('error', 'Số điện thoại phải gồm đúng 10 chữ số');
     return;
   }
   if (!isTimeSelectable(form.value.preferredDate, form.value.preferredTime)) {
-    error.value = form.value.preferredDate === today
+    markInvalid('preferredTime');
+    emitToast(
+      'error',
+      form.value.preferredDate === today
       ? 'Khung giờ đã trôi qua. Vui lòng chọn giờ khác hoặc ngày khác.'
-      : 'Giờ khám không hợp lệ, vui lòng chọn lại';
+      : 'Giờ khám không hợp lệ, vui lòng chọn lại',
+    );
     return;
   }
 
@@ -185,7 +224,7 @@ const handleSubmit = async () => {
   try {
     loading.value = true;
     await createAppointmentRequest(payload);
-    success.value = 'Gửi yêu cầu đặt lịch thành công! Chúng tôi sẽ liên hệ sớm.';
+    emitToast('success', 'Gửi yêu cầu đặt lịch thành công! Chúng tôi sẽ liên hệ sớm.');
     emitting('submitted');
     
     // Reset toàn bộ form
@@ -198,13 +237,14 @@ const handleSubmit = async () => {
       preferredTime: '',
       symptomDescription: '',
     };
+    resetInvalidFields();
     
     // Reload trang sau 1.5 giây để người dùng thấy thông báo
     setTimeout(() => {
       window.location.reload();
     }, 1500);
   } catch (e: any) {
-    error.value = e?.response?.data?.message || 'Gửi yêu cầu thất bại. Vui lòng thử lại.';
+    emitToast('error', e?.response?.data?.message || 'Gửi yêu cầu thất bại. Vui lòng thử lại.');
   } finally {
     loading.value = false;
   }
@@ -230,9 +270,10 @@ const handleSubmit = async () => {
           type="text"
           required
           class="w-full rounded-xl border border-emerald-100 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+          :class="isFieldInvalid('fullName') ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100/80 shake-input' : ''"
           placeholder="Nguyễn Văn A"
-          @input="handleInput"
-          @invalid="onInvalid($event, { required: 'Vui lòng nhập họ và tên.' })"
+          @input="handleInput('fullName', $event)"
+          @invalid="onInvalid('fullName', $event, { required: 'Vui lòng nhập họ và tên.' })"
         />
       </div>
 
@@ -247,9 +288,10 @@ const handleSubmit = async () => {
           required
           pattern="\d{10}"
           class="w-full rounded-xl border border-emerald-100 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+          :class="isFieldInvalid('phone') ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100/80 shake-input' : ''"
           placeholder="Hãy nhập đúng 10 số"
           @input="handlePhoneInput"
-          @invalid="onInvalid($event, { required: 'Vui lòng nhập số điện thoại.', patternMismatch: 'Số điện thoại phải gồm đúng 10 chữ số.' })"
+          @invalid="onInvalid('phone', $event, { required: 'Vui lòng nhập số điện thoại.', patternMismatch: 'Số điện thoại phải gồm đúng 10 chữ số.' })"
         />
       </div>
 
@@ -260,9 +302,10 @@ const handleSubmit = async () => {
           v-model="form.email"
           type="email"
           class="w-full rounded-xl border border-emerald-100 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+          :class="isFieldInvalid('email') ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100/80 shake-input' : ''"
           placeholder="you@example.com"
-          @input="handleInput"
-          @invalid="onInvalid($event, { typeMismatch: 'Email chưa đúng định dạng. Vui lòng kiểm tra lại.' })"
+          @input="handleInput('email', $event)"
+          @invalid="onInvalid('email', $event, { typeMismatch: 'Email chưa đúng định dạng. Vui lòng kiểm tra lại.' })"
         />
       </div>
 
@@ -275,8 +318,9 @@ const handleSubmit = async () => {
           :max="today"
           required
           class="w-full rounded-xl border border-emerald-100 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-          @input="handleInput"
-          @invalid="onInvalid($event, { required: 'Vui lòng chọn ngày sinh.', rangeOverflow: 'Ngày sinh không được muộn hơn hôm nay.' })"
+          :class="isFieldInvalid('dateOfBirth') ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100/80 shake-input' : ''"
+          @input="handleInput('dateOfBirth', $event)"
+          @invalid="onInvalid('dateOfBirth', $event, { required: 'Vui lòng chọn ngày sinh.', rangeOverflow: 'Ngày sinh không được muộn hơn hôm nay.' })"
         />
       </div>
 
@@ -289,8 +333,9 @@ const handleSubmit = async () => {
           :min="today"
           required
           class="w-full rounded-xl border border-emerald-100 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-          @input="handleInput"
-          @invalid="onInvalid($event, { required: 'Vui lòng chọn ngày khám.', rangeUnderflow: 'Ngày khám phải từ hôm nay trở đi.' })"
+          :class="isFieldInvalid('preferredDate') ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100/80 shake-input' : ''"
+          @input="handleInput('preferredDate', $event)"
+          @invalid="onInvalid('preferredDate', $event, { required: 'Vui lòng chọn ngày khám.', rangeUnderflow: 'Ngày khám phải từ hôm nay trở đi.' })"
         />
       </div>
 
@@ -301,9 +346,10 @@ const handleSubmit = async () => {
           v-model="form.preferredTime"
           required
           class="w-full rounded-xl border border-emerald-100 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-          @input="handleInput"
-          @change="handleInput"
-          @invalid="onInvalid($event, { required: 'Vui lòng chọn giờ khám.' })"
+          :class="isFieldInvalid('preferredTime') ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100/80 shake-input' : ''"
+          @input="handleInput('preferredTime', $event)"
+          @change="handleInput('preferredTime', $event)"
+          @invalid="onInvalid('preferredTime', $event, { required: 'Vui lòng chọn giờ khám.' })"
         >
           <option disabled value="">Chọn giờ khám</option>
           <option v-if="form.preferredDate === today && !hasAvailableSlots" disabled value="__no-slots">
@@ -327,9 +373,10 @@ const handleSubmit = async () => {
           required
           maxlength="1000"
           class="w-full rounded-xl border border-emerald-100 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+          :class="isFieldInvalid('symptomDescription') ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100/80 shake-input' : ''"
           placeholder="Ví dụ: ho, sốt, đau họng trong 3 ngày..."
-          @input="handleInput"
-          @invalid="onInvalid($event, { required: 'Vui lòng mô tả triệu chứng hoặc nhu cầu khám.' })"
+          @input="handleInput('symptomDescription', $event)"
+          @invalid="onInvalid('symptomDescription', $event, { required: 'Vui lòng mô tả triệu chứng hoặc nhu cầu khám.' })"
         />
       </div>
 
@@ -346,48 +393,28 @@ const handleSubmit = async () => {
     </form>
   </div>
 
-  <Teleport to="body">
-    <Transition
-      enter-active-class="transition duration-200"
-      enter-from-class="translate-y-2 opacity-0"
-      enter-to-class="translate-y-0 opacity-100"
-      leave-active-class="transition duration-200"
-      leave-from-class="translate-y-0 opacity-100"
-      leave-to-class="translate-y-2 opacity-0"
-    >
-      <div
-        v-if="toast"
-        class="fixed top-6 right-6 z-[60] w-[min(320px,90vw)] rounded-2xl border px-5 py-4 shadow-xl backdrop-blur"
-        :class="toast.type === 'success' ? 'border-emerald-200 bg-emerald-50/95 text-emerald-800' : 'border-rose-200 bg-rose-50/95 text-rose-700'"
-      >
-        <div class="flex items-start gap-3">
-          <span
-            class="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full"
-            :class="toast.type === 'success' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'"
-          >
-            <svg v-if="toast.type === 'success'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7" />
-            </svg>
-            <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="m15 9-6 6m0-6 6 6" />
-            </svg>
-          </span>
-          <div class="flex-1">
-            <p class="text-sm font-semibold">{{ toast.type === 'success' ? 'Gửi yêu cầu thành công' : 'Không thể gửi yêu cầu' }}</p>
-            <p class="mt-1 text-sm leading-relaxed">{{ toast.message }}</p>
-          </div>
-          <button
-            type="button"
-            class="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-white/70 text-slate-500 transition hover:bg-white hover:text-slate-700"
-            @click="dismissToast"
-            aria-label="Đóng thông báo"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="m16 8-8 8m0-8 8 8" />
-            </svg>
-          </button>
-        </div>
-      </div>
-    </Transition>
-  </Teleport>
 </template>
+
+<style scoped>
+@keyframes input-shake {
+  0% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-3px);
+  }
+  50% {
+    transform: translateX(3px);
+  }
+  75% {
+    transform: translateX(-2px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+.shake-input {
+  animation: input-shake 0.25s ease-in-out;
+}
+</style>
