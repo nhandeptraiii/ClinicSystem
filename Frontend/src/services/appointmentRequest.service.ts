@@ -19,6 +19,7 @@ export interface AppointmentRequestPayload {
   dateOfBirth?: string; // ISO date string YYYY-MM-DD
   preferredAt?: string; // ISO datetime string YYYY-MM-DDTHH:mm:ss
   symptomDescription?: string;
+  recaptchaToken?: string;
 }
 
 export interface AppointmentRequest {

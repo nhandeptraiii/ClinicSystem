@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import vn.project.ClinicSystem.model.AppointmentRequest;
 import vn.project.ClinicSystem.model.dto.AppointmentRequestApproveRequest;
@@ -22,6 +23,7 @@ import vn.project.ClinicSystem.model.dto.AppointmentRequestPageResponse;
 import vn.project.ClinicSystem.model.dto.AppointmentRequestRejectRequest;
 import vn.project.ClinicSystem.model.enums.AppointmentLifecycleStatus;
 import vn.project.ClinicSystem.service.AppointmentRequestService;
+import vn.project.ClinicSystem.service.RecaptchaService;
 import vn.project.ClinicSystem.util.SecurityUtil;
 
 @RestController
@@ -29,14 +31,20 @@ import vn.project.ClinicSystem.util.SecurityUtil;
 public class AppointmentRequestController {
 
     private final AppointmentRequestService appointmentRequestService;
+    private final RecaptchaService recaptchaService;
 
-    public AppointmentRequestController(AppointmentRequestService appointmentRequestService) {
+    public AppointmentRequestController(AppointmentRequestService appointmentRequestService,
+            RecaptchaService recaptchaService) {
         this.appointmentRequestService = appointmentRequestService;
+        this.recaptchaService = recaptchaService;
     }
 
     @PostMapping
     public ResponseEntity<AppointmentRequest> createAppointmentRequest(
-            @Valid @RequestBody AppointmentRequestCreateRequest request) {
+            @Valid @RequestBody AppointmentRequestCreateRequest request,
+            HttpServletRequest httpServletRequest) {
+        recaptchaService.validateToken(request.getRecaptchaToken(),
+                httpServletRequest != null ? httpServletRequest.getRemoteAddr() : null);
         AppointmentRequest created = appointmentRequestService.create(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }

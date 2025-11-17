@@ -3,10 +3,12 @@ package vn.project.ClinicSystem.model.dto;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.PastOrPresent;
 import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
@@ -32,4 +34,8 @@ public class AppointmentRequestCreateRequest {
 
     @Size(max = 1000)
     private String symptomDescription;
+
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+    @Size(max = 2048)
+    private String recaptchaToken;
 }

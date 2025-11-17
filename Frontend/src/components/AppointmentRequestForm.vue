@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { createAppointmentRequest, type AppointmentRequestPayload } from '@/services/appointmentRequest.service';
 import type { ToastType } from '@/composables/useToast';
 
@@ -25,6 +25,13 @@ const form = ref({
 });
 
 const loading = ref(false);
+const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY ?? '';
+const recaptchaToken = ref('');
+const recaptchaWidgetId = ref<number | null>(null);
+const recaptchaContainerRef = ref<HTMLDivElement | null>(null);
+const recaptchaLoading = ref(false);
+const recaptchaFailed = ref(false);
+let recaptchaScriptPromise: Promise<void> | null = null;
 
 type InvalidMessageMap = Partial<{
   required: string;
@@ -166,6 +173,73 @@ const availableSlots = computed(() => {
 
 const hasAvailableSlots = computed(() => availableSlots.value.morning.length > 0 || availableSlots.value.afternoon.length > 0);
 
+const ensureRecaptchaScript = () => {
+  if (!recaptchaSiteKey || typeof window === 'undefined') {
+    return Promise.resolve();
+  }
+  if ((window as any).grecaptcha) {
+    return Promise.resolve();
+  }
+  if (!recaptchaScriptPromise) {
+    recaptchaScriptPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.id = 'google-recaptcha-script';
+      script.src = 'https://www.google.com/recaptcha/api.js?render=explicit';
+      script.async = true;
+      script.defer = true;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('Không thể tải reCAPTCHA.'));
+      document.head.appendChild(script);
+    });
+  }
+  return recaptchaScriptPromise;
+};
+
+const resetRecaptcha = () => {
+  const grecaptcha = (window as any)?.grecaptcha;
+  if (recaptchaWidgetId.value !== null && grecaptcha) {
+    grecaptcha.reset(recaptchaWidgetId.value);
+  }
+  recaptchaToken.value = '';
+};
+
+const initRecaptcha = async () => {
+  if (!recaptchaSiteKey || typeof window === 'undefined') {
+    return;
+  }
+  try {
+    await ensureRecaptchaScript();
+  } catch (error) {
+    recaptchaFailed.value = true;
+    emitToast('error', 'Không thể tải reCAPTCHA. Vui lòng thử lại sau.');
+    return;
+  }
+  const grecaptcha = (window as any)?.grecaptcha;
+  if (!grecaptcha || !recaptchaContainerRef.value) {
+    recaptchaFailed.value = true;
+    return;
+  }
+  grecaptcha.ready(() => {
+    recaptchaFailed.value = false;
+    if (!recaptchaContainerRef.value) {
+      return;
+    }
+    recaptchaWidgetId.value = grecaptcha.render(recaptchaContainerRef.value, {
+      sitekey: recaptchaSiteKey,
+      callback: (token: string) => {
+        recaptchaToken.value = token;
+      },
+      'expired-callback': () => {
+        recaptchaToken.value = '';
+      },
+      'error-callback': () => {
+        recaptchaToken.value = '';
+        recaptchaFailed.value = true;
+      },
+    });
+  });
+};
+
 watch(
   () => [form.value.preferredDate, form.value.preferredTime],
   ([date, time]) => {
@@ -177,6 +251,17 @@ watch(
     }
   }
 );
+
+onMounted(async () => {
+  if (!recaptchaSiteKey) return;
+  recaptchaLoading.value = true;
+  await initRecaptcha();
+  recaptchaLoading.value = false;
+});
+
+onBeforeUnmount(() => {
+  resetRecaptcha();
+});
 
 const handleSubmit = async () => {
   if (loading.value) return;
@@ -201,6 +286,10 @@ const handleSubmit = async () => {
     emitToast('error', 'Số điện thoại phải gồm đúng 10 chữ số');
     return;
   }
+  if (recaptchaSiteKey && !recaptchaToken.value) {
+    emitToast('error', 'Vui lòng xác minh bạn không phải robot.');
+    return;
+  }
   if (!isTimeSelectable(form.value.preferredDate, form.value.preferredTime)) {
     markInvalid('preferredTime');
     emitToast(
@@ -219,6 +308,7 @@ const handleSubmit = async () => {
     dateOfBirth: form.value.dateOfBirth,
     preferredAt: preferredAtISO.value,
     symptomDescription: form.value.symptomDescription.trim(),
+    recaptchaToken: recaptchaToken.value || undefined,
   };
 
   try {
@@ -238,6 +328,7 @@ const handleSubmit = async () => {
       symptomDescription: '',
     };
     resetInvalidFields();
+    resetRecaptcha();
     
     // Reload trang sau 1.5 giây để người dùng thấy thông báo
     setTimeout(() => {
@@ -378,6 +469,19 @@ const handleSubmit = async () => {
           @input="handleInput('symptomDescription', $event)"
           @invalid="onInvalid('symptomDescription', $event, { required: 'Vui lòng mô tả triệu chứng hoặc nhu cầu khám.' })"
         />
+      </div>
+
+      <div v-if="recaptchaSiteKey" class="sm:col-span-2">
+        <label class="mb-1.5 block text-sm font-semibold text-slate-700">Xác minh bảo mật</label>
+        <div
+          ref="recaptchaContainerRef"
+          class="rounded-xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-sm text-slate-600"
+        >
+          <p v-if="recaptchaLoading">Đang tải reCAPTCHA...</p>
+          <p v-else-if="recaptchaFailed" class="text-rose-600">
+            Không thể tải reCAPTCHA. Vui lòng tải lại trang hoặc thử lại sau.
+          </p>
+        </div>
       </div>
 
       <div class="sm:col-span-2 flex flex-wrap items-center justify-center gap-4">
