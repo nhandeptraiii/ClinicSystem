@@ -29,6 +29,7 @@ const router = createRouter({
     { path: '/about', name: 'about', component: () => import('@/views/public/AboutView.vue'), meta: { public: true } },
     { path: '/specialties', name: 'specialties', component: () => import('@/views/public/SpecialtiesView.vue'), meta: { public: true } },
     { path: '/booking', name: 'booking', component: () => import('@/views/public/BookingView.vue'), meta: { public: true } },
+    { path: '/diagnosis', name: 'diagnosis', component: () => import('@/views/public/DiagnosisView.vue'), meta: { public: true } },
     {
       path: '/dashboard',
       name: 'dashboard',
