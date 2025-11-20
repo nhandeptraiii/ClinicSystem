@@ -48,6 +48,10 @@ const onLogoClick = () => {
           :to="{ name: 'booking' }"
           :class="isActive('booking') ? 'text-emerald-700' : 'text-slate-600 hover:text-emerald-700'"
         >ĐẶT LỊCH</RouterLink>
+        <RouterLink
+          :to="{ name: 'diagnosis' }"
+          :class="isActive('diagnosis') ? 'text-emerald-700' : 'text-slate-600 hover:text-emerald-700'"
+        >TƯ VẤN TRIỆU CHỨNG</RouterLink>
       </nav>
 
       <!-- Hotline + Auth quick links -->
