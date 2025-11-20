@@ -66,6 +66,7 @@ public class SecurityConfiguration {
                         authz -> authz
                                 .requestMatchers("/", "/login").permitAll()
                                 .requestMatchers("/appointment-requests", "/appointment-requests/**").permitAll()
+                                .requestMatchers("/api/diagnosis/**").permitAll()
                                 .requestMatchers(HttpMethod.GET, "/doctors", "/doctors/**").permitAll()
                                 .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
                                 .anyRequest().authenticated())
