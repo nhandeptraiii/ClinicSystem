@@ -8,3 +8,11 @@ Frontend/dist/
 *.iml
 *.log
 uploads/
+ai-diagnosis-service/__pycache__/
+ai-diagnosis-service/.venv/
+ai-diagnosis-service/data/
+ai-diagnosis-service/label_encoder.pkl/
+ai-diagnosis-service/feature_names.pkl/
+ai-diagnosis-service/diagnosis_model.pkl/
+ai-diagnosis-service/requirements.txt/
+

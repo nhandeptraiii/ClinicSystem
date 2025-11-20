@@ -5,6 +5,9 @@
 		},
 		{
 			"path": "Frontend"
+		},
+		{
+			"path": "ai-diagnosis-service"
 		}
 	],
 	"settings": {
