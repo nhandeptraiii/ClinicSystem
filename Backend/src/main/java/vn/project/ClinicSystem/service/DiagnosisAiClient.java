@@ -9,6 +9,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
@@ -33,8 +34,12 @@ public class DiagnosisAiClient {
             @Value("${ai.diagnosis.url:http://localhost:8001}") String aiBaseUrl,
             ObjectMapper objectMapper) {
         this.restTemplate = restTemplateBuilder
-                .setConnectTimeout(Duration.ofSeconds(5))
-                .setReadTimeout(Duration.ofSeconds(10))
+                .requestFactory(settings -> {
+                    HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory();
+                    factory.setConnectTimeout(Duration.ofSeconds(5));
+                    factory.setReadTimeout(Duration.ofSeconds(10));
+                    return factory;
+                })
                 .build();
         this.predictUrl = buildPredictUrl(aiBaseUrl);
         this.objectMapper = objectMapper;
@@ -72,7 +77,8 @@ public class DiagnosisAiClient {
             }
             return body;
         } catch (org.springframework.web.client.HttpStatusCodeException httpEx) {
-            log.error("AI service returned status {} with body: {}", httpEx.getStatusCode(), httpEx.getResponseBodyAsString());
+            log.error("AI service returned status {} with body: {}", httpEx.getStatusCode(),
+                    httpEx.getResponseBodyAsString());
             throw new IllegalStateException(
                     "Không thể kết nối tới dịch vụ chuẩn đoán AI. Vui lòng thử lại sau.",
                     httpEx);

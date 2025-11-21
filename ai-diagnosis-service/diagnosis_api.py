@@ -7,19 +7,48 @@ recommends whether the user should schedule an appointment.
 
 from __future__ import annotations
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List
 
 import joblib
 import numpy as np
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+import json
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_PATH = BASE_DIR / "diagnosis_model.pkl"
 LABEL_ENCODER_PATH = BASE_DIR / "label_encoder.pkl"
 FEATURE_NAMES_PATH = BASE_DIR / "feature_names.pkl"
+
+logger = logging.getLogger("diagnosis_api")
+
+
+app = FastAPI(
+    title="ClinicSystem Diagnosis Assistant",
+    description=(
+        "Dịch vụ AI gợi ý bệnh dựa trên các triệu chứng dạng 0/1. "
+        "Gợi ý chỉ mang tính tham khảo, không thay thế bác sĩ chuyên môn."
+    ),
+)
+
+
+@app.middleware("http")
+async def log_raw_request(request: Request, call_next):
+    body = await request.body()
+    logger.info("Incoming %s %s headers=%s body=%s", request.method, request.url, dict(request.headers), body)
+
+    async def receive():
+        return {"type": "http.request", "body": body, "more_body": False}
+
+    request._receive = receive  # type: ignore[attr-defined]
+    response = await call_next(request)
+    return response
 
 
 def load_artifact(path: Path):
@@ -97,15 +126,6 @@ class DiagnosisResponse(BaseModel):
     predictions: List[DiseasePrediction]
 
 
-app = FastAPI(
-    title="ClinicSystem Diagnosis Assistant",
-    description=(
-        "Dịch vụ AI gợi ý bệnh dựa trên các triệu chứng dạng 0/1. "
-        "Gợi ý chỉ mang tính tham khảo, không thay thế bác sĩ chuyên môn."
-    ),
-)
-
-
 def build_feature_vector(symptoms: List[str]) -> np.ndarray:
     vector = np.zeros(len(FEATURE_NAMES), dtype=np.float32)
     for symptom in symptoms:
@@ -134,17 +154,54 @@ def should_book_visit(severity: str, probability: float) -> bool:
 
 
 @app.post("/predict", response_model=DiagnosisResponse)
-def predict(request: DiagnosisRequest) -> DiagnosisResponse:
-    if not request.symptoms:
+async def predict(request: Request) -> DiagnosisResponse:
+    body_bytes = await request.body()
+    print("RAW BODY:", body_bytes)
+    if not body_bytes:
+        raise HTTPException(
+            status_code=400,
+            detail="Payload không hợp lệ, vui lòng gửi JSON đúng định dạng.",
+        )
+    logger.info("Raw request body bytes: %s", body_bytes)
+    try:
+        raw_payload: Any = json.loads(body_bytes)
+    except Exception as exc:
+        # Thử thêm một lần với giải mã chuỗi (phòng trường hợp double-encode)
+        try:
+            raw_text = body_bytes.decode("utf-8", errors="ignore")
+            raw_payload = json.loads(raw_text)
+        except Exception:
+            raise HTTPException(
+                status_code=400,
+                detail="Payload không hợp lệ, vui lòng gửi JSON đúng định dạng.",
+            ) from exc
+
+    if isinstance(raw_payload, list):
+        # Trường hợp RestTemplate nào đó wrap payload thành mảng một phần tử
+        if len(raw_payload) == 1 and isinstance(raw_payload[0], dict):
+            raw_payload = raw_payload[0]
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Payload không hợp lệ, vui lòng gửi JSON object thay vì array.",
+            )
+
+    if isinstance(raw_payload, dict) and "topK" in raw_payload and "top_k" not in raw_payload:
+        raw_payload["top_k"] = raw_payload.pop("topK")
+
+    try:
+        diagnosis_req = DiagnosisRequest(**raw_payload)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+
+    if not diagnosis_req.symptoms:
         raise HTTPException(
             status_code=400,
             detail="Vui lòng cung cấp ít nhất một triệu chứng để hệ thống có dữ liệu phân tích.",
         )
 
-    feature_vector = build_feature_vector(request.symptoms)
+    feature_vector = build_feature_vector(diagnosis_req.symptoms)
     if not feature_vector.any():
-        # Allow predictions even if none of the provided symptoms match the training features,
-        # but notify the caller that the output may not be reliable.
         raise HTTPException(
             status_code=400,
             detail=(
@@ -158,7 +215,7 @@ def predict(request: DiagnosisRequest) -> DiagnosisResponse:
     except Exception as exc:  # pragma: no cover - defensive guard
         raise HTTPException(status_code=500, detail="Không thể chạy mô hình AI, vui lòng thử lại sau.") from exc
 
-    top_limit = min(request.top_k, len(probabilities))
+    top_limit = min(diagnosis_req.top_k, len(probabilities))
     top_indices = np.argsort(probabilities)[::-1][:top_limit]
 
     predictions: List[Dict[str, object]] = []
