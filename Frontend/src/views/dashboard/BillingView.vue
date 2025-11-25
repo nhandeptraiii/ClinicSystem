@@ -227,10 +227,16 @@ const loadBillings = async (keepSelection = false) => {
       return;
     }
 
-    if (!keepSelection || !selectedBillingId.value || !billings.value.some((item) => item.id === selectedBillingId.value)) {
-      const firstId = billings.value[0].id;
-      selectedBillingId.value = firstId;
-      await loadBillingDetail(firstId);
+    if (
+      !keepSelection ||
+      !selectedBillingId.value ||
+      !billings.value.some((item) => item.id === selectedBillingId.value)
+    ) {
+      const firstBilling = billings.value[0];
+      if (firstBilling?.id != null) {
+        selectedBillingId.value = firstBilling.id;
+        await loadBillingDetail(firstBilling.id);
+      }
     }
   } catch (error) {
     const message = extractErrorMessage(error);
@@ -307,7 +313,10 @@ const loadCompletedVisitCandidates = async (targetPage?: number) => {
       selectedVisitCandidateId.value = null;
     }
     if (!selectedVisitCandidateId.value && visitCandidates.value.length > 0) {
-      selectedVisitCandidateId.value = visitCandidates.value[0].id;
+      const firstCandidate = visitCandidates.value[0];
+      if (firstCandidate?.id != null) {
+        selectedVisitCandidateId.value = firstCandidate.id;
+      }
     }
   } catch (error) {
     const message = extractErrorMessage(error);

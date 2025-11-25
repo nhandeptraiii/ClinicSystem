@@ -101,14 +101,19 @@ export const fetchAppointmentRequests = async (params: AppointmentRequestQuery =
   return response.items;
 };
 
-export const fetchAppointmentRequestPage = async (params: AppointmentRequestQuery = {}) => {
-  const { data } = await http.get<RestResponse<AppointmentRequestPage> | AppointmentRequestPage>('/appointment-requests', { params });
-  const unwrapped = unwrap(data);
-  
+export const fetchAppointmentRequestPage = async (
+  params: AppointmentRequestQuery = {},
+): Promise<AppointmentRequestPage> => {
+  const { data } = await http.get<RestResponse<AppointmentRequestPage> | AppointmentRequestPage>(
+    '/appointment-requests',
+    { params },
+  );
+  const unwrapped = unwrap(data) as AppointmentRequestPage | AppointmentRequest[];
+
   if ('items' in unwrapped && 'totalPages' in unwrapped) {
-    return unwrapped as AppointmentRequestPage;
+    return unwrapped;
   }
-  
+
   if (Array.isArray(unwrapped)) {
     return {
       items: unwrapped,
@@ -120,7 +125,7 @@ export const fetchAppointmentRequestPage = async (params: AppointmentRequestQuer
       hasPrevious: false,
     };
   }
-  
+
   return {
     items: [],
     page: 0,

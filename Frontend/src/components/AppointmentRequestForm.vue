@@ -8,6 +8,15 @@ type ToastPayload = {
   message: string;
 };
 
+const props = withDefaults(
+  defineProps<{
+    initialSymptomDescription?: string;
+  }>(),
+  {
+    initialSymptomDescription: '',
+  }
+);
+
 const emitting = defineEmits<{
   (e: 'submitted'): void;
   (e: 'notify', payload: ToastPayload): void;
@@ -21,7 +30,7 @@ const form = ref({
   dateOfBirth: '', // YYYY-MM-DD
   preferredDate: '', // YYYY-MM-DD
   preferredTime: '', // HH:mm
-  symptomDescription: '',
+  symptomDescription: props.initialSymptomDescription ?? '',
 });
 
 const loading = ref(false);
@@ -248,6 +257,15 @@ watch(
     if (!currentTime) return;
     if (!isTimeSelectable(currentDate, currentTime)) {
       form.value.preferredTime = '';
+    }
+  }
+);
+
+watch(
+  () => props.initialSymptomDescription,
+  (val) => {
+    if (typeof val === 'string' && val !== form.value.symptomDescription) {
+      form.value.symptomDescription = val;
     }
   }
 );
