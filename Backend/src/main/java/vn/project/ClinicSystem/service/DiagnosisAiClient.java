@@ -20,6 +20,9 @@ import vn.project.ClinicSystem.model.dto.DiagnosisRequestDto;
 import vn.project.ClinicSystem.model.dto.DiagnosisResponseDto;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -27,6 +30,7 @@ public class DiagnosisAiClient {
 
     private final RestTemplate restTemplate;
     private final String predictUrl;
+    private final String symptomsUrl;
     private final ObjectMapper objectMapper;
 
     public DiagnosisAiClient(
@@ -41,12 +45,13 @@ public class DiagnosisAiClient {
                     return factory;
                 })
                 .build();
-        this.predictUrl = buildPredictUrl(aiBaseUrl);
+        this.predictUrl = buildUrl(aiBaseUrl, "/predict");
+        this.symptomsUrl = buildUrl(aiBaseUrl, "/symptoms");
         this.objectMapper = objectMapper;
-        log.info("Diagnosis AI base URL configured: {}", this.predictUrl);
+        log.info("Diagnosis AI base URL configured: {}", aiBaseUrl);
     }
 
-    private String buildPredictUrl(String rawBaseUrl) {
+    private String buildUrl(String rawBaseUrl, String path) {
         String sanitized = rawBaseUrl == null ? "" : rawBaseUrl.trim();
         if (sanitized.isEmpty()) {
             sanitized = "http://localhost:8001";
@@ -55,7 +60,7 @@ public class DiagnosisAiClient {
             sanitized = "http://" + sanitized;
         }
         return UriComponentsBuilder.fromHttpUrl(sanitized)
-                .path("/predict")
+                .path(path)
                 .toUriString();
     }
 
@@ -87,6 +92,24 @@ public class DiagnosisAiClient {
             throw new IllegalStateException(
                     "Không thể kết nối tới dịch vụ chuẩn đoán AI. Vui lòng thử lại sau.",
                     ex);
+        }
+    }
+
+    public List<String> fetchSymptoms() {
+        try {
+            ResponseEntity<String[]> response = restTemplate.getForEntity(symptomsUrl, String[].class);
+            if (response.getBody() != null) {
+                return Arrays.asList(response.getBody());
+            }
+            log.warn("AI service /symptoms trả về body rỗng.");
+            return Collections.emptyList();
+        } catch (org.springframework.web.client.HttpStatusCodeException httpEx) {
+            log.error("AI service /symptoms returned status {} with body: {}", httpEx.getStatusCode(),
+                    httpEx.getResponseBodyAsString());
+            return Collections.emptyList();
+        } catch (RestClientException ex) {
+            log.error("Cannot fetch symptoms from AI service: {}", ex.getMessage());
+            return Collections.emptyList();
         }
     }
 

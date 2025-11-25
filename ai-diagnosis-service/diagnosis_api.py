@@ -240,6 +240,15 @@ def health() -> Dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/symptoms")
+def list_symptoms() -> Dict[str, Any]:
+    try:
+        return {"items": FEATURE_NAMES, "count": len(FEATURE_NAMES)}
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.error("Cannot load feature names: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail="Không thể đọc danh sách triệu chứng từ mô hình.") from exc
+
+
 # Quick start:
 # 1. python train_diagnosis_model.py
 # 2. uvicorn diagnosis_api:app --host 0.0.0.0 --port 8001

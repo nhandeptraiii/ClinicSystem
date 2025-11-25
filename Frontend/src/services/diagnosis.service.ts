@@ -22,6 +22,8 @@ export interface DiagnosisResponse {
   predictions: DiseasePrediction[];
 }
 
+export type ModelSymptomsResponse = string[];
+
 const unwrap = <T>(payload: RestResponse<T> | T): T => {
   if (payload && typeof payload === 'object' && 'data' in (payload as RestResponse<T>)) {
     return (payload as RestResponse<T>).data;
@@ -37,6 +39,13 @@ export const analyzeSymptoms = async (payload: DiagnosisRequest) => {
   const { data } = await http.post<DiagnosisResponse | RestResponse<DiagnosisResponse>>(
     '/api/diagnosis/analyze',
     requestPayload
+  );
+  return unwrap(data);
+};
+
+export const fetchModelSymptoms = async () => {
+  const { data } = await http.get<ModelSymptomsResponse | RestResponse<ModelSymptomsResponse>>(
+    '/api/diagnosis/symptoms'
   );
   return unwrap(data);
 };

@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import PublicHeader from '@/components/PublicHeader.vue';
 import PublicFooter from '@/components/PublicFooter.vue';
-import { analyzeSymptoms, type DiagnosisResponse, type DiseasePrediction } from '@/services/diagnosis.service';
+import { analyzeSymptoms, fetchModelSymptoms, type DiagnosisResponse, type DiseasePrediction } from '@/services/diagnosis.service';
 import { symptomGroups } from '@/config/diagnosisSymptoms';
 import { diseaseDictionary } from '@/config/diseaseTranslations';
 import { useToast, type ToastType } from '@/composables/useToast';
@@ -228,6 +228,37 @@ const isGroupCollapsed = (groupId: string) => {
   if (symptomSearch.value.trim()) return false;
   return Boolean(collapsedGroups.value[groupId]);
 };
+
+onMounted(async () => {
+  try {
+    const modelSymptoms = await fetchModelSymptoms();
+    const localValues = allSymptoms.value.map((s) => s.value.toLowerCase());
+    const localSet = new Set(localValues);
+    const modelSet = new Set((modelSymptoms ?? []).map((s) => s.toLowerCase()));
+
+    const extraOnFrontend = localValues.filter((v) => !modelSet.has(v));
+    const missingOnFrontend = Array.from(modelSet).filter((v) => !localSet.has(v));
+
+    if (extraOnFrontend.length === 0 && missingOnFrontend.length === 0) {
+      console.info('[Diagnosis] Frontend symptoms are in sync with model.');
+    } else {
+      if (extraOnFrontend.length) {
+        console.error(
+          '[Diagnosis] Frontend has symptoms not supported by model (will be ignored by model):',
+          extraOnFrontend
+        );
+      }
+      if (missingOnFrontend.length) {
+        console.warn(
+          '[Diagnosis] Model supports symptoms missing on frontend (UI missing options):',
+          missingOnFrontend
+        );
+      }
+    }
+  } catch (error) {
+    console.error('[Diagnosis] Cannot validate symptom sync with AI model:', error);
+  }
+});
 </script>
 
 <template>

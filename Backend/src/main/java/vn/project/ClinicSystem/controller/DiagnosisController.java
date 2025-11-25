@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -48,6 +49,12 @@ public class DiagnosisController {
 
         DiagnosisResponseDto response = diagnosisAiClient.predict(requestDto);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/symptoms")
+    public ResponseEntity<List<String>> getSupportedSymptoms() {
+        List<String> symptoms = diagnosisAiClient.fetchSymptoms();
+        return ResponseEntity.ok(symptoms);
     }
 
     private int resolveTopK(Integer input) {
