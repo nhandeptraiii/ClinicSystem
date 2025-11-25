@@ -30,6 +30,13 @@ const unwrap = <T>(payload: RestResponse<T> | T): T => {
 };
 
 export const analyzeSymptoms = async (payload: DiagnosisRequest) => {
-  const { data } = await http.post<DiagnosisResponse | RestResponse<DiagnosisResponse>>('/api/diagnosis/analyze', payload);
+  const requestPayload: DiagnosisRequest = {
+    ...payload,
+    topK: 10,
+  };
+  const { data } = await http.post<DiagnosisResponse | RestResponse<DiagnosisResponse>>(
+    '/api/diagnosis/analyze',
+    requestPayload
+  );
   return unwrap(data);
 };

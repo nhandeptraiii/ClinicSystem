@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import PublicHeader from '@/components/PublicHeader.vue';
 import AppointmentRequestForm from '@/components/AppointmentRequestForm.vue';
 import PublicFooter from '@/components/PublicFooter.vue';
@@ -53,6 +54,16 @@ const dismissToast = () => hideToast();
 const handleFormToast = ({ type, message }: ToastPayload) => {
   showToast(type, message);
 };
+
+const route = useRoute();
+const symptomNote = ref('');
+
+onMounted(() => {
+  const noteFromDiagnosis = route.query.note;
+  if (typeof noteFromDiagnosis === 'string') {
+    symptomNote.value = noteFromDiagnosis;
+  }
+});
 </script>
 
 <template>
@@ -145,7 +156,7 @@ const handleFormToast = ({ type, message }: ToastPayload) => {
               </div>
             </div>
 
-            <AppointmentRequestForm @notify="handleFormToast" />
+            <AppointmentRequestForm :initial-symptom-description="symptomNote" @notify="handleFormToast" />
           </div>
         </div>
       </section>
