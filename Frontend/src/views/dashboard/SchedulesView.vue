@@ -291,63 +291,6 @@ const scheduleModalDescription = computed(() => {
   return 'Nhân viên này sử dụng lịch cố định 08:00 - 17:00. Vui lòng chọn phòng làm việc áp dụng và lưu để cập nhật.';
 });
 
-const selectedClinicRoomDisplay = computed(() => {
-  if (!selectedStaff.value) {
-    return '—';
-  }
-  if (!isDoctorSelected.value) {
-    return 'Mặc định theo hệ thống';
-  }
-  if (clinicRoomsLoading.value) {
-    return 'Đang tải...';
-  }
-  const meta = selectedClinicRoomMeta.value;
-  if (meta?.name) {
-    const codeSuffix = meta.code ? ` (${meta.code})` : '';
-    const floorSuffix = meta.floor ? ` · Tầng ${meta.floor}` : '';
-    return `${meta.name}${codeSuffix}${floorSuffix}`;
-  }
-  if (meta?.code) {
-    return meta.code;
-  }
-  return 'Chưa chọn';
-});
-
-const scheduleSummary = computed(() =>
-  WEEK_DAY_META.map(({ key, label, short }) => {
-    const state = scheduleState[key];
-    const hasMorning = Boolean(state?.morning);
-    const hasAfternoon = Boolean(state?.afternoon);
-    const hasAny = hasMorning || hasAfternoon;
-    const statusLabel =
-      hasMorning && hasAfternoon
-        ? 'Buổi sáng & chiều'
-        : hasMorning
-          ? SHIFT_META.morning.label
-          : hasAfternoon
-            ? SHIFT_META.afternoon.label
-            : 'Nghỉ';
-    const timeLabel =
-      hasMorning && hasAfternoon
-        ? `${SHIFT_META.morning.time} · ${SHIFT_META.afternoon.time}`
-        : hasMorning
-          ? SHIFT_META.morning.time
-          : hasAfternoon
-            ? SHIFT_META.afternoon.time
-            : 'Không có ca';
-    return {
-      key,
-      label,
-      short,
-      hasMorning,
-      hasAfternoon,
-      hasAny,
-      statusLabel,
-      timeLabel,
-    };
-  }),
-);
-
 interface WorkScheduleEntry {
   loading: boolean;
   error: string | null;
@@ -510,23 +453,6 @@ const getStaffInitial = (member?: StaffMember | null) => {
   if (name) return name.charAt(0).toUpperCase();
   return member?.email?.charAt(0).toUpperCase() ?? 'NV';
 };
-
-const selectedClinicRoomMeta = computed(() => {
-  if (selectedClinicRoomId.value != null) {
-    const found = clinicRooms.value.find((room) => room.id === selectedClinicRoomId.value);
-    if (found) {
-      return { name: found.name, code: found.code, floor: found.floor ?? null };
-    }
-  }
-  if (scheduleClinicRoomFallback.name || scheduleClinicRoomFallback.code) {
-    return {
-      name: scheduleClinicRoomFallback.name ?? undefined,
-      code: scheduleClinicRoomFallback.code ?? undefined,
-      floor: scheduleClinicRoomFallback.floor ?? null,
-    };
-  }
-  return null;
-});
 
 const extractErrorMessage = (input: unknown) => {
   const fallback = 'Đã xảy ra lỗi. Vui lòng thử lại.';
