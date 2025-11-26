@@ -49,7 +49,7 @@ public class AppointmentRequestController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPTIONIST')")
     @GetMapping
     public ResponseEntity<?> getAppointmentRequests(
             @RequestParam(value = "keyword", required = false) String keyword,

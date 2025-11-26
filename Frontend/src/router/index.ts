@@ -35,19 +35,19 @@ const router = createRouter({
       meta: { requiresAuth: true },
       children: [
         { path: '', name: 'dashboard-home', component: () => import('@/views/dashboard/DashboardHomeView.vue') },
-        { path: 'appointment-requests', name: 'appointment-requests', component: AppointmentRequestsView },
-        { path: 'patients', name: 'patients', component: () => import('@/views/dashboard/PatientsView.vue') },
-        { path: 'staffs', name: 'staffs', component: () => import('@/views/dashboard/StaffManagementView.vue') },
-        { path: 'clinic-rooms', name: 'clinic-rooms', component: () => import('@/views/dashboard/ClinicRoomsView.vue') },
-        { path: 'schedules', name: 'schedules', component: () => import('@/views/dashboard/SchedulesView.vue') },
-        { path: 'visits', name: 'visits', component: () => import('@/views/dashboard/VisitsView.vue') },
-        { path: 'visits/:id', name: 'visit-detail', component: () => import('@/views/dashboard/VisitDetailView.vue') },
-        { path: 'doctor/visits', name: 'doctor-visits', component: () => import('@/views/dashboard/VisitsView.vue') },
-        { path: 'medications', name: 'medications', component: () => import('@/views/dashboard/MedicationsView.vue') },
-        { path: 'services', name: 'services', component: () => import('@/views/dashboard/ServicesView.vue') },
-        { path: 'indicator-templates', name: 'indicator-templates', component: () => import('@/views/dashboard/IndicatorTemplatesView.vue') },
-        { path: 'billing', name: 'billing', component: () => import('@/views/dashboard/BillingView.vue') },
-        { path: 'analytics', name: 'analytics', component: () => import('@/views/dashboard/AnalyticsView.vue') },
+        { path: 'appointment-requests', name: 'appointment-requests', component: AppointmentRequestsView, meta: { roles: ['ADMIN', 'RECEPTIONIST'] } },
+        { path: 'patients', name: 'patients', component: () => import('@/views/dashboard/PatientsView.vue'), meta: { roles: ['ADMIN', 'DOCTOR', 'RECEPTIONIST'] } },
+        { path: 'staffs', name: 'staffs', component: () => import('@/views/dashboard/StaffManagementView.vue'), meta: { roles: ['ADMIN'] } },
+        { path: 'clinic-rooms', name: 'clinic-rooms', component: () => import('@/views/dashboard/ClinicRoomsView.vue'), meta: { roles: ['ADMIN'] } },
+        { path: 'schedules', name: 'schedules', component: () => import('@/views/dashboard/SchedulesView.vue'), meta: { roles: ['ADMIN'] } },
+        { path: 'visits', name: 'visits', component: () => import('@/views/dashboard/VisitsView.vue'), meta: { roles: ['ADMIN', 'DOCTOR', 'RECEPTIONIST'] } },
+        { path: 'visits/:id', name: 'visit-detail', component: () => import('@/views/dashboard/VisitDetailView.vue'), meta: { roles: ['ADMIN', 'DOCTOR', 'RECEPTIONIST'] } },
+        { path: 'doctor/visits', name: 'doctor-visits', component: () => import('@/views/dashboard/VisitsView.vue'), meta: { roles: ['DOCTOR'] } },
+        { path: 'medications', name: 'medications', component: () => import('@/views/dashboard/MedicationsView.vue'), meta: { roles: ['ADMIN', 'PHARMACIST'] } },
+        { path: 'services', name: 'services', component: () => import('@/views/dashboard/ServicesView.vue'), meta: { roles: ['ADMIN'] } },
+        { path: 'indicator-templates', name: 'indicator-templates', component: () => import('@/views/dashboard/IndicatorTemplatesView.vue'), meta: { roles: ['ADMIN'] } },
+        { path: 'billing', name: 'billing', component: () => import('@/views/dashboard/BillingView.vue'), meta: { roles: ['ADMIN', 'RECEPTIONIST'] } },
+        { path: 'analytics', name: 'analytics', component: () => import('@/views/dashboard/AnalyticsView.vue'), meta: { roles: ['ADMIN'] } },
         { path: 'profile', name: 'profile', component: () => import('@/views/dashboard/ProfileView.vue') },
       ],
     },
@@ -65,9 +65,17 @@ router.beforeEach((to, _from, next) => {
   const authStore = useAuthStore();
 
   const requiresAuth = to.matched.some((record) => record.meta.requiresAuth);
+  const requiredRoles = to.matched
+    .flatMap((record) => (record.meta && (record.meta as any).roles ? (record.meta as any).roles : []))
+    .filter((role, index, arr) => arr.indexOf(role) === index);
 
   if (requiresAuth && !authStore.isAuthenticated) {
     next({ name: 'login', query: { redirect: to.fullPath } });
+    return;
+  }
+
+  if (requiredRoles.length > 0 && !authStore.hasRole(requiredRoles as string[])) {
+    next({ name: 'not-found' });
     return;
   }
 

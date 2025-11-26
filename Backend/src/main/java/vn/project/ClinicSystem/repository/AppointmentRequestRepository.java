@@ -59,4 +59,6 @@ public interface AppointmentRequestRepository extends JpaRepository<AppointmentR
                         AppointmentLifecycleStatus status,
                         Instant start,
                         Instant endExclusive);
+
+        long countByStatus(AppointmentLifecycleStatus status);
 }

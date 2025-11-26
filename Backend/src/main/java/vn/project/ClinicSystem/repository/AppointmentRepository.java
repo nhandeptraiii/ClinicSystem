@@ -80,5 +80,17 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
     long countByRequestIsNotNullAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
             Instant start,
             Instant endExclusive);
-}
 
+    long countByClinicRoomIdAndStatusAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+            Long clinicRoomId,
+            AppointmentLifecycleStatus status,
+            Instant start,
+            Instant endExclusive);
+
+    long countByScheduledAtBetween(LocalDateTime start, LocalDateTime end);
+
+    long countByStatusAndScheduledAtBetween(
+            AppointmentLifecycleStatus status,
+            LocalDateTime start,
+            LocalDateTime end);
+}

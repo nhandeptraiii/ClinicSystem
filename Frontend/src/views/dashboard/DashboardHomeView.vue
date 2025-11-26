@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { fetchAppointments, type AppointmentSummary } from '@/services/appointment.service';
-import { fetchAppointmentRequests } from '@/services/appointmentRequest.service';
-import { fetchVisits, type PatientVisit } from '@/services/visit.service';
+import { fetchDashboardSummary, type DashboardSummary } from '@/services/dashboard.service';
 import { useAuthStore } from '@/stores/authStore';
 
 type StatusCount = {
@@ -28,9 +26,7 @@ const status = ref<StatusCount>({
 });
 
 const authStore = useAuthStore();
-const canViewRequests = computed(() => authStore.hasRole(['ADMIN', 'RECEPTIONIST']));
-const canViewVisits = computed(() => authStore.hasRole(['ADMIN', 'DOCTOR', 'RECEPTIONIST']));
-const canViewAppointments = computed(() => authStore.hasRole(['ADMIN', 'DOCTOR', 'RECEPTIONIST']));
+const canViewDashboard = computed(() => authStore.isAuthenticated);
 
 const isToday = (value?: string | null) => {
   if (!value) return false;
@@ -47,71 +43,11 @@ const loadDashboard = async () => {
   loading.value = true;
   error.value = null;
   try {
-    const errors: string[] = [];
-
-    const requestQueue: PromiseSettledResult<unknown>[] = [];
-    const fetchTasks: Array<Promise<unknown>> = [];
-
-    if (canViewAppointments.value) {
-      fetchTasks.push(fetchAppointments());
+    if (!canViewDashboard.value) {
+      throw new Error('Không đủ quyền xem tổng quan.');
     }
-    if (canViewRequests.value) {
-      fetchTasks.push(fetchAppointmentRequests({ status: 'PENDING' }));
-    }
-    if (canViewVisits.value) {
-      fetchTasks.push(fetchVisits());
-    }
-
-    const settled = await Promise.allSettled(fetchTasks);
-    requestQueue.push(...settled);
-
-    let appointments: AppointmentSummary[] = [];
-    let pendingRequests: unknown[] = [];
-    let visits: PatientVisit[] = [];
-
-    let index = 0;
-    if (canViewAppointments.value) {
-      const res = settled[index++];
-      appointments = res.status === 'fulfilled' && Array.isArray(res.value) ? (res.value as AppointmentSummary[]) : [];
-      if (res.status === 'rejected') errors.push('Không tải được lịch hẹn.');
-    }
-    if (canViewRequests.value) {
-      const res = settled[index++];
-      pendingRequests = res.status === 'fulfilled' && Array.isArray(res.value) ? res.value : [];
-      if (res.status === 'rejected') errors.push('Không tải được yêu cầu đặt lịch.');
-    }
-    if (canViewVisits.value) {
-      const res = settled[index++];
-      visits = res.status === 'fulfilled' && Array.isArray(res.value) ? (res.value as PatientVisit[]) : [];
-      if (res.status === 'rejected') errors.push('Không tải được danh sách khám.');
-    }
-
-    const todaysAppointments = appointments.filter((item) => isToday(item.scheduledAt));
-    const todaysVisits = visits.filter((visit) => isToday(visit.createdAt ?? visit.primaryAppointment?.scheduledAt));
-
-    const inProgressStatuses = ['IN_PROGRESS', 'CHECKED_IN', 'ONGOING'];
-    const completedStatuses = ['COMPLETED', 'DONE', 'FINISHED'];
-
-    const activeDoctorIds = new Set<number>();
-    todaysVisits.forEach((visit) => {
-      const doctorId = visit.primaryAppointment?.doctor?.id;
-      if (doctorId != null) {
-        activeDoctorIds.add(doctorId);
-      }
-    });
-
-    status.value = {
-      appointmentsToday: todaysAppointments.length,
-      appointmentsConfirmed: todaysAppointments.filter((a) => a.status === 'CONFIRMED').length,
-      appointmentsCheckedIn: todaysAppointments.filter((a) => a.status === 'CHECKED_IN').length,
-      pendingRequests: pendingRequests.length,
-      visitsInProgress: todaysVisits.filter((v) => inProgressStatuses.includes((v.status ?? '').toUpperCase())).length,
-      visitsCompleted: todaysVisits.filter((v) => completedStatuses.includes((v.status ?? '').toUpperCase())).length,
-      activeDoctors: activeDoctorIds.size,
-    };
-    if (errors.length > 0) {
-      error.value = errors.join(' ');
-    }
+    const summary: DashboardSummary = await fetchDashboardSummary();
+    status.value = { ...summary };
   } catch (err: any) {
     console.error('Failed to load dashboard data', err);
     error.value =

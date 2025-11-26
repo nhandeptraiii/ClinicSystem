@@ -47,7 +47,7 @@ public class AppointmentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR')")
     @GetMapping
     public ResponseEntity<?> getAppointments(
             @RequestParam(value = "doctorId", required = false) Long doctorId,
