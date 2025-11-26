@@ -143,7 +143,6 @@ const cancelledItems = computed(() => {
       displayDate: req.createdAt || '',
       displayName: req.fullName,
       displayInfo: `SĐT: ${req.phone}`,
-      displaySubInfo: req.symptomDescription || undefined,
     });
   });
 
@@ -818,9 +817,6 @@ const handleCheckIn = async () => {
                   >
                     {{ getStatusDisplay(appointment.status as AppointmentLifecycleStatus).label }}
                   </span>
-                  <p v-if="appointment.reason" class="text-xs">
-                    Lý do: <span class="font-semibold text-slate-700">{{ appointment.reason }}</span>
-                  </p>
                   <p v-if="appointment.duration">Thời lượng: {{ appointment.duration }} phút</p>
                 </div>
               </div>
@@ -914,7 +910,6 @@ const handleCheckIn = async () => {
                     <p class="mt-1 text-sm text-slate-600">
                       SĐT: {{ request.phone }} <span v-if="request.email" class="text-slate-400">• {{ request.email }}</span>
                     </p>
-                    <p class="mt-2 text-sm text-slate-600 line-clamp-2">{{ request.symptomDescription || 'Bệnh nhân chưa để lại ghi chú cụ thể.' }}</p>
                   </div>
                 </div>
                 <div class="flex flex-col items-start gap-2 text-sm text-slate-500 sm:items-end">
