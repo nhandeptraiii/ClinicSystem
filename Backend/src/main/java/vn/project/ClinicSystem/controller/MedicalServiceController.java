@@ -43,6 +43,7 @@ public class MedicalServiceController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'RECEPTIONIST')")
     @GetMapping
     public ResponseEntity<?> getMedicalServices(
             @RequestParam(value = "clinicRoomId", required = false) Long clinicRoomId,
@@ -65,6 +66,7 @@ public class MedicalServiceController {
         return ResponseEntity.ok(medicalServiceService.findAll());
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'RECEPTIONIST')")
     @GetMapping("/{id}")
     public ResponseEntity<MedicalService> getMedicalServiceById(@PathVariable("id") Long id) {
         return ResponseEntity.ok(medicalServiceService.getById(id));

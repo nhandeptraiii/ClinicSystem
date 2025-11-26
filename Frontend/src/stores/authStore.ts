@@ -5,8 +5,11 @@ import { setAuthHeader } from '@/services/http';
 
 export interface AuthUser {
   username: string;
+  role: string | null;
   roles: string[];
 }
+
+const normalizeRole = (role: string) => role.replace(/^ROLE_/i, '').trim().toUpperCase();
 
 function decodeUserFromToken(token: string): AuthUser | null {
   try {
@@ -23,10 +26,12 @@ function decodeUserFromToken(token: string): AuthUser | null {
       : typeof raw === 'string'
         ? raw.split(/[ ,]+/).map((r: string) => r.trim()).filter(Boolean)
         : [];
+    const normalizedRoles = roles.map((role: string) => normalizeRole(role)).filter(Boolean);
 
     return {
       username: payload.sub ?? payload.username ?? payload.email ?? '',
-      roles,
+      roles: normalizedRoles,
+      role: normalizedRoles[0] ?? null,
     };
   } catch (error) {
     console.warn('Failed to decode token payload', error);
@@ -82,12 +87,22 @@ export const useAuthStore = defineStore('auth', () => {
     setAuthHeader(null);
   }
 
+  const hasRole = (allowedRoles: string[]) => {
+    if (!allowedRoles || allowedRoles.length === 0) {
+      return false;
+    }
+    const currentRoles = user.value?.roles?.map(normalizeRole) ?? [];
+    const targets = allowedRoles.map(normalizeRole);
+    return currentRoles.some((role) => targets.includes(role));
+  };
+
   return {
     token,
     user,
     loading,
     error,
     isAuthenticated,
+    hasRole,
     signIn,
     signOut,
     clearSession,

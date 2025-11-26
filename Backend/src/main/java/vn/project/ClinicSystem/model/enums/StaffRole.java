@@ -6,7 +6,7 @@ public enum StaffRole {
     ADMIN("ADMIN", "Quản trị viên hệ thống"),
     DOCTOR("DOCTOR", "Bác sĩ khám chữa bệnh"),
     NURSE("NURSE", "Điều dưỡng hỗ trợ chăm sóc"),
-    CASHIER("CASHIER", "Thu ngân xử lý thanh toán"),
+    RECEPTIONIST("RECEPTIONIST", "Tiếp tân / Thu ngân"),
     PHARMACIST("PHARMACIST", "Dược sĩ quản lý kho thuốc");
 
     private final String name;

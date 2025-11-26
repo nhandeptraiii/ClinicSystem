@@ -39,20 +39,20 @@ public class VisitController {
         this.visitService = visitService;
     }
 
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPTIONIST')")
     @PostMapping
     public ResponseEntity<PatientVisit> createVisit(@Valid @RequestBody PatientVisitCreateRequest request) {
         PatientVisit created = visitService.createVisit(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'RECEPTIONIST')")
     @GetMapping("/{id}")
     public ResponseEntity<PatientVisit> getVisit(@PathVariable("id") Long id) {
         return ResponseEntity.ok(visitService.getById(id));
     }
 
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'RECEPTIONIST')")
     @GetMapping
     public ResponseEntity<?> getVisits(
             @RequestParam(value = "patientId", required = false) Long patientId,
@@ -79,7 +79,7 @@ public class VisitController {
         return ResponseEntity.ok(visitService.findAll());
     }
 
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'RECEPTIONIST')")
     @GetMapping("/completed-without-billing")
     public ResponseEntity<PatientVisitPageResponse> getCompletedVisitsWithoutBilling(
             @RequestParam(value = "keyword", required = false) String keyword,
@@ -95,13 +95,13 @@ public class VisitController {
         return ResponseEntity.ok(response);
     }
 
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR')")
     @GetMapping("/{id}/service-orders")
     public ResponseEntity<List<ServiceOrder>> getServiceOrders(@PathVariable("id") Long id) {
         return ResponseEntity.ok(visitService.findServiceOrders(id));
     }
 
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
+    @PreAuthorize("hasRole('DOCTOR')")
     @PostMapping("/{id}/service-orders")
     public ResponseEntity<List<ServiceOrder>> createServiceOrders(
             @PathVariable("id") Long id,
@@ -110,21 +110,21 @@ public class VisitController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
+    @PreAuthorize("hasRole('DOCTOR')")
     @PatchMapping("/{id}/status")
     public ResponseEntity<PatientVisit> updateVisitStatus(@PathVariable("id") Long id,
             @Valid @RequestBody PatientVisitStatusUpdateRequest request) {
         return ResponseEntity.ok(visitService.updateStatus(id, request));
     }
 
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
+    @PreAuthorize("hasRole('DOCTOR')")
     @PatchMapping("/{id}")
     public ResponseEntity<PatientVisit> updateVisit(@PathVariable("id") Long id,
             @Valid @RequestBody PatientVisitUpdateRequest request) {
         return ResponseEntity.ok(visitService.updateClinicalInfo(id, request));
     }
 
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
+    @PreAuthorize("hasRole('DOCTOR')")
     @PatchMapping("/service-orders/{id}/status")
     public ResponseEntity<ServiceOrder> updateServiceOrderStatus(@PathVariable("id") Long id,
             @Valid @RequestBody ServiceOrderStatusUpdateRequest request) {

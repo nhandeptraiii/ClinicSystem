@@ -22,13 +22,13 @@ interface DayScheduleState {
   afternoon: boolean;
 }
 
-const supportedRoles: StaffRole[] = ['ADMIN', 'DOCTOR', 'NURSE', 'CASHIER', 'PHARMACIST'];
+const supportedRoles: StaffRole[] = ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'PHARMACIST'];
 
 const roleDisplayMap: Record<StaffRole, { label: string; desc: string }> = {
   ADMIN: { label: 'Admin', desc: 'Quản trị toàn hệ thống.' },
   DOCTOR: { label: 'Bác sĩ', desc: 'Khám chữa bệnh, cập nhật hồ sơ.' },
   NURSE: { label: 'Điều dưỡng', desc: 'Hỗ trợ chăm sóc và theo dõi.' },
-  CASHIER: { label: 'Thu ngân', desc: 'Xử lý thanh toán, hóa đơn.' },
+  RECEPTIONIST: { label: 'Tiếp đón', desc: 'Tiếp nhận và thu ngân.' },
   PHARMACIST: { label: 'Dược sĩ', desc: 'Quản lý kho thuốc.' },
 };
 

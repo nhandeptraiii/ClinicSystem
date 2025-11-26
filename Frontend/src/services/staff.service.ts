@@ -7,7 +7,7 @@ interface RestResponse<T> {
   data: T;
 }
 
-export type StaffRole = 'ADMIN' | 'DOCTOR' | 'NURSE' | 'CASHIER' | 'PHARMACIST';
+export type StaffRole = 'ADMIN' | 'DOCTOR' | 'NURSE' | 'RECEPTIONIST' | 'PHARMACIST';
 
 export interface StaffDoctorInfo {
   id?: number;

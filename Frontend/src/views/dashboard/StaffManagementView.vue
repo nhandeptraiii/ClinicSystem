@@ -21,7 +21,7 @@ import { http } from "@/services/http";
 type RoleFilter = StaffRole | "ALL";
 type ModalMode = "create" | "edit";
 
-const supportedRoles: StaffRole[] = ["ADMIN", "DOCTOR", "NURSE", "CASHIER", "PHARMACIST"];
+const supportedRoles: StaffRole[] = ["ADMIN", "DOCTOR", "NURSE", "RECEPTIONIST", "PHARMACIST"];
 
 const roleDisplayMap: Record<StaffRole, { label: string; badge: string; chip: string; desc: string }> = {
   ADMIN: {
@@ -42,11 +42,11 @@ const roleDisplayMap: Record<StaffRole, { label: string; badge: string; chip: st
     chip: "bg-sky-50 text-sky-700",
     desc: "Hỗ trợ chăm sóc và theo dõi.",
   },
-  CASHIER: {
-    label: "Thu ngân",
+  RECEPTIONIST: {
+    label: "Tiếp tân",
     badge: "bg-amber-100 text-amber-700",
     chip: "bg-amber-50 text-amber-700",
-    desc: "Xử lý thanh toán, hóa đơn.",
+    desc: "Tiếp nhận và thu ngân.",
   },
   PHARMACIST: {
     label: "Dược sĩ",
@@ -130,7 +130,7 @@ const roleTotals = reactive<Record<StaffRole, number>>({
   ADMIN: 0,
   DOCTOR: 0,
   NURSE: 0,
-  CASHIER: 0,
+  RECEPTIONIST: 0,
   PHARMACIST: 0,
 });
 

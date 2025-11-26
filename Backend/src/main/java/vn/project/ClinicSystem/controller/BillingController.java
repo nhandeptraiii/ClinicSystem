@@ -38,13 +38,13 @@ public class BillingController {
         this.billingService = billingService;
     }
 
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPTIONIST')")
     @GetMapping("/{id}")
     public ResponseEntity<Billing> getBilling(@PathVariable("id") Long id) {
         return ResponseEntity.ok(billingService.getById(id));
     }
 
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPTIONIST')")
     @GetMapping
     public ResponseEntity<?> getBillings(
             @RequestParam(value = "patientId", required = false) Long patientId,
@@ -67,14 +67,14 @@ public class BillingController {
         return ResponseEntity.ok(response);
     }
 
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPTIONIST')")
     @PostMapping("/visits/{visitId}/generate")
     public ResponseEntity<Billing> generateBilling(@PathVariable("visitId") Long visitId) {
         Billing billing = billingService.generateForVisit(visitId);
         return ResponseEntity.status(HttpStatus.CREATED).body(billing);
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPTIONIST')")
     @PutMapping("/{id}/status")
     public ResponseEntity<Billing> updateStatus(
             @PathVariable("id") Long id,
@@ -82,7 +82,7 @@ public class BillingController {
         return ResponseEntity.ok(billingService.updateStatus(id, request));
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPTIONIST')")
     @PostMapping("/{id}/items")
     public ResponseEntity<Billing> addManualItem(
             @PathVariable("id") Long id,
@@ -91,7 +91,7 @@ public class BillingController {
         return ResponseEntity.status(HttpStatus.CREATED).body(billing);
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPTIONIST')")
     @PutMapping("/{billingId}/items/{itemId}")
     public ResponseEntity<BillingItem> updateItem(
             @PathVariable("billingId") Long billingId,
@@ -100,7 +100,7 @@ public class BillingController {
         return ResponseEntity.ok(billingService.updateItem(billingId, itemId, request));
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPTIONIST')")
     @DeleteMapping("/{billingId}/items/{itemId}")
     public ResponseEntity<Void> deleteItem(
             @PathVariable("billingId") Long billingId,

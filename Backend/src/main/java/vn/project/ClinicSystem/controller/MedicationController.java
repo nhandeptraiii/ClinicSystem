@@ -35,13 +35,14 @@ public class MedicationController {
         this.medicationService = medicationService;
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'PHARMACIST')")
     @PostMapping
     public ResponseEntity<Medication> createMedication(@Valid @RequestBody MedicationCreateRequest request) {
         Medication created = medicationService.create(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
+    @PreAuthorize("isAuthenticated()")
     @GetMapping
     public ResponseEntity<?> getMedications(
             @RequestParam(value = "keyword", required = false) String keyword,
@@ -63,12 +64,13 @@ public class MedicationController {
         return ResponseEntity.ok(medicationService.findAll());
     }
 
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/{id}")
     public ResponseEntity<Medication> getMedication(@PathVariable("id") Long id) {
         return ResponseEntity.ok(medicationService.getById(id));
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'PHARMACIST')")
     @PutMapping("/{id}")
     public ResponseEntity<Medication> updateMedication(
             @PathVariable("id") Long id,
