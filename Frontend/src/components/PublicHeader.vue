@@ -51,7 +51,7 @@ const onLogoClick = () => {
         <RouterLink
           :to="{ name: 'diagnosis' }"
           :class="isActive('diagnosis') ? 'text-emerald-700' : 'text-slate-600 hover:text-emerald-700'"
-        >TƯ VẤN TRIỆU CHỨNG</RouterLink>
+        >AI CHUẨN ĐOÁN BỆNH</RouterLink>
       </nav>
 
       <!-- Hotline + Auth quick links -->

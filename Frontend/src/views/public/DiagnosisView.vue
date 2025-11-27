@@ -287,7 +287,7 @@ onMounted(async () => {
           <div class="rounded-3xl border border-emerald-100 bg-white/95 p-8 shadow-xl">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p class="text-sm font-semibold uppercase tracking-[0.25em] text-emerald-600">Tư vấn triệu chứng</p>
+                <p class="text-sm font-semibold uppercase tracking-[0.25em] text-emerald-600">AI chuẩn đoán bệnh</p>
                 <h1 class="mt-2 text-3xl font-bold text-slate-900">Chuẩn đoán sơ bộ bằng AI</h1>
                 <p class="mt-3 text-base text-slate-600">
                   Chọn những triệu chứng nổi bật mà bạn gặp phải, hệ thống sẽ đề xuất các bệnh lý có xác suất cao kèm
