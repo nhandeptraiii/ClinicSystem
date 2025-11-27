@@ -4,22 +4,21 @@ import PublicFooter from '@/components/PublicFooter.vue';
 
 import iconNoiCoXuongKhop from '@/assets/chuyenkhoa/icon-noicoxuongkhop.png';
 import iconNoiThanKinh from '@/assets/chuyenkhoa/icon-noithankinh.png';
-import iconChanDoanHinhAnh from '@/assets/chuyenkhoa/icon-ngoaitonghop.png';
-import iconChanThuongChinhHinh from '@/assets/chuyenkhoa/icon-chanthuongchinhhinh.png';
-import iconXetNghiem from '@/assets/chuyenkhoa/icon-xetnghiem.png';
 import iconNoiTieuHoa from '@/assets/chuyenkhoa/icon-tieuhoa.png';
 import iconTaiMuiHong from '@/assets/chuyenkhoa/icon-taimuihong.png';
-import iconChuyenKhoaNgoai from '@/assets/chuyenkhoa/icon-ngoai.png';
+import iconTietNieu from '@/assets/chuyenkhoa/icon-tietnieu.png';
+import iconDaLieu from '@/assets/chuyenkhoa/icon-dalieu.png';
+
 
 const specialties = [
-  { title: 'Nội - Cơ Xương Khớp', icon: iconNoiCoXuongKhop },
-  { title: 'Nội Thần Kinh', icon: iconNoiThanKinh },
-  { title: 'Chẩn Đoán Hình Ảnh', icon: iconChanDoanHinhAnh },
-  { title: 'Chấn Thương Chỉnh Hình', icon: iconChanThuongChinhHinh },
-  { title: 'Xét Nghiệm', icon: iconXetNghiem },
+  { title: 'Cơ Xương Khớp', icon: iconNoiCoXuongKhop },
+  { title: 'Nội Tổng Quát', icon: iconNoiThanKinh },
+  // { title: 'Chẩn Đoán Hình Ảnh', icon: iconChanDoanHinhAnh },
+  { title: 'Da Liễu', icon: iconDaLieu },
+  // { title: 'Xét Nghiệm', icon: iconXetNghiem },
   { title: 'Nội Tiêu Hóa', icon: iconNoiTieuHoa },
   { title: 'Tai Mũi Họng', icon: iconTaiMuiHong },
-  { title: 'Chuyên Khoa Ngoại', icon: iconChuyenKhoaNgoai },
+  { title: 'Tiết Niệu', icon: iconTietNieu },
 ];
 
 const specialtyHighlights = [
@@ -42,28 +41,40 @@ const specialtyHighlights = [
 
 const specialtyServices = [
   {
-    title: 'Tầm soát thoái hóa khớp nâng cao',
-    specialty: 'Nội - Cơ Xương Khớp',
+    title: 'Tầm soát thoái hóa khớp & loãng xương',
+    specialty: 'Cơ Xương Khớp',
     detail:
-      'Kết hợp xét nghiệm marker viêm, chụp MRI tiền triệu cùng phác đồ phục hồi chức năng theo dõi bằng ứng dụng di động.',
+      'Đo mật độ xương, xét nghiệm marker viêm, siêu âm khớp và thiết kế bài tập phục hồi cá nhân hóa cho người thoái hóa, đau mỏi lâu ngày.',
   },
   {
-    title: 'Chẩn đoán sớm bệnh lý thần kinh',
-    specialty: 'Nội Thần Kinh',
+    title: 'Khám sức khỏe tổng quát & quản lý bệnh mạn',
+    specialty: 'Nội Tổng Quát',
     detail:
-      'Ứng dụng đo điện não vi tính và test nhận thức giúp phát hiện rối loạn tiền đình, sa sút trí tuệ ở giai đoạn sớm.',
+      'Sàng lọc tăng huyết áp, đái tháo đường, mỡ máu; tư vấn dinh dưỡng, lộ trình theo dõi định kỳ với hồ sơ điện tử đồng bộ.',
   },
   {
-    title: 'Gói nội soi tiêu hóa không đau',
+    title: 'Điều trị mụn & bệnh lý da mãn tính',
+    specialty: 'Da Liễu',
+    detail:
+      'Quy trình khám da liễu chuẩn y khoa, peel/light therapy, kê đơn cá nhân hóa và theo dõi online cho mụn, viêm da, dị ứng.',
+  },
+  {
+    title: 'Nội soi tiêu hóa không đau & quản lý HP',
     specialty: 'Nội Tiêu Hóa',
     detail:
-      'Nội soi ống mềm thế hệ mới, gây mê nhẹ, trả kết quả trong ngày và tư vấn dinh dưỡng cá nhân hóa ngay sau thủ thuật.',
+      'Nội soi gây mê nhẹ, xét nghiệm HP nhanh, tư vấn chế độ ăn cho viêm loét dạ dày – trào ngược – viêm gan mật, trả kết quả trong ngày.',
   },
   {
-    title: 'Trung tâm xét nghiệm đạt chuẩn ISO 15189',
-    specialty: 'Xét Nghiệm',
+    title: 'Khám chuyên sâu Tai Mũi Họng cho gia đình',
+    specialty: 'Tai Mũi Họng',
     detail:
-      'Tất cả mẫu xét nghiệm được chuẩn hóa, kiểm định định kỳ giúp bảo đảm độ chính xác tối đa và thời gian trả kết quả nhanh.',
+      'Soi tai mũi họng, test dị ứng, điều trị viêm xoang – viêm họng tái phát, hướng dẫn vệ sinh tai mũi họng an toàn cho trẻ em.',
+  },
+  {
+    title: 'Sàng lọc sỏi thận & viêm tiết niệu',
+    specialty: 'Tiết Niệu',
+    detail:
+      'Siêu âm, xét nghiệm nước tiểu, tư vấn uống nước – ăn nhạt, phát hiện sớm sỏi, viêm bàng quang, rối loạn tiểu tiện và theo dõi tái phát.',
   },
 ];
 
@@ -92,7 +103,7 @@ const specialtyFaq = [
     <section class="bg-emerald-50/40">
       <div class="mx-auto max-w-6xl px-6 py-16">
         <h1 class="mb-12 text-center text-3xl font-bold uppercase tracking-wide text-emerald-600">Danh sách chuyên khoa</h1>
-        <ul class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <ul class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           <li
             v-for="specialty in specialties"
             :key="specialty.title"
