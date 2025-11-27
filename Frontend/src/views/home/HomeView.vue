@@ -11,6 +11,37 @@ const hotline = '0332406049';
 const facilityImages = [facilityImageMain, facilityImageSecondary];
 const currentFacilityIndex = ref(0);
 
+const specialtyFaq = [
+  {
+    question: 'Phòng khám nằm ở đâu và giờ làm việc thế nào?',
+    answer:
+      'Địa chỉ: 36 đường Cách Mạng Tháng 8, phường Cái Khế, quận Ninh Kiều, TP. Cần Thơ. Giờ làm việc: Thứ 2 – Thứ 7, sáng 07:30 – 11:30, chiều 13:00 – 20:00.',
+  },
+  {
+    question: 'Phòng khám có những chuyên khoa và dịch vụ gì?',
+    answer:
+      'Hiện có 6 chuyên khoa: Cơ Xương Khớp, Nội Tổng Quát, Da Liễu, Nội Tiêu Hóa, Tai Mũi Họng, Tiết Niệu. Kèm các dịch vụ cận lâm sàng, nội soi, tư vấn dinh dưỡng và theo dõi sau khám.',
+    action: { label: 'Xem danh sách chuyên khoa', to: '/specialties' },
+  },
+  {
+    question: 'Tôi đặt lịch khám online như thế nào?',
+    answer:
+      'Bạn có thể đặt lịch qua trang Đặt lịch (/booking), chọn giờ mong muốn hoặc gọi hotline 0332406049. Sau khi gửi yêu cầu, lễ tân sẽ liên hệ xác nhận và sắp lịch bác sĩ phù hợp.',
+    action: { label: 'Đặt lịch ngay', to: '/booking' },
+  },
+  {
+    question: 'Cách dùng công cụ AI chuẩn đoán bệnh trên website?',
+    answer:
+      'Truy cập mục “AI chuẩn đoán bệnh”, chọn triệu chứng bạn gặp phải, hệ thống sẽ gợi ý chuyên khoa phù hợp và tạo ghi chú ngắn gọn đính kèm yêu cầu đặt lịch.',
+    action: { label: 'Mở AI chuẩn đoán bệnh', to: '/diagnosis' },
+  },
+  {
+    question: 'Có hỗ trợ thanh toán không tiền mặt không?',
+    answer:
+      'Phòng khám hỗ trợ thanh toán thẻ, chuyển khoản. Vui lòng thông tin trước khi khám để được hướng dẫn chi tiết.',
+  },
+];
+
 const showPrevFacility = () => {
   currentFacilityIndex.value = (currentFacilityIndex.value - 1 + facilityImages.length) % facilityImages.length;
 };
@@ -269,6 +300,38 @@ const showNextFacility = () => {
                 :aria-label="`Chuyển tới hình số ${index + 1}`"
               />
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="px-4 pb-16">
+        <div class="mx-auto w-full max-w-5xl">
+          <div class="mb-6 text-center">
+            <p class="text-sm font-semibold uppercase tracking-[0.35em] text-emerald-600">Giải đáp nhanh</p>
+            <h2 class="mt-2 text-3xl font-semibold text-slate-900 md:text-4xl">Câu hỏi thường gặp</h2>
+            <p class="mt-2 text-base text-slate-600">Thông tin về địa chỉ, dịch vụ, đặt lịch online và AI chuẩn đoán bệnh.</p>
+          </div>
+          <div class="space-y-3">
+            <details
+              v-for="item in specialtyFaq"
+              :key="item.question"
+              class="group rounded-2xl border border-emerald-100 bg-white/80 p-4 shadow-sm"
+            >
+              <summary class="cursor-pointer text-sm font-semibold text-slate-900 marker:text-emerald-500 group-open:text-emerald-600">
+                {{ item.question }}
+              </summary>
+              <p class="mt-2 text-sm leading-relaxed text-slate-700">{{ item.answer }}</p>
+              <RouterLink
+                v-if="item.action"
+                :to="item.action.to"
+                class="mt-3 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-emerald-600 hover:text-emerald-700"
+              >
+                {{ item.action.label }}
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </RouterLink>
+            </details>
           </div>
         </div>
       </section>
