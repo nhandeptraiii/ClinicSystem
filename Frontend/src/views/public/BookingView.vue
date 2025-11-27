@@ -19,7 +19,7 @@ type ToastPayload = {
   message: string;
 };
 
-const { toast, show: showToast, hide: hideToast } = useToast();
+const { toast, show: showToast, hide: hideToast } = useToast({ autoCloseMs: 5000 });
 
 const toastVisualMap: Record<ToastType, ToastVisual> = {
   success: {

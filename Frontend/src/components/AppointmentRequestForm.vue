@@ -68,6 +68,8 @@ const MORNING_SLOTS = makeSlots(toMinutes(7, 30), toMinutes(10, 30));
 const AFTERNOON_SLOTS = makeSlots(toMinutes(13, 0), toMinutes(17, 0));
 const ALL_SLOTS = [...MORNING_SLOTS, ...AFTERNOON_SLOTS];
 
+const SYMPTOM_MAX_LENGTH = 1000;
+
 type FieldKey = 'fullName' | 'phone' | 'email' | 'dateOfBirth' | 'preferredDate' | 'preferredTime' | 'symptomDescription';
 
 const preferredAtISO = computed(() => {
@@ -151,7 +153,7 @@ const emitToast = (type: ToastType, message: string) => {
   emitting('notify', { type, message });
 };
 
-const validatePhone = (value: string) => /^\d{10}$/.test(value);
+const validatePhone = (value: string) => /^0\d{9}$/.test(value);
 
 const isTimeSelectable = (date: string, time: string) => {
   if (!date || !time || !ALL_SLOTS.includes(time)) return false;
@@ -285,37 +287,74 @@ const handleSubmit = async () => {
   if (loading.value) return;
   resetInvalidFields();
 
-  // Required checks
-  const missingFields: FieldKey[] = [];
-  if (!form.value.fullName) missingFields.push('fullName');
-  if (!form.value.phone) missingFields.push('phone');
-  if (!form.value.dateOfBirth) missingFields.push('dateOfBirth');
-  if (!form.value.preferredDate) missingFields.push('preferredDate');
-  if (!form.value.preferredTime) missingFields.push('preferredTime');
-  if (!form.value.symptomDescription) missingFields.push('symptomDescription');
+  const errors: string[] = [];
+  const addError = (msg: string) => {
+    if (msg && !errors.includes(msg)) errors.push(msg);
+  };
 
-  if (missingFields.length > 0) {
-    missingFields.forEach(markInvalid);
-    emitToast('error', 'Vui lòng nhập đầy đủ thông tin bắt buộc');
-    return;
+  const { fullName, phone, dateOfBirth, preferredDate, preferredTime, symptomDescription } = form.value;
+  const trimmedFullName = fullName?.trim() ?? '';
+  const trimmedPhone = phone?.trim() ?? '';
+  const trimmedSymptoms = symptomDescription?.trim() ?? '';
+
+  if (!trimmedFullName) {
+    markInvalid('fullName');
+    addError('Vui lòng nhập họ và tên.');
   }
-  if (!validatePhone(form.value.phone)) {
+  if (!trimmedPhone) {
     markInvalid('phone');
-    emitToast('error', 'Số điện thoại phải gồm đúng 10 chữ số');
-    return;
-  }
-  if (recaptchaSiteKey && !recaptchaToken.value) {
-    emitToast('error', 'Vui lòng xác minh bạn không phải robot.');
-    return;
-  }
-  if (!isTimeSelectable(form.value.preferredDate, form.value.preferredTime)) {
-    markInvalid('preferredTime');
-    emitToast(
-      'error',
-      form.value.preferredDate === today
-      ? 'Khung giờ đã trôi qua. Vui lòng chọn giờ khác hoặc ngày khác.'
-      : 'Giờ khám không hợp lệ, vui lòng chọn lại',
+    addError('Vui lòng nhập số điện thoại.');
+  } else if (!validatePhone(trimmedPhone)) {
+    markInvalid('phone');
+    addError(
+      trimmedPhone.startsWith('0')
+        ? 'Số điện thoại phải gồm đúng 10 chữ số.'
+        : 'Số điện thoại phải bắt đầu bằng số 0 và đủ 10 chữ số.'
     );
+  }
+  if (!dateOfBirth) {
+    markInvalid('dateOfBirth');
+    addError('Vui lòng chọn ngày sinh.');
+  } else if (dateOfBirth > today) {
+    markInvalid('dateOfBirth');
+    addError('Ngày sinh không được muộn hơn hôm nay.');
+  }
+  if (!preferredDate) {
+    markInvalid('preferredDate');
+    addError('Vui lòng chọn ngày khám.');
+  } else if (preferredDate < today) {
+    markInvalid('preferredDate');
+    addError('Ngày khám phải từ hôm nay trở đi.');
+  }
+  if (!preferredTime) {
+    markInvalid('preferredTime');
+    addError('Vui lòng chọn giờ khám.');
+  }
+  if (!trimmedSymptoms) {
+    markInvalid('symptomDescription');
+    addError('Vui lòng mô tả triệu chứng hoặc nhu cầu khám.');
+  }
+
+  if (preferredDate && preferredTime && !isTimeSelectable(preferredDate, preferredTime)) {
+    markInvalid('preferredTime');
+    addError(
+      preferredDate === today
+        ? 'Khung giờ đã trôi qua. Vui lòng chọn giờ khác hoặc ngày khác.'
+        : 'Giờ khám không hợp lệ, vui lòng chọn lại'
+    );
+  }
+
+  if (trimmedSymptoms.length > SYMPTOM_MAX_LENGTH) {
+    markInvalid('symptomDescription');
+    addError(`Ghi chú quá dài. Vui lòng rút gọn dưới ${SYMPTOM_MAX_LENGTH} ký tự.`);
+  }
+
+  if (recaptchaSiteKey && !recaptchaToken.value) {
+    addError('Vui lòng xác minh bạn không phải robot.');
+  }
+
+  if (errors.length > 0) {
+    emitToast('error', errors.join(' '));
     return;
   }
 
@@ -370,7 +409,7 @@ const handleSubmit = async () => {
       <div class="rounded-full bg-emerald-50 px-4 py-1 text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">Ưu tiên xác nhận</div>
     </div>
 
-    <form class="grid grid-cols-1 gap-6 sm:grid-cols-2" @submit.prevent="handleSubmit">
+    <form class="grid grid-cols-1 gap-6 sm:grid-cols-2" novalidate @submit.prevent="handleSubmit">
       <div class="sm:col-span-1">
         <label class="mb-1.5 block text-sm font-semibold text-slate-700" for="fullName">Họ và tên</label>
         <input
