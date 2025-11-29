@@ -59,6 +59,9 @@ public class VisitService {
     }
 
     public PatientVisit getById(Long id) {
+        if (id == null) {
+            throw new IllegalArgumentException("Cần cung cấp id hồ sơ khám");
+        }
         return patientVisitRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy hồ sơ khám với id: " + id));
     }
@@ -101,6 +104,10 @@ public class VisitService {
 
     @Transactional
     public PatientVisit createVisit(PatientVisitCreateRequest request) {
+        if (request.getPrimaryAppointmentId() == null) {
+            throw new IllegalArgumentException("Cần chọn lịch hẹn chính để tạo hồ sơ khám");
+        }
+
         Appointment primaryAppointment = appointmentService.getById(request.getPrimaryAppointmentId());
 
         if (patientVisitRepository.existsByPrimaryAppointmentId(primaryAppointment.getId())) {
@@ -165,6 +172,14 @@ public class VisitService {
         }
 
         visit.setStatus(request.getStatus());
+
+        // Đồng bộ trạng thái Appointment khi hồ sơ hoàn tất
+        if (request.getStatus() == VisitStatus.COMPLETED && visit.getPrimaryAppointment() != null) {
+            Appointment primaryAppointment = visit.getPrimaryAppointment();
+            primaryAppointment.setStatus(AppointmentLifecycleStatus.COMPLETED);
+            appointmentRepository.save(primaryAppointment);
+        }
+
         return patientVisitRepository.save(visit);
     }
 
@@ -180,6 +195,12 @@ public class VisitService {
 
     @Transactional
     public ServiceOrder updateServiceOrderStatus(Long orderId, ServiceOrderStatusUpdateRequest request) {
+        if (orderId == null) {
+            throw new IllegalArgumentException("Cần cung cấp id phiếu dịch vụ");
+        }
+        if (request == null || request.getStatus() == null) {
+            throw new IllegalArgumentException("Trạng thái cập nhật phiếu dịch vụ không được để trống");
+        }
         ServiceOrder order = serviceOrderRepository.findById(orderId)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy phiếu dịch vụ với id: " + orderId));
 
@@ -199,9 +220,20 @@ public class VisitService {
     private ServiceOrder createSingleOrder(PatientVisit visit,
             ServiceOrderCreateRequest request) {
 
-        MedicalService medicalService = medicalServiceRepository.findById(request.getMedicalServiceId())
+        if (visit == null) {
+            throw new IllegalArgumentException("Hồ sơ khám không được để trống");
+        }
+        if (request == null) {
+            throw new IllegalArgumentException("Thông tin chỉ định dịch vụ không được để trống");
+        }
+        Long medicalServiceId = request.getMedicalServiceId();
+        if (medicalServiceId == null) {
+            throw new IllegalArgumentException("Cần chọn dịch vụ chuyên khoa");
+        }
+
+        MedicalService medicalService = medicalServiceRepository.findById(medicalServiceId)
                 .orElseThrow(() -> new EntityNotFoundException(
-                        "Không tìm thấy dịch vụ với id: " + request.getMedicalServiceId()));
+                        "Không tìm thấy dịch vụ với id: " + medicalServiceId));
 
         ClinicRoom clinicRoom = medicalService.getClinicRoom();
         if (clinicRoom == null) {
@@ -267,6 +299,9 @@ public class VisitService {
     }
 
     private void ensureVisitExists(Long visitId) {
+        if (visitId == null) {
+            throw new IllegalArgumentException("Cần cung cấp id hồ sơ khám");
+        }
         if (!patientVisitRepository.existsById(visitId)) {
             throw new EntityNotFoundException("Không tìm thấy hồ sơ khám với id: " + visitId);
         }

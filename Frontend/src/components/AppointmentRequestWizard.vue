@@ -89,6 +89,63 @@ const patientPage = ref<PatientPage | null>(null);
 const patientCurrentPage = ref(0);
 const patientPageSize = ref(10);
 
+const normalizePatientKeyword = (input: string) => {
+  const trimmed = input.trim();
+  // dd-MM-yyyy or d-M-yyyy (có thể dùng dấu /)
+  const ddmmyyyy = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/;
+  const yyyymmdd = /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/;
+
+  // Trả về cả keyword và dateOfBirth (yyyy-MM-dd) nếu parse được
+  let parsedDob: string | undefined;
+
+  let match = ddmmyyyy.exec(trimmed);
+  if (match) {
+    const [, d = '', m = '', y = ''] = match;
+    if (d && m && y) {
+      const day = d.padStart(2, '0');
+      const month = m.padStart(2, '0');
+      parsedDob = `${y}-${month}-${day}`;
+      return { keyword: undefined, dateOfBirth: parsedDob };
+    }
+  }
+
+  match = yyyymmdd.exec(trimmed);
+  if (match) {
+    const [, y = '', m = '', d = ''] = match;
+    if (d && m && y) {
+      const day = d.padStart(2, '0');
+      const month = m.padStart(2, '0');
+      parsedDob = `${y}-${month}-${day}`;
+      return { keyword: undefined, dateOfBirth: parsedDob };
+    }
+  }
+
+  return { keyword: trimmed, dateOfBirth: undefined };
+};
+
+const formatDob = (value?: string | null) => {
+  if (!value) return '—';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat('vi-VN').format(parsed);
+};
+
+const autoSearchExistingPatient = async () => {
+  if (patientMode.value !== 'existing' || patientSearchLoading.value) return;
+  if (!props.request) return;
+  if (patientSearchResults.value.length > 0) return;
+
+  const keywordCandidate =
+    props.request.fullName?.trim() ||
+    props.request.dateOfBirth?.trim() ||
+    props.request.phone?.trim() ||
+    '';
+
+  if (!keywordCandidate) return;
+  patientSearchKeyword.value = keywordCandidate;
+  await handlePatientSearch(0);
+};
+
 const newPatientForm = ref({
   code: '',
   fullName: '',
@@ -268,7 +325,7 @@ const resetWizardState = () => {
     phone: props.request?.phone ?? '',
     email: props.request?.email ?? '',
     address: '',
-    note: props.request?.symptomDescription ? `Ghi chú yêu cầu: ${props.request.symptomDescription}` : '',
+    note: props.request ? 'Tạo từ yêu cầu đặt lịch' : '',
   };
   newPatientLoading.value = false;
   newPatientSaved.value = false;
@@ -360,10 +417,12 @@ const handlePatientSearch = async (page = 0) => {
     showToast('error', 'Nhập họ tên, số điện thoại hoặc mã bệnh nhân để tìm kiếm.');
     return;
   }
+  const { keyword, dateOfBirth } = normalizePatientKeyword(patientSearchKeyword.value);
   patientSearchLoading.value = true;
   try {
     const pageData = await fetchPatientPage({
-      keyword: patientSearchKeyword.value.trim(),
+      keyword,
+      dateOfBirth,
       page,
       size: patientPageSize.value,
     });
@@ -410,7 +469,7 @@ const handleCreatePatient = async () => {
       phone: newPatientForm.value.phone || null,
       email: newPatientForm.value.email || null,
       address: newPatientForm.value.address || null,
-      note: newPatientForm.value.note || null,
+      note: props.request ? 'Tạo từ yêu cầu đặt lịch' : newPatientForm.value.note || null,
     };
     const patient = await createPatient(payload);
     selectedPatient.value = patient;
@@ -553,6 +612,7 @@ watch(
       resetWizardState();
       void ensureDoctorsLoaded();
       void ensureClinicRoomsLoaded();
+      void autoSearchExistingPatient();
       if (props.request?.patient) {
         const basePatient = props.request.patient;
         selectedPatient.value = {
@@ -560,6 +620,7 @@ watch(
           code: basePatient.code ?? `BN${basePatient.id}`,
           fullName: basePatient.fullName ?? props.request?.fullName ?? 'Bệnh nhân',
           phone: basePatient.phone ?? props.request?.phone ?? '',
+          dateOfBirth: props.request?.dateOfBirth ?? null,
           gender: null,
           email: props.request?.email ?? null,
           address: null,
@@ -581,6 +642,7 @@ watch(
   (mode) => {
     if (mode === 'existing') {
       newPatientSaved.value = Boolean(selectedPatient.value);
+      void autoSearchExistingPatient();
     }
     if (mode === 'new' && !newPatientSaved.value) {
       selectedPatient.value = null;
@@ -802,7 +864,7 @@ onMounted(() => {
             <article v-if="patientMode === 'existing'" class="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm">
               <h3 class="text-base font-semibold text-slate-900">Tìm kiếm bệnh nhân</h3>
               <p class="mt-1 text-sm text-slate-600">
-                Nhập họ tên, số điện thoại hoặc mã bệnh nhân để liên kết yêu cầu.
+                Nhập họ tên, số điện thoại, mã bệnh nhân hoặc ngày sinh (yyyy-MM-dd / dd-MM-yyyy) để liên kết yêu cầu.
               </p>
               <div class="mt-4 flex flex-col gap-3 sm:flex-row">
                 <div class="relative flex-1">
@@ -830,6 +892,12 @@ onMounted(() => {
                   <span>{{ patientSearchLoading ? 'Đang tìm...' : 'Tìm kiếm' }}</span>
                 </button>
               </div>
+              <p v-if="props.request" class="mt-2 text-xs text-slate-500">
+                Yêu cầu: <span class="font-semibold text-slate-800">{{ props.request.fullName }}</span>
+                - SĐT: <span class="font-semibold text-slate-800">{{ props.request.phone }}</span>
+                - Ngày sinh: <span class="font-semibold text-slate-800">{{ formatDob(props.request.dateOfBirth) }}</span>
+              </p>
+             
 
               <div v-if="patientSearchResults.length" class="mt-5 space-y-4">
                 <div class="grid gap-3 sm:grid-cols-2">
@@ -845,8 +913,7 @@ onMounted(() => {
                       <p class="text-sm font-semibold text-slate-900">{{ patient.fullName }}</p>
                       <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-600">{{ patient.code }}</span>
                     </div>
-                    <p class="mt-1 text-xs text-slate-500">SĐT: {{ patient.phone || '—' }} • Email: {{ patient.email || '—' }}</p>
-                    <p class="mt-1 text-xs text-slate-400">Ghi chú: {{ patient.note || 'Không có' }}</p>
+                    <p class="mt-1 text-xs text-slate-500">SĐT: {{ patient.phone || '—' }} • Ngày sinh: {{ formatDob(patient.dateOfBirth) }}</p>
                   </button>
                 </div>
                 <div v-if="patientPage && patientPage.totalPages > 1" class="flex items-center justify-between rounded-2xl border border-emerald-100 bg-emerald-50/50 px-4 py-3">
@@ -926,9 +993,9 @@ onMounted(() => {
                     class="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
                   >
                     <option value="">Chưa xác định</option>
-                    <option value="MALE">Nam</option>
-                    <option value="FEMALE">Nữ</option>
-                    <option value="OTHER">Khác</option>
+                    <option value="Nam">Nam</option>
+                    <option value="Nữ">Nữ</option>
+                    <option value="Khác">Khác</option>
                   </select>
                 </div>
                 <div>

@@ -23,6 +23,7 @@ export interface Patient {
 
 export interface PatientQuery {
   keyword?: string;
+  dateOfBirth?: string;
   page?: number;
   size?: number;
 }
@@ -114,4 +115,3 @@ export const updatePatient = async (id: number, payload: PatientUpdatePayload) =
 export const deletePatient = async (id: number) => {
   await http.delete(`/patients/${id}`);
 };
-

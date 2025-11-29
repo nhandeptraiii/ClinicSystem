@@ -32,9 +32,15 @@ public class PatientService {
         return patientRepository.findAll();
     }
 
-    public PatientPageResponse getPaged(String keyword, Pageable pageable) {
-        Page<Patient> page = patientRepository.search(
-                normalizeKeyword(keyword),
+    public PatientPageResponse getPaged(String keyword, LocalDate dateOfBirth, Pageable pageable) {
+        String normalizedKeyword = normalizeKeyword(keyword);
+        LocalDate dob = dateOfBirth != null ? dateOfBirth : parseDateFromKeyword(normalizedKeyword);
+        boolean keywordLooksLikeDob = dob != null && isDateString(normalizedKeyword);
+        String keywordForSearch = keywordLooksLikeDob ? null : normalizedKeyword;
+
+        Page<Patient> page = patientRepository.searchWithDob(
+                keywordForSearch,
+                dob,
                 pageable);
         return PatientPageResponse.from(page);
     }
@@ -277,6 +283,48 @@ public class PatientService {
         }
         String trimmed = keyword.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private LocalDate parseDateFromKeyword(String keyword) {
+        if (keyword == null) {
+            return null;
+        }
+        String normalized = keyword.replace('/', '-').trim();
+        try {
+            // yyyy-MM-dd or yyyy-M-d
+            if (normalized.matches("^\\d{4}-\\d{1,2}-\\d{1,2}$")) {
+                return LocalDate.parse(padDate(normalized));
+            }
+            // dd-MM-yyyy or d-M-yyyy
+            if (normalized.matches("^\\d{1,2}-\\d{1,2}-\\d{4}$")) {
+                String[] parts = normalized.split("-");
+                String day = parts[0].length() == 1 ? "0" + parts[0] : parts[0];
+                String month = parts[1].length() == 1 ? "0" + parts[1] : parts[1];
+                return LocalDate.parse(parts[2] + "-" + month + "-" + day);
+            }
+        } catch (Exception ignored) {
+            // Không parse được -> trả null
+        }
+        return null;
+    }
+
+    private boolean isDateString(String keyword) {
+        if (keyword == null) {
+            return false;
+        }
+        String normalized = keyword.replace('/', '-').trim();
+        return normalized.matches("^\\d{4}-\\d{1,2}-\\d{1,2}$") || normalized.matches("^\\d{1,2}-\\d{1,2}-\\d{4}$");
+    }
+
+    private String padDate(String input) {
+        // input dạng yyyy-M-d
+        String[] parts = input.split("-");
+        if (parts.length != 3) {
+            return input;
+        }
+        String month = parts[1].length() == 1 ? "0" + parts[1] : parts[1];
+        String day = parts[2].length() == 1 ? "0" + parts[2] : parts[2];
+        return parts[0] + "-" + month + "-" + day;
     }
 
 }

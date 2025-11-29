@@ -44,20 +44,18 @@ public class PatientController {
     @GetMapping
     public ResponseEntity<?> getPatients(
             @RequestParam(value = "keyword", required = false) String keyword,
+            @RequestParam(value = "dateOfBirth", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateOfBirth,
             @RequestParam(value = "page", required = false) Integer page,
             @RequestParam(value = "size", required = false) Integer size) {
-        if (page != null || size != null) {
+        if (page != null || size != null || dateOfBirth != null || (keyword != null && !keyword.trim().isEmpty())) {
             int safePage = page != null ? Math.max(page, 0) : 0;
             int safeSize = size != null ? Math.min(Math.max(size, 1), 50) : 10;
             Pageable pageable = PageRequest.of(
                     safePage,
                     safeSize,
                     Sort.by(Sort.Order.asc("fullName")));
-            PatientPageResponse response = patientService.getPaged(keyword, pageable);
+            PatientPageResponse response = patientService.getPaged(keyword, dateOfBirth, pageable);
             return ResponseEntity.ok(response);
-        }
-        if (keyword != null && !keyword.trim().isEmpty()) {
-            return ResponseEntity.ok(patientService.searchByKeyword(keyword));
         }
         return ResponseEntity.ok(patientService.findAll());
     }

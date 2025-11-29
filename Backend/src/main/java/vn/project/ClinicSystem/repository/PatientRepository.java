@@ -42,6 +42,18 @@ public interface PatientRepository extends JpaRepository<Patient, Long> {
 
   @Query("""
       SELECT p FROM Patient p
+      WHERE (:keyword IS NULL OR LOWER(p.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
+          OR LOWER(p.code) LIKE LOWER(CONCAT('%', :keyword, '%'))
+          OR LOWER(p.phone) LIKE LOWER(CONCAT('%', :keyword, '%'))
+          OR LOWER(p.email) LIKE LOWER(CONCAT('%', :keyword, '%')))
+        AND (:dateOfBirth IS NULL OR p.dateOfBirth = :dateOfBirth)
+      """)
+  Page<Patient> searchWithDob(@Param("keyword") String keyword,
+      @Param("dateOfBirth") LocalDate dateOfBirth,
+      Pageable pageable);
+
+  @Query("""
+      SELECT p FROM Patient p
       WHERE (:keyword IS NULL OR LOWER(p.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')))
         AND (:dateOfBirth IS NULL OR p.dateOfBirth = :dateOfBirth)
         AND (:phone IS NULL OR p.phone = :phone)
