@@ -34,7 +34,7 @@ public class PatientController {
         this.patientService = patientService;
     }
 
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'RECEPTIONIST')")
     @PostMapping
     public ResponseEntity<Patient> createPatient(@Valid @RequestBody Patient patient) {
         Patient created = patientService.create(patient);
@@ -70,7 +70,7 @@ public class PatientController {
         return ResponseEntity.ok(patientService.getByCode(code));
     }
 
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'RECEPTIONIST')")
     @PutMapping("/{id}")
     public ResponseEntity<Patient> updatePatient(@PathVariable("id") Long id, @RequestBody Patient patient) {
         Patient updated = patientService.update(id, patient);

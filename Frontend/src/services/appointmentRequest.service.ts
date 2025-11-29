@@ -151,3 +151,7 @@ export const rejectAppointmentRequest = async (id: number, payload: AppointmentR
   const { data } = await http.post<RestResponse<AppointmentRequest> | AppointmentRequest>(`/appointment-requests/${id}/reject`, payload);
   return unwrap(data);
 };
+
+export const deleteAppointmentRequest = async (id: number) => {
+  await http.delete(`/appointment-requests/${id}`);
+};

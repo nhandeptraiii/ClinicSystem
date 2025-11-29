@@ -4,8 +4,8 @@ import { useRouter } from 'vue-router';
 import AdminHeader from '@/components/AdminHeader.vue';
 import AppointmentRequestWizard from '@/components/AppointmentRequestWizard.vue';
 import { useAuthStore } from '@/stores/authStore';
-import { fetchAppointmentRequestPage, rejectAppointmentRequest, type AppointmentRequest, type AppointmentLifecycleStatus } from '@/services/appointmentRequest.service';
-import { fetchAppointmentPage, type AppointmentDetail } from '@/services/appointment.service';
+import { fetchAppointmentRequestPage, rejectAppointmentRequest, deleteAppointmentRequest, type AppointmentRequest, type AppointmentLifecycleStatus } from '@/services/appointmentRequest.service';
+import { fetchAppointmentPage, type AppointmentDetail, updateAppointmentStatus, deleteAppointment } from '@/services/appointment.service';
 import { createVisit, type PatientVisitCreatePayload } from '@/services/visit.service';
 import { useToast, type ToastType } from '@/composables/useToast';
 
@@ -18,6 +18,8 @@ const router = useRouter();
 const userName = computed(() => authStore.user?.username ?? 'Quản trị viên');
 
 const { toast, show: showToast, hide: hideToast } = useToast();
+const isAdmin = computed(() => authStore.hasRole(['ADMIN']));
+const isReceptionist = computed(() => authStore.hasRole(['RECEPTIONIST']));
 
 type ToastVisual = {
   title: string;
@@ -60,6 +62,18 @@ const requests = ref<AppointmentRequest[]>([]);
 const appointments = ref<AppointmentDetail[]>([]);
 const cancelledRequests = ref<AppointmentRequest[]>([]);
 const cancelledAppointments = ref<AppointmentDetail[]>([]);
+const allItems = ref<
+  Array<{
+    type: 'request' | 'appointment';
+    id: number;
+    status: AppointmentLifecycleStatus;
+    displayDate: string;
+    displayName: string;
+    displayInfo: string;
+    displaySubInfo?: string;
+    data?: any;
+  }>
+>([]);
 const loading = ref(false);
 const searchTerm = ref('');
 const selectedStatus = ref<StatusFilter>('PENDING');
@@ -76,6 +90,7 @@ let searchTimer: ReturnType<typeof setTimeout> | null = null;
 
 // Computed để xác định view mode
 const viewMode = computed(() => {
+  if (selectedStatus.value === 'ALL') return 'all';
   if (selectedStatus.value === 'CONFIRMED' || selectedStatus.value === 'CHECKED_IN' || selectedStatus.value === 'COMPLETED') {
     return 'appointments';
   }
@@ -84,6 +99,7 @@ const viewMode = computed(() => {
 });
 
 const displayItems = computed(() => {
+  if (viewMode.value === 'all') return allItems.value;
   if (viewMode.value === 'appointments') return appointments.value;
   if (viewMode.value === 'mixed') return cancelledItems.value;
   return requests.value;
@@ -108,9 +124,9 @@ const statusCountsCache = ref<StatusCountMap>({
 
 const statusMeta: Record<AppointmentLifecycleStatus, { label: string; badge: string; dot: string }> = {
   PENDING: { label: 'Chờ duyệt', badge: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500' },
-  CONFIRMED: { label: 'Đã xác nhận', badge: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
+  CONFIRMED: { label: 'Đã xác nhận', badge: 'bg-blue-100 text-blue-700', dot: 'bg-blue-500' },
   CHECKED_IN: { label: 'Đã đến', badge: 'bg-blue-100 text-blue-700', dot: 'bg-blue-500' },
-  COMPLETED: { label: 'Hoàn thành', badge: 'bg-slate-100 text-slate-700', dot: 'bg-slate-500' },
+  COMPLETED: { label: 'Hoàn thành',  badge: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
   CANCELLED: { label: 'Đã hủy', badge: 'bg-rose-100 text-rose-700', dot: 'bg-rose-500' },
 };
 
@@ -229,7 +245,7 @@ const loadAppointments = async (status?: AppointmentLifecycleStatus) => {
     const statusParam = status || selectedStatus.value;
 
     // Chỉ load appointments cho các status hợp lệ
-    if (statusParam !== 'CONFIRMED' && statusParam !== 'CHECKED_IN' && statusParam !== 'COMPLETED') {
+    if (statusParam !== 'CONFIRMED' && statusParam !== 'CHECKED_IN' && statusParam !== 'COMPLETED' && statusParam !== 'ALL') {
       appointments.value = [];
       totalElements.value = 0;
       totalPages.value = 1;
@@ -243,7 +259,7 @@ const loadAppointments = async (status?: AppointmentLifecycleStatus) => {
       page: pageIndex,
       size: PAGE_SIZE,
       keyword: keyword ? keyword : undefined,
-      status: statusParam as AppointmentLifecycleStatus,
+      status: statusParam === 'ALL' ? undefined : (statusParam as AppointmentLifecycleStatus),
     });
 
     appointments.value = response.items ?? [];
@@ -362,7 +378,49 @@ const loadRequests = async () => {
 };
 
 const loadData = async () => {
-  if (selectedStatus.value === 'CONFIRMED' || selectedStatus.value === 'CHECKED_IN' || selectedStatus.value === 'COMPLETED') {
+  if (selectedStatus.value === 'ALL') {
+    loading.value = true;
+    try {
+      const keyword = searchTerm.value.trim();
+      const [reqPage, aptPage] = await Promise.all([
+        fetchAppointmentRequestPage({
+          page: 0,
+          size: 500,
+          keyword: keyword ? keyword : undefined,
+        }),
+        fetchAppointmentPage({
+          page: 0,
+          size: 500,
+          keyword: keyword ? keyword : undefined,
+          status: undefined,
+        }),
+      ]);
+
+      // Lưu lại để có thể xem chi tiết
+      requests.value = reqPage.items ?? [];
+      appointments.value = aptPage.items ?? [];
+
+      const merged = buildAllItems(reqPage.items ?? [], aptPage.items ?? []);
+      totalElements.value = merged.length;
+      totalPages.value = Math.max(1, Math.ceil(totalElements.value / PAGE_SIZE));
+      const start = (currentPage.value - 1) * PAGE_SIZE;
+      const end = start + PAGE_SIZE;
+      allItems.value = merged.slice(start, end);
+      hasNext.value = end < totalElements.value;
+      hasPrevious.value = currentPage.value > 1;
+      lastLoadedAt.value = new Date().toISOString();
+    } catch (err) {
+      showToast('error', extractErrorMessage(err));
+      allItems.value = [];
+      totalElements.value = 0;
+      totalPages.value = 1;
+      currentPage.value = 1;
+      hasNext.value = false;
+      hasPrevious.value = false;
+    } finally {
+      loading.value = false;
+    }
+  } else if (selectedStatus.value === 'CONFIRMED' || selectedStatus.value === 'CHECKED_IN' || selectedStatus.value === 'COMPLETED') {
     await loadAppointments();
   } else if (selectedStatus.value === 'CANCELLED') {
     // ✅ Load cả Requests và Appointments có status CANCELLED
@@ -463,6 +521,64 @@ const selectedStatusMeta = computed(() =>
   selectedRequest.value ? statusMeta[selectedRequest.value.status] : undefined
 );
 
+const buildAllItems = (
+  reqs: AppointmentRequest[],
+  appts: AppointmentDetail[]
+) => {
+  const appointmentByRequestId = new Map<number, AppointmentDetail>();
+  appts.forEach((apt) => {
+    const reqId = (apt as any).request?.id as number | undefined;
+    if (reqId) {
+      appointmentByRequestId.set(reqId, apt);
+    }
+  });
+
+  const items: Array<{
+    type: 'request' | 'appointment';
+    id: number;
+    status: AppointmentLifecycleStatus;
+    displayDate: string;
+    displayName: string;
+    displayInfo: string;
+    displaySubInfo?: string;
+    data?: any;
+  }> = [];
+
+  appts.forEach((apt) => {
+    items.push({
+      type: 'appointment',
+      id: apt.id,
+      status: apt.status as AppointmentLifecycleStatus,
+      displayDate: apt.scheduledAt || apt.createdAt || '',
+      displayName: apt.patient?.fullName || '—',
+      displayInfo: `Bác sĩ: ${apt.doctor?.account?.fullName || '—'}`,
+      displaySubInfo: `Phòng: ${apt.clinicRoom?.name || '—'}`,
+      data: apt,
+    });
+  });
+
+  reqs.forEach((req) => {
+    if (req.id && appointmentByRequestId.has(req.id)) {
+      return; // đã có appointment từ request này
+    }
+    items.push({
+      type: 'request',
+      id: req.id,
+      status: req.status,
+      displayDate: req.createdAt || '',
+      displayName: req.fullName,
+      displayInfo: `SĐT: ${req.phone}`,
+      data: req,
+    });
+  });
+
+  return items.sort((a, b) => {
+    const tA = a.displayDate ? new Date(a.displayDate).getTime() : 0;
+    const tB = b.displayDate ? new Date(b.displayDate).getTime() : 0;
+    return tB - tA;
+  });
+};
+
 // Xóa hàm này, dùng statusMeta thay thế
 const getStatusDisplay = (status: AppointmentLifecycleStatus) => {
   return statusMeta[status] || statusMeta.PENDING;
@@ -510,6 +626,7 @@ watch(
 watch(
   cancelledItems,
   (items) => {
+    if (viewMode.value !== 'mixed') return;
     if (items.length === 0) {
       selectedRequestId.value = null;
       selectedAppointmentId.value = null;
@@ -523,6 +640,31 @@ watch(
           selectedRequestId.value = first.id;
         } else {
           selectedAppointmentId.value = first.id;
+        }
+      }
+    }
+  },
+  { immediate: true }
+);
+
+watch(
+  allItems,
+  (items) => {
+    if (viewMode.value !== 'all') return;
+    if (items.length === 0) {
+      selectedRequestId.value = null;
+      selectedAppointmentId.value = null;
+      return;
+    }
+    if (!selectedRequestId.value && !selectedAppointmentId.value) {
+      const first = items[0];
+      if (first) {
+        if (first.type === 'request') {
+          selectedRequestId.value = first.id;
+          selectedAppointmentId.value = null;
+        } else {
+          selectedAppointmentId.value = first.id;
+          selectedRequestId.value = null;
         }
       }
     }
@@ -555,6 +697,10 @@ const pendingShare = computed(() => {
   // Đảm bảo kết quả là số hợp lệ (0-100)
   return Number.isNaN(percentage) || percentage < 0 ? 0 : Math.min(percentage, 100);
 });
+
+const deletingRequest = ref(false);
+const updatingAppointmentStatus = ref(false);
+const deletingAppointment = ref(false);
 
 // Tổng số của 3 status: CONFIRMED, CHECKED_IN, COMPLETED
 const confirmedTotal = computed(() => {
@@ -591,6 +737,115 @@ const handleWizardCompleted = async () => {
 const handleCreateAppointmentWizardCompleted = async () => {
   await loadStatusCounts();
   await loadData();
+};
+
+const handleDeleteRequest = async () => {
+  if (deletingRequest.value) return;
+
+  let targetRequest: AppointmentRequest | null = selectedRequest.value;
+
+  // Nếu đang ở chế độ mixed/all và selectedRequest không set, lấy từ cancelledItems/allItems
+  if (!targetRequest && selectedRequestId.value) {
+    const fromCancelled = cancelledItems.value.find((item) => item.type === 'request' && item.id === selectedRequestId.value);
+    if (fromCancelled) {
+      targetRequest = fromCancelled.data as AppointmentRequest;
+    }
+    if (!targetRequest && viewMode.value === 'all') {
+      const fromAll = allItems.value.find((item) => item.type === 'request' && item.id === selectedRequestId.value);
+      if (fromAll) {
+        targetRequest = fromAll.data as AppointmentRequest;
+      }
+    }
+  }
+
+  if (!targetRequest) return;
+
+  if (targetRequest.status !== 'PENDING' && targetRequest.status !== 'CANCELLED') {
+    showToast('error', 'Chỉ xóa yêu cầu Chờ duyệt hoặc Đã hủy.');
+    return;
+  }
+  const ok = confirm('Bạn có chắc muốn xóa yêu cầu này?');
+  if (!ok) return;
+  deletingRequest.value = true;
+  try {
+    await deleteAppointmentRequest(targetRequest.id);
+    showToast('success', 'Đã xóa yêu cầu.');
+    selectedRequestId.value = null;
+    await loadStatusCounts();
+    await loadData();
+  } catch (err) {
+    showToast('error', extractErrorMessage(err));
+  } finally {
+    deletingRequest.value = false;
+  }
+};
+
+const handleCancelAppointment = async () => {
+  if (!selectedAppointment.value || updatingAppointmentStatus.value) return;
+  const status = selectedAppointment.value.status as AppointmentLifecycleStatus;
+  if (status !== 'CONFIRMED' && status !== 'CHECKED_IN') {
+    showToast('error', 'Chỉ hủy lịch ở trạng thái Đã xác nhận hoặc Đã đến.');
+    return;
+  }
+  const ok = confirm('Bạn có chắc muốn hủy lịch hẹn này?');
+  if (!ok) return;
+  updatingAppointmentStatus.value = true;
+  try {
+    await updateAppointmentStatus(selectedAppointment.value.id, { status: 'CANCELLED' as AppointmentLifecycleStatus });
+    showToast('success', 'Đã hủy lịch hẹn.');
+    await loadStatusCounts();
+    await loadData();
+  } catch (err) {
+    showToast('error', extractErrorMessage(err));
+  } finally {
+    updatingAppointmentStatus.value = false;
+  }
+};
+
+const handleDeleteCancelledAppointment = async () => {
+  if (deletingAppointment.value) return;
+
+  let targetAppointment: AppointmentDetail | null = selectedAppointment.value;
+
+  if (!targetAppointment && selectedAppointmentId.value) {
+    const fromCancelled = cancelledItems.value.find(
+      (item) => item.type === 'appointment' && item.id === selectedAppointmentId.value
+    );
+    if (fromCancelled) {
+      targetAppointment = fromCancelled.data as AppointmentDetail;
+    }
+    if (!targetAppointment && viewMode.value === 'all') {
+      const fromAll = allItems.value.find(
+        (item) => item.type === 'appointment' && item.id === selectedAppointmentId.value
+      );
+      if (fromAll) {
+        targetAppointment = fromAll.data as AppointmentDetail;
+      }
+    }
+  }
+
+  if (!targetAppointment) return;
+  const status = targetAppointment.status as AppointmentLifecycleStatus;
+  if (status !== 'CANCELLED') {
+    showToast('error', 'Chỉ xóa lịch hẹn đã hủy.');
+    return;
+  }
+
+  const ok = confirm('Bạn có chắc muốn xóa lịch hẹn này?');
+  if (!ok) return;
+
+  deletingAppointment.value = true;
+  try {
+    await deleteAppointment(targetAppointment.id);
+    showToast('success', 'Đã xóa lịch hẹn.');
+    selectedAppointmentId.value = null;
+    await loadStatusCounts();
+    await loadData();
+  } catch (err) {
+    showToast('error', extractErrorMessage(err));
+  } finally {
+    deletingAppointment.value = false;
+  }
 };
 
 const openRejectModal = () => {
@@ -671,7 +926,7 @@ const handleCheckIn = async () => {
             <span class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.3em] text-emerald-600">
               Trung tâm điều phối
             </span>
-            <h1 class="mt-4 text-2xl font-semibold text-slate-900 md:text-3xl">Quản lý yêu cầu đặt lịch</h1>
+            <h1 class="mt-4 text-2xl font-semibold text-slate-900 md:text-3xl">Quản lý lịch khám</h1>
             <p class="mt-3 text-sm leading-relaxed text-slate-600">
               Theo dõi và phản hồi các yêu cầu đặt lịch từ trang công khai. Sử dụng bộ lọc trạng thái, tìm kiếm nhanh và bảng chi tiết bên phải để nắm bắt thông tin trước khi liên hệ bệnh nhân.
             </p>
@@ -817,7 +1072,49 @@ const handleCheckIn = async () => {
                   >
                     {{ getStatusDisplay(appointment.status as AppointmentLifecycleStatus).label }}
                   </span>
-                  <p v-if="appointment.duration">Thời lượng: {{ appointment.duration }} phút</p>
+                <p v-if="appointment.duration">Thời lượng: {{ appointment.duration }} phút</p>
+                </div>
+              </div>
+            </button>
+          </div>
+
+          <!-- Hiển thị ALL (merge request + appointment) -->
+          <div v-else-if="viewMode === 'all'" class="space-y-3">
+            <button
+              v-for="item in allItems"
+              :key="`${item.type}-${item.id}`"
+              type="button"
+              class="w-full rounded-2xl border p-5 text-left transition focus:outline-none"
+              :class="[
+                (item.type === 'request' && selectedRequestId === item.id) || (item.type === 'appointment' && selectedAppointmentId === item.id)
+                  ? 'border-emerald-300 bg-emerald-50/70 shadow-md ring-2 ring-emerald-200/70'
+                  : 'border-emerald-100 bg-white hover:border-emerald-200 hover:bg-emerald-50/40'
+              ]"
+              @click="item.type === 'request' ? (selectedRequestId = item.id, selectedAppointmentId = null) : (selectedAppointmentId = item.id, selectedRequestId = null)"
+            >
+              <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div class="flex items-start gap-3">
+                  <span 
+                    class="mt-1 flex h-2.5 w-2.5 flex-shrink-0 rounded-full" 
+                    :class="getStatusDisplay(item.status as AppointmentLifecycleStatus).dot"
+                  ></span>
+                  <div>
+                    <p class="text-sm font-semibold uppercase tracking-wider text-slate-400">{{ formatDateTime(item.displayDate) }}</p>
+                    <h3 class="mt-1 text-lg font-semibold text-slate-900">{{ item.displayName }}</h3>
+                    <p class="mt-1 text-sm text-slate-600">{{ item.displayInfo }}</p>
+                    <p v-if="item.displaySubInfo" class="mt-1 text-xs text-slate-500">{{ item.displaySubInfo }}</p>
+                  </div>
+                </div>
+                <div class="flex flex-col items-start gap-2 text-sm text-slate-500 sm:items-end">
+                  <span 
+                    class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold" 
+                    :class="getStatusDisplay(item.status as AppointmentLifecycleStatus).badge"
+                  >
+                    {{ getStatusDisplay(item.status as AppointmentLifecycleStatus).label }}
+                  </span>
+                  <span class="rounded-full border px-2 py-0.5 text-[11px]" :class="item.type === 'appointment' ? 'border-emerald-200 text-emerald-700' : 'border-amber-200 text-amber-700'">
+                    {{ item.type === 'appointment' ? 'Lịch hẹn' : 'Yêu cầu' }}
+                  </span>
                 </div>
               </div>
             </button>
@@ -835,7 +1132,7 @@ const handleCheckIn = async () => {
                   ? 'border-rose-300 bg-rose-50/70 shadow-md ring-2 ring-rose-200/70'
                   : 'border-rose-100 bg-white hover:border-rose-200 hover:bg-rose-50/40'
               ]"
-              @click="item.type === 'request' ? selectedRequestId = item.id : selectedAppointmentId = item.id"
+              @click="item.type === 'request' ? (selectedRequestId = item.id, selectedAppointmentId = null) : (selectedAppointmentId = item.id, selectedRequestId = null)"
             >
               <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div class="flex items-start gap-3">
@@ -929,7 +1226,7 @@ const handleCheckIn = async () => {
           </div>
         </div>
 
-        <aside class="rounded-[28px] border border-emerald-100 bg-white/95 p-6 shadow-[0_20px_55px_-45px_rgba(13,148,136,0.55)]">
+        <aside class="rounded-[28px] border border-emerald-100 bg-white/95 p-6 shadow-[0_20px_55px_-45px_rgba(13,148,136,0.55)] h-full">
           <!-- Hiển thị Cancelled item details khi viewMode = mixed -->
           <template v-if="viewMode === 'mixed'">
             <template v-if="selectedRequestId && cancelledItems.find(item => item.type === 'request' && item.id === selectedRequestId)">
@@ -964,6 +1261,20 @@ const handleCheckIn = async () => {
                   <p class="font-semibold text-slate-900">Lý do từ chối:</p>
                   <p class="mt-2">{{ (cancelledItems.find(item => item.type === 'request' && item.id === selectedRequestId)?.data as AppointmentRequest)?.staffNote || 'Không có ghi chú' }}</p>
                 </section>
+                <div class="pt-2">
+                  <button
+                    v-if="isAdmin"
+                    type="button"
+                    class="inline-flex w-full items-center justify-center gap-2 rounded-full border border-rose-200 bg-white px-5 py-3 text-sm font-semibold uppercase tracking-wide text-rose-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    :disabled="deletingRequest"
+                    @click="handleDeleteRequest"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    <span>{{ deletingRequest ? 'Đang xóa...' : 'Xóa yêu cầu' }}</span>
+                  </button>
+                </div>
               </div>
             </template>
             <template v-else-if="selectedAppointmentId && cancelledItems.find(item => item.type === 'appointment' && item.id === selectedAppointmentId)">
@@ -978,22 +1289,38 @@ const handleCheckIn = async () => {
                 </span>
               </div>
               <div class="mt-6 space-y-6">
-                <section>
-                  <h3 class="text-sm font-semibold text-slate-900">Thông tin bệnh nhân</h3>
-                  <ul class="mt-3 space-y-2 text-sm text-slate-600">
-                    <li class="flex items-center gap-3">
-                      <span class="flex h-8 w-8 items-center justify-center rounded-full bg-rose-50 text-rose-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
-                        </svg>
-                      </span>
-                      <div>
-                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Họ tên</p>
-                        <p class="text-sm font-semibold text-slate-800">{{ (cancelledItems.find(item => item.type === 'appointment' && item.id === selectedAppointmentId)?.data as AppointmentDetail)?.patient?.fullName || '—' }}</p>
-                      </div>
-                    </li>
-                  </ul>
-                </section>
+              <section>
+                <h3 class="text-sm font-semibold text-slate-900">Thông tin liên hệ</h3>
+                <ul class="mt-3 space-y-2 text-sm text-slate-600">
+                  <li class="flex items-center gap-3">
+                    <span class="flex h-8 w-8 items-center justify-center rounded-full bg-rose-50 text-rose-600">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+                      </svg>
+                    </span>
+                    <div>
+                      <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Họ tên</p>
+                      <p class="text-sm font-semibold text-slate-800">{{ (cancelledItems.find(item => item.type === 'appointment' && item.id === selectedAppointmentId)?.data as AppointmentDetail)?.patient?.fullName || '—' }}</p>
+                    </div>
+                  </li>
+                  <li v-if="(cancelledItems.find(item => item.type === 'appointment' && item.id === selectedAppointmentId)?.data as AppointmentDetail)?.patient?.phone" class="flex items-center gap-3">
+                    <span class="flex h-8 w-8 items-center justify-center rounded-full bg-rose-50 text-rose-600">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.75 5.75c0-1.243 1.007-2.25 2.25-2.25h2.086c.466 0 .907.217 1.188.586l1.44 1.92c.424.565.372 1.347-.12 1.86L8.5 8.75a11.042 11.042 0 0 0 6.75 6.75l.884-.934c.512-.493 1.294-.544 1.86-.12l1.92 1.44c.369.281.586.722.586 1.188V19a2.25 2.25 0 0 1-2.25 2.25h-.5C9.096 21.25 2.75 14.904 2.75 7.25v-.5Z" />
+                      </svg>
+                    </span>
+                    <div>
+                      <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Số điện thoại</p>
+                      <a
+                        :href="`tel:${(cancelledItems.find(item => item.type === 'appointment' && item.id === selectedAppointmentId)?.data as AppointmentDetail)?.patient?.phone}`"
+                        class="text-sm font-semibold text-slate-800 hover:text-rose-600"
+                      >
+                        {{ (cancelledItems.find(item => item.type === 'appointment' && item.id === selectedAppointmentId)?.data as AppointmentDetail)?.patient?.phone }}
+                      </a>
+                    </div>
+                  </li>
+                </ul>
+              </section>
                 <section>
                   <h3 class="text-sm font-semibold text-slate-900">Thông tin lịch hẹn</h3>
                   <div class="mt-3 rounded-2xl border border-rose-100 bg-rose-50/50 p-4 text-sm text-slate-700">
@@ -1001,6 +1328,20 @@ const handleCheckIn = async () => {
                     <p class="mt-2"><span class="font-semibold text-slate-900">Phòng khám:</span> {{ (cancelledItems.find(item => item.type === 'appointment' && item.id === selectedAppointmentId)?.data as AppointmentDetail)?.clinicRoom?.name || '—' }}</p>
                   </div>
                 </section>
+                <div class="pt-2">
+                  <button
+                    v-if="isAdmin"
+                    type="button"
+                    class="inline-flex w-full items-center justify-center gap-2 rounded-full border border-rose-200 bg-white px-5 py-3 text-sm font-semibold uppercase tracking-wide text-rose-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    :disabled="deletingAppointment"
+                    @click="handleDeleteCancelledAppointment"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    <span>{{ deletingAppointment ? 'Đang xóa...' : 'Xóa lịch hẹn' }}</span>
+                  </button>
+                </div>
               </div>
             </template>
             <template v-else>
@@ -1015,7 +1356,7 @@ const handleCheckIn = async () => {
           </template>
 
           <!-- Hiển thị Appointment details khi viewMode = appointments -->
-          <template v-else-if="viewMode === 'appointments' && selectedAppointment">
+          <template v-else-if="(viewMode === 'appointments' || viewMode === 'all') && selectedAppointment">
             <div class="flex items-start justify-between gap-4">
               <div>
                 <p class="text-xs font-semibold uppercase tracking-[0.35em] text-emerald-500">Chi tiết lịch hẹn</p>
@@ -1082,7 +1423,7 @@ const handleCheckIn = async () => {
             <div class="mt-8 flex flex-col gap-3">
               <button
                 type="button"
-                class="inline-flex items-center justify-center gap-2 rounded-full border border-blue-200 bg-blue-500 px-5 py-2 text-sm font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+                class="inline-flex items-center justify-center gap-2 rounded-full border border-blue-200 bg-blue-500 px-5 py-3 text-sm font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
                 :disabled="checkingIn || (selectedAppointment.status as AppointmentLifecycleStatus) !== 'CONFIRMED'"
                 @click="handleCheckIn"
               >
@@ -1095,16 +1436,19 @@ const handleCheckIn = async () => {
                 </svg>
                 {{ checkingIn ? 'Đang tạo hồ sơ...' : 'Check-in - Tạo hồ sơ khám' }}
               </button>
-              <a
-                v-if="selectedAppointment.patient?.phone"
-                :href="`tel:${selectedAppointment.patient.phone}`"
-                class="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-200 bg-emerald-500 px-5 py-2 text-sm font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-600"
+
+              <button
+                v-if="(isAdmin || isReceptionist) && (selectedAppointment.status as AppointmentLifecycleStatus) === 'CONFIRMED'"
+                type="button"
+                class="inline-flex items-center justify-center gap-2 rounded-full border border-rose-200 bg-white px-5 py-3 text-sm font-semibold uppercase tracking-wide text-rose-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                :disabled="updatingAppointmentStatus"
+                @click="handleCancelAppointment"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.75 5.75c0-1.243 1.007-2.25 2.25-2.25h2.086c.466 0 .907.217 1.188.586l1.44 1.92c.424.565.372 1.347-.12 1.86L8.5 8.75a11.042 11.042 0 0 0 6.75 6.75l.884-.934c.512-.493 1.294-.544 1.86-.12l1.92 1.44c.369.281.586.722.586 1.188V19a2.25 2.25 0 0 1-2.25 2.25h-.5C9.096 21.25 2.75 14.904 2.75 7.25v-.5Z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
-                Gọi điện cho bệnh nhân
-              </a>
+                <span>{{ updatingAppointmentStatus ? 'Đang hủy...' : 'Hủy lịch' }}</span>
+              </button>
               <p v-if="(selectedAppointment.status as AppointmentLifecycleStatus) !== 'CONFIRMED'" class="text-center text-xs text-slate-400">
                 Chỉ có thể tạo hồ sơ khám cho lịch hẹn đã xác nhận.
               </p>
@@ -1112,7 +1456,7 @@ const handleCheckIn = async () => {
           </template>
 
           <!-- Hiển thị Request details khi viewMode = requests -->
-          <template v-else-if="viewMode === 'requests' && selectedRequest">
+          <template v-else-if="(viewMode === 'requests' || viewMode === 'all') && selectedRequest && !selectedAppointmentId">
             <div class="flex items-start justify-between gap-4">
               <div>
                 <p class="text-xs font-semibold uppercase tracking-[0.35em] text-emerald-500">Chi tiết yêu cầu</p>
@@ -1199,16 +1543,22 @@ const handleCheckIn = async () => {
             </div>
 
             <div class="mt-8 flex flex-col gap-3">
-              <a
-                :href="`tel:${selectedRequest.phone}`"
-                class="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-200 bg-emerald-500 px-5 py-2 text-sm font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-600"
+              <button
+                v-if="isAdmin && selectedRequest.status === 'CANCELLED'"
+                type="button"
+                class="inline-flex w-full items-center justify-center gap-2 rounded-full border border-rose-200 bg-white px-5 py-3 text-sm font-semibold uppercase tracking-wide text-rose-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                :disabled="deletingRequest"
+                @click="handleDeleteRequest"
               >
-                Gọi điện cho bệnh nhân
-              </a>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                <span>{{ deletingRequest ? 'Đang xóa...' : 'Xóa yêu cầu' }}</span>
+              </button>
               <button
                 v-if="selectedRequest.status === 'PENDING'"
                 type="button"
-                class="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-200 bg-white px-5 py-2 text-sm font-semibold uppercase tracking-wide text-emerald-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-emerald-200 disabled:hover:bg-white"
+                class="inline-flex w-full items-center justify-center gap-2 rounded-full border border-emerald-200 bg-emerald-500 px-5 py-3 text-sm font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-600"
                 :disabled="!canOpenWizard"
                 :title="wizardTooltip"
                 @click="wizardOpen = true"
@@ -1221,7 +1571,7 @@ const handleCheckIn = async () => {
               <button
                 v-if="selectedRequest.status === 'PENDING'"
                 type="button"
-                class="inline-flex items-center justify-center gap-2 rounded-full border border-rose-200 bg-white px-5 py-2 text-sm font-semibold uppercase tracking-wide text-rose-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                class="inline-flex w-full items-center justify-center gap-2 rounded-full border border-rose-200 bg-white px-5 py-3 text-sm font-semibold uppercase tracking-wide text-rose-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
                 :disabled="rejecting"
                 @click="openRejectModal"
               >

@@ -37,7 +37,7 @@ public class AppointmentController {
         this.appointmentService = appointmentService;
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPTIONIST')")
     @PostMapping
     public ResponseEntity<Appointment> createAppointment(
             @Valid @RequestBody AppointmentCreateRequest request) {
@@ -47,7 +47,7 @@ public class AppointmentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'RECEPTIONIST')")
     @GetMapping
     public ResponseEntity<?> getAppointments(
             @RequestParam(value = "doctorId", required = false) Long doctorId,
@@ -82,13 +82,13 @@ public class AppointmentController {
         return ResponseEntity.ok(appointmentService.findAll());
     }
 
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'RECEPTIONIST')")
     @GetMapping("/{id}")
     public ResponseEntity<Appointment> getAppointmentById(@PathVariable("id") Long id) {
         return ResponseEntity.ok(appointmentService.getById(id));
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPTIONIST')")
     @PutMapping("/{id}")
     public ResponseEntity<Appointment> updateAppointment(@PathVariable("id") Long id,
             @Valid @RequestBody AppointmentUpdateRequest request) {
@@ -96,7 +96,7 @@ public class AppointmentController {
         return ResponseEntity.ok(updated);
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPTIONIST')")
     @PatchMapping("/{id}/status")
     public ResponseEntity<Appointment> updateAppointmentStatus(
             @PathVariable("id") Long id,

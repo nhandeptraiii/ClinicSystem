@@ -130,22 +130,6 @@ const formatDob = (value?: string | null) => {
   return new Intl.DateTimeFormat('vi-VN').format(parsed);
 };
 
-const autoSearchExistingPatient = async () => {
-  if (patientMode.value !== 'existing' || patientSearchLoading.value) return;
-  if (!props.request) return;
-  if (patientSearchResults.value.length > 0) return;
-
-  const keywordCandidate =
-    props.request.fullName?.trim() ||
-    props.request.dateOfBirth?.trim() ||
-    props.request.phone?.trim() ||
-    '';
-
-  if (!keywordCandidate) return;
-  patientSearchKeyword.value = keywordCandidate;
-  await handlePatientSearch(0);
-};
-
 const newPatientForm = ref({
   code: '',
   fullName: '',
@@ -612,7 +596,9 @@ watch(
       resetWizardState();
       void ensureDoctorsLoaded();
       void ensureClinicRoomsLoaded();
-      void autoSearchExistingPatient();
+      if (props.request?.fullName) {
+        patientSearchKeyword.value = props.request.fullName;
+      }
       if (props.request?.patient) {
         const basePatient = props.request.patient;
         selectedPatient.value = {
@@ -642,7 +628,6 @@ watch(
   (mode) => {
     if (mode === 'existing') {
       newPatientSaved.value = Boolean(selectedPatient.value);
-      void autoSearchExistingPatient();
     }
     if (mode === 'new' && !newPatientSaved.value) {
       selectedPatient.value = null;

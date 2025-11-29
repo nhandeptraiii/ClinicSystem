@@ -27,6 +27,7 @@ import vn.project.ClinicSystem.model.dto.AppointmentStatusUpdateRequest;
 import vn.project.ClinicSystem.model.dto.AppointmentUpdateRequest;
 import vn.project.ClinicSystem.model.enums.AppointmentLifecycleStatus;
 import vn.project.ClinicSystem.repository.AppointmentRepository;
+import vn.project.ClinicSystem.repository.AppointmentRequestRepository;
 import vn.project.ClinicSystem.repository.ClinicRoomRepository;
 import vn.project.ClinicSystem.repository.DoctorRepository;
 import vn.project.ClinicSystem.repository.PatientRepository;
@@ -48,6 +49,7 @@ public class AppointmentService {
     private final ClinicRoomRepository clinicRoomRepository;
     private final UserRepository userRepository;
     private final UserWorkScheduleRepository userWorkScheduleRepository;
+    private final AppointmentRequestRepository appointmentRequestRepository;
     private final Validator validator;
 
     public AppointmentService(AppointmentRepository appointmentRepository,
@@ -56,6 +58,7 @@ public class AppointmentService {
             ClinicRoomRepository clinicRoomRepository,
             UserRepository userRepository,
             UserWorkScheduleRepository userWorkScheduleRepository,
+            AppointmentRequestRepository appointmentRequestRepository,
             Validator validator) {
         this.appointmentRepository = appointmentRepository;
         this.patientRepository = patientRepository;
@@ -63,6 +66,7 @@ public class AppointmentService {
         this.clinicRoomRepository = clinicRoomRepository;
         this.userRepository = userRepository;
         this.userWorkScheduleRepository = userWorkScheduleRepository;
+        this.appointmentRequestRepository = appointmentRequestRepository;
         this.validator = validator;
     }
 
@@ -212,10 +216,23 @@ public class AppointmentService {
 
     @Transactional
     public void delete(Long id) {
-        if (!appointmentRepository.existsById(id)) {
-            throw new EntityNotFoundException("Không tìm thấy lịch khám với id: " + id);
+        Appointment appt = appointmentRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy lịch khám với id: " + id));
+
+        // Chỉ cho phép xóa cứng khi đã hủy
+        if (appt.getStatus() != AppointmentLifecycleStatus.CANCELLED) {
+            throw new IllegalStateException("Chỉ xóa lịch hẹn đã hủy.");
         }
-        appointmentRepository.deleteById(id);
+
+        // Ngắt liên kết với request nếu có
+        AppointmentRequest req = appt.getRequest();
+        if (req != null) {
+            req.setAppointment(null);
+            appt.setRequest(null);
+            appointmentRequestRepository.save(req);
+        }
+
+        appointmentRepository.delete(appt);
     }
 
     private void ensureAvailability(Appointment appointment, Long ignoreId) {

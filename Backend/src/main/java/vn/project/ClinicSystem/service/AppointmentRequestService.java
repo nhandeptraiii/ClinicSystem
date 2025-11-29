@@ -127,6 +127,21 @@ public class AppointmentRequestService {
         return appointmentRequestRepository.save(request);
     }
 
+    @Transactional
+    public void delete(Long id) {
+        AppointmentRequest request = getById(id);
+        if (request.getStatus() != AppointmentLifecycleStatus.PENDING
+                && request.getStatus() != AppointmentLifecycleStatus.CANCELLED) {
+            throw new IllegalStateException("Chỉ xóa yêu cầu ở trạng thái Chờ duyệt hoặc Đã hủy");
+        }
+        if (request.getAppointment() != null) {
+            throw new IllegalStateException("Yêu cầu đã được tạo lịch hẹn, không thể xóa.");
+        }
+        request.setPatient(null);
+        request.setProcessedBy(null);
+        appointmentRequestRepository.delete(request);
+    }
+
     private void validateBean(AppointmentRequest appointmentRequest) {
         var violations = validator.validate(appointmentRequest);
         if (!violations.isEmpty()) {
