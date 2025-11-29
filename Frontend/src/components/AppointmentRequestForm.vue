@@ -51,6 +51,10 @@ type InvalidMessageMap = Partial<{
 }>;
 
 const today = now.toISOString().slice(0, 10);
+const MIN_DATE_OF_BIRTH = '1900-01-01';
+const MIN_LEAD_MINUTES = 120;
+const WORK_START = { h: 8, m: 0 };
+const WORK_END = { h: 17, m: 0 };
 
 const toMinutes = (h: number, m: number) => h * 60 + m;
 const toHHMM = (mins: number) => {
@@ -64,8 +68,8 @@ const makeSlots = (start: number, end: number, step = 30) => {
   return out;
 };
 
-const MORNING_SLOTS = makeSlots(toMinutes(7, 30), toMinutes(10, 30));
-const AFTERNOON_SLOTS = makeSlots(toMinutes(13, 0), toMinutes(17, 0));
+const MORNING_SLOTS = makeSlots(toMinutes(8, 0), toMinutes(10, 30));
+const AFTERNOON_SLOTS = makeSlots(toMinutes(13, 0), toMinutes(15, 30));
 const ALL_SLOTS = [...MORNING_SLOTS, ...AFTERNOON_SLOTS];
 
 const SYMPTOM_MAX_LENGTH = 1000;
@@ -155,15 +159,34 @@ const emitToast = (type: ToastType, message: string) => {
 
 const validatePhone = (value: string) => /^0\d{9}$/.test(value);
 
+const buildWorkTime = (base: Date, { h, m }: { h: number; m: number }) => {
+  const d = new Date(base);
+  d.setHours(h, m, 0, 0);
+  return d;
+};
+
+const getEarliestContactTime = () => {
+  const now = new Date();
+  const startToday = buildWorkTime(now, WORK_START);
+  const endToday = buildWorkTime(now, WORK_END);
+
+  if (now < startToday) return startToday;
+  if (now > endToday) {
+    const nextDay = new Date(now);
+    nextDay.setDate(now.getDate() + 1);
+    return buildWorkTime(nextDay, WORK_START);
+  }
+  return now;
+};
+
 const isTimeSelectable = (date: string, time: string) => {
   if (!date || !time || !ALL_SLOTS.includes(time)) return false;
-  if (date !== today) return true;
 
-  const [hourStr = '0', minuteStr = '0'] = time.split(':');
-  const slotMinutes = toMinutes(Number(hourStr), Number(minuteStr));
-  const nowTime = new Date();
-  const currentMinutes = toMinutes(nowTime.getHours(), nowTime.getMinutes());
-  return slotMinutes >= currentMinutes;
+  const slot = new Date(`${date}T${time}:00`);
+  const earliestContact = getEarliestContactTime();
+  const earliestAllowed = new Date(earliestContact.getTime() + MIN_LEAD_MINUTES * 60_000);
+
+  return slot >= earliestAllowed;
 };
 
 const availableSlots = computed(() => {
@@ -315,6 +338,9 @@ const handleSubmit = async () => {
   if (!dateOfBirth) {
     markInvalid('dateOfBirth');
     addError('Vui lòng chọn ngày sinh.');
+  } else if (dateOfBirth < MIN_DATE_OF_BIRTH) {
+    markInvalid('dateOfBirth');
+    addError('Ngày sinh phải từ năm 1900 trở đi.');
   } else if (dateOfBirth > today) {
     markInvalid('dateOfBirth');
     addError('Ngày sinh không được muộn hơn hôm nay.');
@@ -337,11 +363,7 @@ const handleSubmit = async () => {
 
   if (preferredDate && preferredTime && !isTimeSelectable(preferredDate, preferredTime)) {
     markInvalid('preferredTime');
-    addError(
-      preferredDate === today
-        ? 'Khung giờ đã trôi qua. Vui lòng chọn giờ khác hoặc ngày khác.'
-        : 'Giờ khám không hợp lệ, vui lòng chọn lại'
-    );
+    addError('Khung giờ này không khả dụng (cần tối thiểu 120 phút để liên hệ trong giờ làm). Vui lòng chọn giờ khác.');
   }
 
   if (trimmedSymptoms.length > SYMPTOM_MAX_LENGTH) {
@@ -464,11 +486,12 @@ const handleSubmit = async () => {
           v-model="form.dateOfBirth"
           type="date"
           :max="today"
+          :min="MIN_DATE_OF_BIRTH"
           required
           class="w-full rounded-xl border border-emerald-100 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
           :class="isFieldInvalid('dateOfBirth') ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100/80 shake-input' : ''"
           @input="handleInput('dateOfBirth', $event)"
-          @invalid="onInvalid('dateOfBirth', $event, { required: 'Vui lòng chọn ngày sinh.', rangeOverflow: 'Ngày sinh không được muộn hơn hôm nay.' })"
+          @invalid="onInvalid('dateOfBirth', $event, { required: 'Vui lòng chọn ngày sinh.', rangeUnderflow: 'Ngày sinh phải từ năm 1900 trở đi.', rangeOverflow: 'Ngày sinh không được muộn hơn hôm nay.' })"
         />
       </div>
 

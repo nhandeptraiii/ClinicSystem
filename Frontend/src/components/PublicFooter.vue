@@ -45,7 +45,7 @@ const ADDRESS = '36 Đường Cách mạng tháng 8, Phường Cái Khế, Thàn
 
                   <p>Giấy phép hoạt động số: 1752/SYT – GPHD/CL2</p>
                   <p>Số 36 Đường Cách mạng tháng 8, Phường Cái Khế, Thành Phố Cần Thơ</p>
-                  <p class="mt-1">Thứ 2 - Thứ 7: 7h30 - 20h00</p>
+                  <p class="mt-1">Thứ 2 - Thứ 7: 8h00 - 17h00</p>
                 </div>
               </div>
             </div>

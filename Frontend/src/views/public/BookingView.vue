@@ -104,8 +104,8 @@ onMounted(() => {
                     </div>
                   </div>
                   <ul class="mt-4 space-y-2 text-sm text-slate-600">
-                    <li>• Sáng: 07:30 – 11:30</li>
-                    <li>• Chiều: 13:00 – 20:00</li>
+                    <li>• Sáng: 8:00 – 12:00</li>
+                    <li>• Chiều: 13:00 – 17:00</li>
                     <li>• Số 36, đường Cách mạng tháng 8, phường Cái Khế, thành phố Cần Thơ</li>
                   </ul>
                 </div>
