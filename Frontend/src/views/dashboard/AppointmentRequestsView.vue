@@ -85,6 +85,8 @@ const createAppointmentWizardOpen = ref(false);
 const rejectModalOpen = ref(false);
 const rejectNote = ref('');
 const rejecting = ref(false);
+const cancelModalOpen = ref(false);
+const cancelNote = ref('');
 const checkingIn = ref(false);
 let searchTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -787,12 +789,20 @@ const handleCancelAppointment = async () => {
     showToast('error', 'Chỉ hủy lịch ở trạng thái Đã xác nhận hoặc Đã đến.');
     return;
   }
-  const ok = confirm('Bạn có chắc muốn hủy lịch hẹn này?');
-  if (!ok) return;
+
+  if (!cancelNote.value.trim()) {
+    showToast('error', 'Vui lòng nhập lý do hủy lịch.');
+    return;
+  }
+
   updatingAppointmentStatus.value = true;
   try {
-    await updateAppointmentStatus(selectedAppointment.value.id, { status: 'CANCELLED' as AppointmentLifecycleStatus });
+    await updateAppointmentStatus(selectedAppointment.value.id, {
+      status: 'CANCELLED' as AppointmentLifecycleStatus,
+      note: cancelNote.value.trim(),
+    });
     showToast('success', 'Đã hủy lịch hẹn.');
+    closeCancelModal();
     await loadStatusCounts();
     await loadData();
   } catch (err) {
@@ -856,6 +866,16 @@ const openRejectModal = () => {
 const closeRejectModal = () => {
   rejectModalOpen.value = false;
   rejectNote.value = '';
+};
+
+const openCancelModal = () => {
+  cancelNote.value = '';
+  cancelModalOpen.value = true;
+};
+
+const closeCancelModal = () => {
+  cancelModalOpen.value = false;
+  cancelNote.value = '';
 };
 
 const handleReject = async () => {
@@ -1326,6 +1346,14 @@ const handleCheckIn = async () => {
                   <div class="mt-3 rounded-2xl border border-rose-100 bg-rose-50/50 p-4 text-sm text-slate-700">
                     <p><span class="font-semibold text-slate-900">Bác sĩ:</span> {{ (cancelledItems.find(item => item.type === 'appointment' && item.id === selectedAppointmentId)?.data as AppointmentDetail)?.doctor?.account?.fullName || '—' }}</p>
                     <p class="mt-2"><span class="font-semibold text-slate-900">Phòng khám:</span> {{ (cancelledItems.find(item => item.type === 'appointment' && item.id === selectedAppointmentId)?.data as AppointmentDetail)?.clinicRoom?.name || '—' }}</p>
+                    <p class="mt-3 whitespace-pre-line">
+                      <span class="font-semibold text-slate-900">Lý do hủy:</span>
+                      <br />
+                      {{
+                        (cancelledItems.find(item => item.type === 'appointment' && item.id === selectedAppointmentId)?.data as AppointmentDetail)?.notes
+                          || 'Không có ghi chú hủy.'
+                      }}
+                    </p>
                   </div>
                 </section>
                 <div class="pt-2">
@@ -1442,12 +1470,12 @@ const handleCheckIn = async () => {
                 type="button"
                 class="inline-flex items-center justify-center gap-2 rounded-full border border-rose-200 bg-white px-5 py-3 text-sm font-semibold uppercase tracking-wide text-rose-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
                 :disabled="updatingAppointmentStatus"
-                @click="handleCancelAppointment"
+                @click="openCancelModal"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
-                <span>{{ updatingAppointmentStatus ? 'Đang hủy...' : 'Hủy lịch' }}</span>
+                <span>Hủy lịch</span>
               </button>
               <p v-if="(selectedAppointment.status as AppointmentLifecycleStatus) !== 'CONFIRMED'" class="text-center text-xs text-slate-400">
                 Chỉ có thể tạo hồ sơ khám cho lịch hẹn đã xác nhận.
@@ -1631,6 +1659,78 @@ const handleCheckIn = async () => {
     </main>
     <AppointmentRequestWizard v-model="wizardOpen" :request="selectedRequest" @completed="handleWizardCompleted" />
     <AppointmentRequestWizard v-model="createAppointmentWizardOpen" :request="null" @completed="handleCreateAppointmentWizardCompleted" />
+
+    <!-- Modal Hủy lịch hẹn -->
+    <Transition name="fade">
+      <div
+        v-if="cancelModalOpen"
+        class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm px-4"
+      >
+        <div class="w-full max-w-md rounded-3xl border border-rose-100 bg-white p-6 shadow-xl">
+          <div class="flex items-start gap-3">
+            <div class="flex h-10 w-10 items-center justify-center rounded-full bg-rose-50 text-rose-600">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </div>
+            <div class="flex-1">
+              <h3 class="text-lg font-semibold text-slate-900">Hủy lịch hẹn</h3>
+              <p class="mt-1 text-sm text-slate-600">
+                Bạn sắp hủy lịch của <span class="font-semibold">{{ selectedAppointment?.patient?.fullName }}</span> vào {{ formatDateTime(selectedAppointment?.scheduledAt) }}. Vui lòng nhập lý do hủy để lưu lại.
+              </p>
+            </div>
+            <button
+              type="button"
+              class="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+              :disabled="updatingAppointmentStatus"
+              @click="closeCancelModal"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m16 8-8 8m0-8 8 8" />
+              </svg>
+            </button>
+          </div>
+
+          <div class="mt-6">
+            <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="cancel-note">
+              Lý do hủy lịch *
+            </label>
+            <textarea
+              id="cancel-note"
+              v-model="cancelNote"
+              rows="4"
+              class="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 shadow-sm transition focus:border-rose-400 focus:outline-none focus:ring-4 focus:ring-rose-100/80"
+              placeholder="Nhập lý do hủy lịch hẹn..."
+              maxlength="500"
+            ></textarea>
+            <p class="mt-1 text-xs text-slate-400">{{ cancelNote.length }}/500 ký tự</p>
+          </div>
+
+          <div class="mt-6 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              :disabled="updatingAppointmentStatus"
+              @click="closeCancelModal"
+            >
+              Hủy
+            </button>
+            <button
+              type="button"
+              class="inline-flex items-center gap-2 rounded-full bg-rose-600 px-5 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-70"
+              :disabled="updatingAppointmentStatus || !cancelNote.trim()"
+              @click="handleCancelAppointment"
+            >
+              <svg v-if="updatingAppointmentStatus" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4l3.5-3.5L12 1v4a7 7 0 0 0-7 7H4z"></path>
+              </svg>
+              <span>{{ updatingAppointmentStatus ? 'Đang hủy...' : 'Xác nhận hủy' }}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
 
     <!-- Modal Từ chối -->
     <Transition name="fade">
