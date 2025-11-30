@@ -4,9 +4,14 @@ import { login, logout, type LoginPayload } from '@/services/auth.service';
 import { setAuthHeader } from '@/services/http';
 
 export interface AuthUser {
+  id?: number | string | null;
+  accountId?: number | string | null;
+  doctorId?: number | string | null;
   username: string;
+  email?: string | null;
   role: string | null;
   roles: string[];
+  fullName?: string;
 }
 
 const normalizeRole = (role: string) => role.replace(/^ROLE_/i, '').trim().toUpperCase();
@@ -29,7 +34,12 @@ function decodeUserFromToken(token: string): AuthUser | null {
     const normalizedRoles = roles.map((role: string) => normalizeRole(role)).filter(Boolean);
 
     return {
+      id: payload.id ?? payload.userId ?? payload.accountId ?? null,
+      accountId: payload.accountId ?? payload.id ?? null,
+      doctorId: payload.doctorId ?? payload.doctor?.id ?? null,
       username: payload.sub ?? payload.username ?? payload.email ?? '',
+      email: payload.email ?? payload.sub ?? null,
+      fullName: payload.fullName ?? payload.name ?? '',
       roles: normalizedRoles,
       role: normalizedRoles[0] ?? null,
     };

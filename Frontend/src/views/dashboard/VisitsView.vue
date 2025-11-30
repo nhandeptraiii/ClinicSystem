@@ -78,9 +78,27 @@ const paginatedVisits = computed(() => {
 const searchTerm = ref('');
 const statusFilter = ref<string>('');
 const dateFilter = ref<string>('');
+const quickFilter = ref<string>('');
+
+const toLocalDateString = (value?: string | Date | null) => {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString('sv-SE');
+};
+
+const getVisitLocalDate = (visit: PatientVisit) =>
+  toLocalDateString(visit.primaryAppointment?.scheduledAt ?? visit.createdAt);
 
 const filteredVisits = computed(() => {
   let result = [...visits.value];
+  const today = toLocalDateString(new Date());
+  const currentDoctorIdRaw = authStore.user?.doctorId ?? authStore.user?.id ?? authStore.user?.accountId;
+  const currentDoctorId = currentDoctorIdRaw != null ? String(currentDoctorIdRaw) : null;
+  const currentDoctorUsername = authStore.user?.username
+    ? authStore.user.username.toLowerCase()
+    : null;
+  const currentDoctorEmail = authStore.user?.email ? authStore.user.email.toLowerCase() : null;
 
   // Search by patient name
   if (searchTerm.value.trim()) {
@@ -97,14 +115,51 @@ const filteredVisits = computed(() => {
     result = result.filter((visit) => visit.status === statusFilter.value);
   }
 
+  // Quick filters
+  if (quickFilter.value === 'TODAY' && today) {
+    result = result.filter((visit) => getVisitLocalDate(visit) === today);
+  }
+
+  if (quickFilter.value === 'MY_VISITS') {
+    result = result.filter((visit) => {
+      const doctorIds = [
+        visit.primaryAppointment?.doctor?.account?.id,
+        visit.primaryAppointment?.doctor?.id,
+      ];
+      const doctorUsername = visit.primaryAppointment?.doctor?.account?.username;
+      const doctorEmail = visit.primaryAppointment?.doctor?.account?.email;
+
+      // Ưu tiên so khớp theo id nếu có, fallback theo username/email
+      if (
+        currentDoctorId &&
+        doctorIds.some((id) => id != null && String(id) === currentDoctorId)
+      ) {
+        return true;
+      }
+
+      if (
+        currentDoctorUsername &&
+        typeof doctorUsername === 'string' &&
+        doctorUsername.toLowerCase() === currentDoctorUsername
+      ) {
+        return true;
+      }
+
+      if (
+        currentDoctorEmail &&
+        typeof doctorEmail === 'string' &&
+        doctorEmail.toLowerCase() === currentDoctorEmail
+      ) {
+        return true;
+      }
+      return false;
+    });
+  }
+
   // Filter by date
   if (dateFilter.value) {
     const filterDate = dateFilter.value;
-    result = result.filter((visit) => {
-      if (!visit.createdAt) return false;
-      const visitDate = new Date(visit.createdAt).toISOString().split('T')[0];
-      return visitDate === filterDate;
-    });
+    result = result.filter((visit) => getVisitLocalDate(visit) === filterDate);
   }
 
   return result;
@@ -257,7 +312,7 @@ const viewVisitDetail = (visitId: number) => {
 };
 
 // Watch filters to reset page
-watch([searchTerm, statusFilter, dateFilter], () => {
+watch([searchTerm, statusFilter, dateFilter, quickFilter], () => {
   currentPage.value = 1;
 });
 
@@ -270,7 +325,7 @@ onMounted(() => {
   <div class="relative min-h-screen bg-gradient-to-br from-emerald-50 via-white to-white">
     <AdminHeader :user-name="userName" @sign-out="handleSignOut" />
 
-    <main class="mx-auto w-full max-w-7xl px-4 pb-20 pt-10 sm:px-6 lg:px-8">
+    <main class="mx-auto w-full max-w-6xl px-4 pb-20 pt-10 sm:px-6 lg:px-8">
       <section>
         <div class="flex flex-col gap-4 border-b border-emerald-100 pb-6 md:flex-row md:items-center md:justify-between">
           <div>
@@ -313,6 +368,14 @@ onMounted(() => {
                 {{ opt.label }}
               </option>
             </select>
+            <select
+              v-model="quickFilter"
+              class="rounded-full border border-emerald-100 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+            >
+              <option value="">Tất cả</option>
+              <option value="TODAY">Hôm nay</option>
+              <option value="MY_VISITS">Của tôi</option>
+            </select>
             <input
               v-model="dateFilter"
               type="date"
@@ -323,14 +386,14 @@ onMounted(() => {
 
         <div class="mt-5">
           <div
-            class="hidden rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-emerald-700 md:grid md:grid-cols-[100px_250px_200px_200px_150px_200px] md:gap-4"
+            class="hidden rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-emerald-700 md:grid md:grid-cols-[50px_250px_200px_200px_90px_150px] md:gap-4"
           >
-            <span>Mã lượt khám</span>
+            <span>Mã</span>
             <span>Bệnh nhân</span>
             <span>Bác sĩ</span>
             <span>Thời gian</span>
-            <span>Trạng thái</span>
-            <span class="flex justify-end pr-20">Thao tác</span>
+            <span class="pl-1">Trạng thái</span>
+            <span class="pl-20">Thao tác</span>
           </div>
 
           <template v-if="loading">
@@ -339,7 +402,7 @@ onMounted(() => {
               :key="`visit-skeleton-${skeleton}`"
               class="mt-3 animate-pulse rounded-2xl border border-slate-100 bg-white px-4 py-4 shadow-sm"
             >
-              <div class="grid gap-4 md:grid-cols-[100px_250px_200px_200px_150px_200px] md:items-center">
+              <div class="grid gap-4 md:grid-cols-[50px_250px_200px_200px_100px_150px] md:items-center">
                 <div class="h-4 rounded-full bg-slate-200/70"></div>
                 <div class="h-4 rounded-full bg-slate-200/60"></div>
                 <div class="h-4 rounded-full bg-slate-200/50"></div>
@@ -364,7 +427,7 @@ onMounted(() => {
               :key="visit.id"
               class="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm transition hover:border-emerald-200 hover:shadow-md"
             >
-              <div class="grid gap-4 md:grid-cols-[100px_250px_200px_200px_150px_200px] md:items-center">
+              <div class="grid gap-4 md:grid-cols-[50px_250px_200px_200px_100px_150px] md:items-center">
                 <div>
                   <p class="text-xs font-semibold uppercase tracking-wide text-slate-400 md:hidden">Mã lượt khám</p>
                   <p class="text-sm font-semibold text-slate-900">#{{ visit.id }}</p>
@@ -393,7 +456,7 @@ onMounted(() => {
                     {{ getStatusLabel(visit.status) }}
                   </span>
                 </div>
-                <div class="flex flex-nowrap items-center justify-start gap-1.5 md:justify-end">
+                <div class="flex flex-nowrap items-center justify-start gap-1.5 md:justify-end ">
                   <button
                     type="button"
                     class="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-sky-600 shadow-sm transition hover:border-sky-300 hover:bg-sky-50"

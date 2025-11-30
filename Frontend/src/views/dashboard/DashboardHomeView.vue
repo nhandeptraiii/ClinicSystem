@@ -28,17 +28,6 @@ const status = ref<StatusCount>({
 const authStore = useAuthStore();
 const canViewDashboard = computed(() => authStore.isAuthenticated);
 
-const isToday = (value?: string | null) => {
-  if (!value) return false;
-  const date = new Date(value);
-  const now = new Date();
-  return (
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate()
-  );
-};
-
 const loadDashboard = async () => {
   loading.value = true;
   error.value = null;

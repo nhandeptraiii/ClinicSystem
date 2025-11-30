@@ -43,6 +43,8 @@ export interface PatientVisit {
       account?: {
         id: number;
         fullName?: string | null;
+        username?: string | null;
+        email?: string | null;
       } | null;
     } | null;
     clinicRoom?: {
