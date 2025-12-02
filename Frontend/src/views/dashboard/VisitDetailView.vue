@@ -37,6 +37,7 @@ import {
   type ServiceIndicatorMapping,
 } from '@/services/medicalService.service';
 import { fetchMedications, type Medication } from '@/services/medication.service';
+import { fetchDiseases, type Disease } from '@/services/disease.service';
 
 const route = useRoute();
 const router = useRouter();
@@ -115,8 +116,14 @@ const editClinicalModalOpen = ref(false);
 const clinicalFormState = ref({
   provisionalDiagnosis: '',
   clinicalNote: '',
+  diseaseId: null as number | null,
+  diagnosisNote: '',
 });
 const clinicalSubmitting = ref(false);
+const diseaseOptions = ref<Disease[]>([]);
+const diseaseSearchTerm = ref('');
+const loadingDiseases = ref(false);
+let diseaseSearchTimer: ReturnType<typeof setTimeout> | null = null;
 
 // Service Order Modal
 const serviceOrderModalOpen = ref(false);
@@ -233,6 +240,19 @@ const loadPrescriptions = async () => {
   }
 };
 
+const loadDiseaseOptions = async (keyword?: string) => {
+  loadingDiseases.value = true;
+  try {
+    const sanitized = keyword?.trim();
+    diseaseOptions.value = await fetchDiseases(sanitized ? sanitized : undefined);
+  } catch (err: any) {
+    diseaseOptions.value = [];
+    showToast('error', err?.response?.data?.message ?? 'Không thể tải danh mục bệnh.');
+  } finally {
+    loadingDiseases.value = false;
+  }
+};
+
 const updateStatus = async () => {
   if (!visit.value || !newStatus.value) return;
 
@@ -257,7 +277,11 @@ const openEditClinicalModal = () => {
     clinicalFormState.value = {
       provisionalDiagnosis: visit.value.provisionalDiagnosis ?? '',
       clinicalNote: visit.value.clinicalNote ?? '',
+      diseaseId: visit.value.disease?.id ?? null,
+      diagnosisNote: visit.value.diagnosisNote ?? '',
     };
+    diseaseSearchTerm.value = '';
+    void loadDiseaseOptions();
     editClinicalModalOpen.value = true;
   }
 };
@@ -267,10 +291,17 @@ const saveClinicalInfo = async () => {
 
   const trimmedDiagnosis = clinicalFormState.value.provisionalDiagnosis?.trim() ?? '';
   const trimmedNote = clinicalFormState.value.clinicalNote?.trim() ?? '';
+  const trimmedDiagnosisNote = clinicalFormState.value.diagnosisNote?.trim() ?? '';
+  const normalizedDiseaseId =
+    clinicalFormState.value.diseaseId === null || clinicalFormState.value.diseaseId === undefined
+      ? null
+      : Number(clinicalFormState.value.diseaseId);
 
   const payload: PatientVisitUpdatePayload = {
     provisionalDiagnosis: trimmedDiagnosis.length > 0 ? trimmedDiagnosis : null,
     clinicalNote: trimmedNote.length > 0 ? trimmedNote : null,
+    diseaseId: normalizedDiseaseId,
+    diagnosisNote: trimmedDiagnosisNote.length > 0 ? trimmedDiagnosisNote : null,
   };
 
   try {
@@ -281,11 +312,15 @@ const saveClinicalInfo = async () => {
       ...existingVisit,
       provisionalDiagnosis: updatedVisit.provisionalDiagnosis ?? null,
       clinicalNote: updatedVisit.clinicalNote ?? null,
+      disease: updatedVisit.disease ?? null,
+      diagnosisNote: updatedVisit.diagnosisNote ?? null,
       updatedAt: updatedVisit.updatedAt ?? existingVisit?.updatedAt,
     };
     clinicalFormState.value = {
       provisionalDiagnosis: payload.provisionalDiagnosis ?? '',
       clinicalNote: payload.clinicalNote ?? '',
+      diseaseId: normalizedDiseaseId,
+      diagnosisNote: payload.diagnosisNote ?? '',
     };
     showToast('success', 'Đã cập nhật thông tin lâm sàng.');
     editClinicalModalOpen.value = false;
@@ -377,6 +412,18 @@ watch(serviceSearchTerm, () => {
     }
     void goToServicePage(1);
   }, 350);
+});
+
+watch(diseaseSearchTerm, (value) => {
+  if (diseaseSearchTimer) {
+    clearTimeout(diseaseSearchTimer);
+  }
+  diseaseSearchTimer = setTimeout(() => {
+    if (!editClinicalModalOpen.value) {
+      return;
+    }
+    void loadDiseaseOptions(value);
+  }, 320);
 });
 
 const submitServiceOrders = async () => {
@@ -732,6 +779,9 @@ onBeforeUnmount(() => {
   if (serviceSearchTimer) {
     clearTimeout(serviceSearchTimer);
   }
+  if (diseaseSearchTimer) {
+    clearTimeout(diseaseSearchTimer);
+  }
 });
 
 onMounted(() => {
@@ -875,6 +925,21 @@ onMounted(() => {
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Chẩn đoán tạm thời</p>
               <p class="mt-1 text-sm text-slate-900 whitespace-pre-wrap">
                 {{ visit.provisionalDiagnosis || 'Chưa có' }}
+              </p>
+            </div>
+
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Chẩn đoán chính</p>
+              <p class="mt-1 text-sm text-slate-900">
+                <template v-if="visit.disease">
+                  <span class="font-semibold">{{ visit.disease.code }}</span>
+                  <span class="mx-1 text-slate-400">•</span>
+                  <span>{{ visit.disease.name }}</span>
+                </template>
+                <span v-else>Chưa xác định</span>
+              </p>
+              <p v-if="visit.diagnosisNote" class="mt-1 text-sm text-slate-700 whitespace-pre-wrap">
+                {{ visit.diagnosisNote }}
               </p>
             </div>
 
@@ -1232,6 +1297,45 @@ onMounted(() => {
               <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Chẩn đoán tạm thời</label>
               <textarea
                 v-model="clinicalFormState.provisionalDiagnosis"
+                rows="3"
+                class="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+              />
+            </div>
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between">
+                <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Chẩn đoán chính</label>
+                <span v-if="loadingDiseases" class="text-[11px] text-slate-500">Đang tải danh mục...</span>
+              </div>
+              <div class="grid gap-2 sm:grid-cols-[1fr,180px]">
+                <input
+                  v-model="diseaseSearchTerm"
+                  type="text"
+                  placeholder="Tìm mã hoặc tên bệnh"
+                  class="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+                />
+                <button
+                  type="button"
+                  class="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+                  @click="loadDiseaseOptions(diseaseSearchTerm)"
+                >
+                  Làm mới
+                </button>
+              </div>
+              <select
+                v-model="clinicalFormState.diseaseId"
+                class="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+              >
+                <option :value="null">-- Chưa chọn bệnh --</option>
+                <option v-for="disease in diseaseOptions" :key="disease.id" :value="disease.id">
+                  {{ disease.code }} - {{ disease.name }}
+                </option>
+              </select>
+              <p class="text-xs text-slate-500">Chọn bệnh chính để gắn vào hồ sơ và đơn thuốc.</p>
+            </div>
+            <div class="space-y-1.5">
+              <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Ghi chú chẩn đoán</label>
+              <textarea
+                v-model="clinicalFormState.diagnosisNote"
                 rows="3"
                 class="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
               />

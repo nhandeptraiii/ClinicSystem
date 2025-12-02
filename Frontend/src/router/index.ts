@@ -44,6 +44,7 @@ const router = createRouter({
         { path: 'visits/:id', name: 'visit-detail', component: () => import('@/views/dashboard/VisitDetailView.vue'), meta: { roles: ['ADMIN', 'DOCTOR', 'RECEPTIONIST'] } },
         { path: 'doctor/visits', name: 'doctor-visits', component: () => import('@/views/dashboard/VisitsView.vue'), meta: { roles: ['DOCTOR'] } },
         { path: 'medications', name: 'medications', component: () => import('@/views/dashboard/MedicationsView.vue'), meta: { roles: ['ADMIN', 'PHARMACIST'] } },
+        { path: 'diseases', name: 'diseases', component: () => import('@/views/dashboard/DiseasesView.vue'), meta: { roles: ['ADMIN', 'DOCTOR'] } },
         { path: 'services', name: 'services', component: () => import('@/views/dashboard/ServicesView.vue'), meta: { roles: ['ADMIN'] } },
         { path: 'indicator-templates', name: 'indicator-templates', component: () => import('@/views/dashboard/IndicatorTemplatesView.vue'), meta: { roles: ['ADMIN'] } },
         { path: 'billing', name: 'billing', component: () => import('@/views/dashboard/BillingView.vue'), meta: { roles: ['ADMIN', 'RECEPTIONIST'] } },

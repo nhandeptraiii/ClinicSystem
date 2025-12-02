@@ -1,5 +1,6 @@
-import { http } from './http';
 import type { Prescription } from './prescription.service';
+import type { Disease } from './disease.service';
+import { http } from './http';
 
 interface RestResponse<T> {
   statusCode: number;
@@ -55,6 +56,8 @@ export interface PatientVisit {
   } | null;
   provisionalDiagnosis?: string | null;
   clinicalNote?: string | null;
+  disease?: Disease | null;
+  diagnosisNote?: string | null;
   status?: string;
   serviceOrders?: ServiceOrder[];
   prescriptions?: Prescription[];
@@ -152,6 +155,8 @@ export interface PatientVisitStatusUpdatePayload {
 export interface PatientVisitUpdatePayload {
   provisionalDiagnosis?: string | null;
   clinicalNote?: string | null;
+  diseaseId?: number | null;
+  diagnosisNote?: string | null;
 }
 
 export const fetchVisits = async (params?: { patientId?: number }): Promise<PatientVisit[]> => {

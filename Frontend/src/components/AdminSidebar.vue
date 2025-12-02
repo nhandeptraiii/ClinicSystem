@@ -13,6 +13,7 @@ import {
   ChartBarSquareIcon,
   HomeIcon,
   Squares2X2Icon,
+  HeartIcon,
   UsersIcon,
   UserGroupIcon,
 } from '@heroicons/vue/24/outline';
@@ -32,6 +33,7 @@ const menuItems = [
   { label: 'Dịch vụ khám', to: 'services', icon: ClipboardDocumentIcon, roles: ['ADMIN'] },
   { label: 'Mẫu chỉ số', to: 'indicator-templates', icon: Squares2X2Icon, roles: ['ADMIN'] },
   { label: 'Lịch làm việc', to: 'schedules', icon: CalendarDaysIcon, roles: ['ADMIN'] },
+  { label: 'Danh mục bệnh', to: 'diseases', icon: HeartIcon, roles: ['ADMIN', 'DOCTOR'] },
   { label: 'Khám bệnh', to: 'doctor-visits', icon: ClipboardDocumentCheckIcon, roles: ['DOCTOR'] },
   { label: 'Kho thuốc', to: 'medications', icon: BeakerIcon, roles: ['PHARMACIST', 'ADMIN'] },
   { label: 'Thống kê', to: 'analytics', icon: ChartBarSquareIcon, roles: ['ADMIN'] },
