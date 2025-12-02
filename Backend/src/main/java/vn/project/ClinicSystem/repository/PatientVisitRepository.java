@@ -26,18 +26,23 @@ public interface PatientVisitRepository extends JpaRepository<PatientVisit, Long
 
     List<PatientVisit> findByPatientIdOrderByCreatedAtDesc(Long patientId);
 
+    boolean existsByDiseaseId(Long diseaseId);
+
     @Query("""
             SELECT pv FROM PatientVisit pv
             LEFT JOIN pv.patient p
             LEFT JOIN pv.primaryAppointment pa
             LEFT JOIN pa.doctor d
             LEFT JOIN d.account acc
+            LEFT JOIN pv.disease dis
             WHERE (:keyword IS NULL OR
                 LOWER(p.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
                 OR LOWER(p.code) LIKE LOWER(CONCAT('%', :keyword, '%'))
                 OR LOWER(acc.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
                 OR LOWER(pa.reason) LIKE LOWER(CONCAT('%', :keyword, '%'))
                 OR LOWER(pa.notes) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR LOWER(dis.code) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR LOWER(dis.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
             )
             AND (:status IS NULL OR pv.status = :status)
             ORDER BY pv.createdAt DESC

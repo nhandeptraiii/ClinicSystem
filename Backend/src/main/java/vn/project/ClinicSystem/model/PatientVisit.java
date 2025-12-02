@@ -26,6 +26,7 @@ import jakarta.persistence.Table;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
+import vn.project.ClinicSystem.model.Disease;
 import vn.project.ClinicSystem.model.enums.VisitStatus;
 
 @Getter
@@ -55,6 +56,15 @@ public class PatientVisit {
     @Size(max = 2000)
     @Column(length = 2000)
     private String clinicalNote;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "disease_id")
+    @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
+    private Disease disease;
+
+    @Size(max = 2000)
+    @Column(length = 2000)
+    private String diagnosisNote;
 
     @Enumerated(EnumType.STRING)
     @Column(length = 30, nullable = false)

@@ -15,6 +15,7 @@ import jakarta.persistence.EntityNotFoundException;
 import vn.project.ClinicSystem.model.Appointment;
 import vn.project.ClinicSystem.model.ClinicRoom;
 import vn.project.ClinicSystem.model.Doctor;
+import vn.project.ClinicSystem.model.Disease;
 import vn.project.ClinicSystem.model.MedicalService;
 import vn.project.ClinicSystem.model.PatientVisit;
 import vn.project.ClinicSystem.model.ServiceOrder;
@@ -29,6 +30,7 @@ import vn.project.ClinicSystem.model.enums.ServiceOrderStatus;
 import vn.project.ClinicSystem.model.enums.VisitStatus;
 import vn.project.ClinicSystem.repository.AppointmentRepository;
 import vn.project.ClinicSystem.repository.DoctorRepository;
+import vn.project.ClinicSystem.repository.DiseaseRepository;
 import vn.project.ClinicSystem.repository.MedicalServiceRepository;
 import vn.project.ClinicSystem.repository.PatientVisitRepository;
 import vn.project.ClinicSystem.repository.ServiceOrderRepository;
@@ -41,6 +43,7 @@ public class VisitService {
     private final ServiceOrderRepository serviceOrderRepository;
     private final AppointmentService appointmentService;
     private final AppointmentRepository appointmentRepository;
+    private final DiseaseRepository diseaseRepository;
     private final MedicalServiceRepository medicalServiceRepository;
     private final DoctorRepository doctorRepository;
 
@@ -48,12 +51,14 @@ public class VisitService {
             ServiceOrderRepository serviceOrderRepository,
             AppointmentService appointmentService,
             AppointmentRepository appointmentRepository,
+            DiseaseRepository diseaseRepository,
             MedicalServiceRepository medicalServiceRepository,
             DoctorRepository doctorRepository) {
         this.patientVisitRepository = patientVisitRepository;
         this.serviceOrderRepository = serviceOrderRepository;
         this.appointmentService = appointmentService;
         this.appointmentRepository = appointmentRepository;
+        this.diseaseRepository = diseaseRepository;
         this.medicalServiceRepository = medicalServiceRepository;
         this.doctorRepository = doctorRepository;
     }
@@ -189,6 +194,15 @@ public class VisitService {
 
         visit.setProvisionalDiagnosis(normalizeNullableText(request.getProvisionalDiagnosis()));
         visit.setClinicalNote(normalizeNullableText(request.getClinicalNote()));
+        visit.setDiagnosisNote(normalizeNullableText(request.getDiagnosisNote()));
+
+        Disease disease = null;
+        if (request.getDiseaseId() != null) {
+            disease = diseaseRepository.findById(request.getDiseaseId())
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Không tìm thấy bệnh với id: " + request.getDiseaseId()));
+        }
+        visit.setDisease(disease);
 
         return patientVisitRepository.save(visit);
     }
