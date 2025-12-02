@@ -196,7 +196,6 @@ const createModalSubmitting = ref(false);
 const createFormState = ref<PatientVisitCreatePayload>({
   primaryAppointmentId: 0,
   provisionalDiagnosis: null,
-  clinicalNote: null,
 });
 
 const availableAppointments = ref<AppointmentDetail[]>([]);
@@ -246,7 +245,6 @@ const openCreateModal = async () => {
   createFormState.value = {
     primaryAppointmentId: 0,
     provisionalDiagnosis: null,
-    clinicalNote: null,
   };
   appointmentSearchTerm.value = '';
   await loadAppointments();
@@ -602,15 +600,6 @@ onMounted(() => {
               />
             </div>
 
-            <div class="space-y-1.5">
-              <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Ghi chú lâm sàng</label>
-              <textarea
-                v-model="createFormState.clinicalNote"
-                rows="3"
-                placeholder="Nhập ghi chú lâm sàng (nếu có)"
-                class="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-              />
-            </div>
           </div>
 
           <div class="mt-6 flex items-center justify-end gap-3 border-t border-slate-200 pt-4">

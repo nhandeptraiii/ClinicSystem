@@ -910,7 +910,6 @@ const handleCheckIn = async () => {
     const payload: PatientVisitCreatePayload = {
       primaryAppointmentId: selectedAppointment.value.id,
       provisionalDiagnosis: null,
-      clinicalNote: null,
     };
     
     await createVisit(payload);

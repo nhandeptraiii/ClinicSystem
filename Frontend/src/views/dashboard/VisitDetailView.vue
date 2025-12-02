@@ -98,6 +98,14 @@ const hasBlockingOrders = computed(() =>
   serviceOrders.value.some((o) => ['PENDING', 'SCHEDULED', 'IN_PROGRESS'].includes(o.status ?? '')),
 );
 
+const clinicalServiceOrders = computed(() =>
+  serviceOrders.value.filter((o) => o.medicalService?.requiresIndicator === false),
+);
+
+const clsServiceOrders = computed(() =>
+  serviceOrders.value.filter((o) => o.medicalService?.requiresIndicator !== false),
+);
+
 // Service Order Results (grouped by service order)
 const serviceOrderResults = ref<Map<number, ServiceOrderResult[]>>(new Map());
 const loadingResults = ref(false);
@@ -115,8 +123,6 @@ const newStatus = ref<string>('');
 const editClinicalModalOpen = ref(false);
 const clinicalFormState = ref({
   provisionalDiagnosis: '',
-  clinicalNote: '',
-  diagnosisNote: '',
 });
 const clinicalSubmitting = ref(false);
 const diseaseOptions = ref<Disease[]>([]);
@@ -124,6 +130,9 @@ const selectedDiseases = ref<Disease[]>([]);
 const diseaseSearchTerm = ref('');
 const loadingDiseases = ref(false);
 let diseaseSearchTimer: ReturnType<typeof setTimeout> | null = null;
+const availableClinicalServices = ref<MedicalService[]>([]);
+const loadingClinicalServices = ref(false);
+const selectedClinicalServiceIds = ref<number[]>([]);
 
 // Service Order Modal
 const serviceOrderModalOpen = ref(false);
@@ -152,6 +161,13 @@ const resultFormState = ref<ServiceOrderResultPayload>({
   indicators: [],
 });
 const resultSubmitting = ref(false);
+
+const resultNeedsIndicators = computed(() => {
+  const requiresFlag = currentServiceOrderForResult.value?.medicalService?.requiresIndicator;
+  const serviceRequires = requiresFlag !== undefined ? requiresFlag : true;
+  const hasMappings = indicatorMappings.value.length > 0;
+  return serviceRequires && hasMappings;
+});
 
 const filteredServices = computed(() => availableServices.value);
 
@@ -257,6 +273,26 @@ const loadDiseaseOptions = async (keyword?: string) => {
   }
 };
 
+const loadClinicalServices = async () => {
+  loadingClinicalServices.value = true;
+  try {
+    const clinicRoomId = visit.value?.primaryAppointment?.clinicRoom?.id;
+    const response = await fetchMedicalServicePage({
+      page: 0,
+      size: 50,
+      clinicRoomId: clinicRoomId ?? undefined,
+    });
+    availableClinicalServices.value = (response.items ?? []).filter(
+      (svc) => svc.requiresIndicator === false,
+    );
+  } catch (err: any) {
+    availableClinicalServices.value = [];
+    showToast('error', err?.response?.data?.message ?? 'Không thể tải dịch vụ khám lâm sàng.');
+  } finally {
+    loadingClinicalServices.value = false;
+  }
+};
+
 const addDisease = (disease: Disease) => {
   const exists = selectedDiseases.value.some((d) => d.id === disease.id);
   if (!exists) {
@@ -293,12 +329,17 @@ const openEditClinicalModal = () => {
   if (visit.value) {
     clinicalFormState.value = {
       provisionalDiagnosis: visit.value.provisionalDiagnosis ?? '',
-      clinicalNote: visit.value.clinicalNote ?? '',
-      diagnosisNote: visit.value.diagnosisNote ?? '',
     };
     selectedDiseases.value = Array.isArray(visit.value.diseases) ? [...(visit.value.diseases ?? [])] : [];
     diseaseSearchTerm.value = '';
     diseaseOptions.value = [];
+    const existingClinicalOrders = serviceOrders.value.filter(
+      (o) => o.medicalService?.requiresIndicator === false && o.medicalService?.id,
+    );
+    selectedClinicalServiceIds.value = existingClinicalOrders
+      .map((o) => o.medicalService?.id)
+      .filter((id): id is number => typeof id === 'number');
+    void loadClinicalServices();
     editClinicalModalOpen.value = true;
   }
 };
@@ -307,15 +348,11 @@ const saveClinicalInfo = async () => {
   if (!visit.value) return;
 
   const trimmedDiagnosis = clinicalFormState.value.provisionalDiagnosis?.trim() ?? '';
-  const trimmedNote = clinicalFormState.value.clinicalNote?.trim() ?? '';
-  const trimmedDiagnosisNote = clinicalFormState.value.diagnosisNote?.trim() ?? '';
   const selectedIds = selectedDiseases.value.map((d) => d.id);
 
   const payload: PatientVisitUpdatePayload = {
     provisionalDiagnosis: trimmedDiagnosis.length > 0 ? trimmedDiagnosis : null,
-    clinicalNote: trimmedNote.length > 0 ? trimmedNote : null,
     diseaseIds: selectedIds,
-    diagnosisNote: trimmedDiagnosisNote.length > 0 ? trimmedDiagnosisNote : null,
   };
 
   try {
@@ -325,17 +362,31 @@ const saveClinicalInfo = async () => {
     visit.value = {
       ...existingVisit,
       provisionalDiagnosis: updatedVisit.provisionalDiagnosis ?? null,
-      clinicalNote: updatedVisit.clinicalNote ?? null,
       diseases: updatedVisit.diseases ?? [],
-      diagnosisNote: updatedVisit.diagnosisNote ?? null,
       updatedAt: updatedVisit.updatedAt ?? existingVisit?.updatedAt,
     };
     clinicalFormState.value = {
       provisionalDiagnosis: payload.provisionalDiagnosis ?? '',
-      clinicalNote: payload.clinicalNote ?? '',
-      diagnosisNote: payload.diagnosisNote ?? '',
     };
     selectedDiseases.value = updatedVisit.diseases ?? [];
+
+    // Thêm dịch vụ khám lâm sàng (requiresIndicator=false) nếu được chọn
+    const existingClinicalOrderIds = serviceOrders.value
+      .filter((o) => o.medicalService?.requiresIndicator === false && o.medicalService?.id)
+      .map((o) => o.medicalService?.id as number);
+    const missingClinicalIds = selectedClinicalServiceIds.value.filter(
+      (id) => !existingClinicalOrderIds.includes(id),
+    );
+    if (missingClinicalIds.length > 0 && visit.value?.id) {
+      const clinicalNote = payload.provisionalDiagnosis || null;
+      const clinicalPayloads: ServiceOrderCreatePayload[] = missingClinicalIds.map((id) => ({
+        medicalServiceId: id,
+        note: clinicalNote,
+      }));
+      await createServiceOrders(visit.value.id, clinicalPayloads);
+      await loadServiceOrders();
+    }
+
     showToast('success', 'Đã cập nhật thông tin lâm sàng.');
     editClinicalModalOpen.value = false;
   } catch (err: any) {
@@ -482,14 +533,17 @@ const openResultModal = async (order: ServiceOrder) => {
     // Load indicator mappings for this service
     const mappings = await fetchServiceIndicatorMappings(order.medicalService.id);
     indicatorMappings.value = mappings;
-    // Initialize form with existing results or empty
-    if (order.indicatorResults && order.indicatorResults.length > 0) {
+    const requiresIndicators = order.medicalService?.requiresIndicator !== false;
+    const hasMappings = mappings.length > 0;
+
+    if (requiresIndicators && hasMappings && order.indicatorResults && order.indicatorResults.length > 0) {
+      // Prefill from existing results
       resultFormState.value.indicators = order.indicatorResults.map((result) => ({
         indicatorId: result.indicatorTemplate?.id ?? 0,
         value: result.measuredValue ?? 0,
         note: result.note ?? null,
       }));
-    } else {
+    } else if (requiresIndicators && hasMappings) {
       // Initialize with all required indicators
       resultFormState.value.indicators = mappings
         .filter((m) => m.required)
@@ -498,6 +552,9 @@ const openResultModal = async (order: ServiceOrder) => {
           value: 0,
           note: null,
         }));
+    } else {
+      // Dịch vụ lâm sàng không yêu cầu chỉ số: không cần prefill indicators
+      resultFormState.value.indicators = [];
     }
     resultModalOpen.value = true;
   } catch (err) {
@@ -529,37 +586,46 @@ const removeIndicatorFromResult = (indicatorId: number) => {
 
 const submitResults = async () => {
   if (!currentServiceOrderForResult.value?.id) return;
-  if (resultFormState.value.indicators.length === 0) {
+  const needsIndicators = resultNeedsIndicators.value;
+  const indicators = needsIndicators ? resultFormState.value.indicators : [];
+
+  if (needsIndicators && indicators.length === 0) {
     showToast('error', 'Vui lòng nhập ít nhất một chỉ số kết quả.');
     return;
   }
 
-  // Validate required indicators
-  const requiredIndicatorIds = new Set(
-    indicatorMappings.value.filter((m) => m.required).map((m) => m.indicatorTemplate.id),
-  );
-  const providedIndicatorIds = new Set(resultFormState.value.indicators.map((i) => i.indicatorId));
-  const missingRequired = Array.from(requiredIndicatorIds).filter((id) => !providedIndicatorIds.has(id));
-  if (missingRequired.length > 0) {
-    const missingNames = missingRequired
-      .map((id) => indicatorMappings.value.find((m) => m.indicatorTemplate.id === id)?.indicatorTemplate.name)
-      .filter(Boolean)
-      .join(', ');
-    showToast('error', `Thiếu kết quả cho các chỉ số bắt buộc: ${missingNames}`);
-    return;
-  }
-
-  // Validate values
-  for (const item of resultFormState.value.indicators) {
-    if (!item.value || item.value <= 0) {
-      showToast('error', 'Vui lòng nhập giá trị hợp lệ cho tất cả các chỉ số.');
+  if (needsIndicators) {
+    // Validate required indicators
+    const requiredIndicatorIds = new Set(
+      indicatorMappings.value.filter((m) => m.required).map((m) => m.indicatorTemplate.id),
+    );
+    const providedIndicatorIds = new Set(indicators.map((i) => i.indicatorId));
+    const missingRequired = Array.from(requiredIndicatorIds).filter((id) => !providedIndicatorIds.has(id));
+    if (missingRequired.length > 0) {
+      const missingNames = missingRequired
+        .map((id) => indicatorMappings.value.find((m) => m.indicatorTemplate.id === id)?.indicatorTemplate.name)
+        .filter(Boolean)
+        .join(', ');
+      showToast('error', `Thiếu kết quả cho các chỉ số bắt buộc: ${missingNames}`);
       return;
+    }
+
+    // Validate values
+    for (const item of indicators) {
+      if (!item.value || item.value <= 0) {
+        showToast('error', 'Vui lòng nhập giá trị hợp lệ cho tất cả các chỉ số.');
+        return;
+      }
     }
   }
 
   resultSubmitting.value = true;
   try {
-    await recordServiceOrderResults(currentServiceOrderForResult.value.id, resultFormState.value);
+    const payload: ServiceOrderResultPayload = {
+      ...resultFormState.value,
+      indicators,
+    };
+    await recordServiceOrderResults(currentServiceOrderForResult.value.id, payload);
     showToast('success', 'Đã lưu kết quả xét nghiệm.');
     resultModalOpen.value = false;
     await loadServiceOrders();
@@ -862,10 +928,7 @@ onMounted(() => {
               </button>
             </div>
 
-            <p v-if="hasBlockingOrders" class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-              Không thể hoàn tất hồ sơ khi vẫn còn phiếu dịch vụ chưa xử lý.
-            </p>
-
+            
           <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div>
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Bệnh nhân</p>
@@ -963,16 +1026,56 @@ onMounted(() => {
                 </template>
                 <span v-else class="text-sm text-slate-700">Chưa xác định</span>
               </div>
-              <p v-if="visit.diagnosisNote" class="mt-1 text-sm text-slate-700 whitespace-pre-wrap">
-                {{ visit.diagnosisNote }}
-              </p>
             </div>
 
             <div>
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Ghi chú lâm sàng</p>
-              <p class="mt-1 text-sm text-slate-900 whitespace-pre-wrap">
-                {{ visit.clinicalNote || 'Chưa có' }}
-              </p>
+              <div class="mb-2 flex items-center justify-between">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Dịch vụ khám lâm sàng</p>
+                <button
+                  type="button"
+                  @click="openEditClinicalModal"
+                  class="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-600 shadow-sm transition hover:bg-emerald-50"
+                >
+                  Sửa dịch vụ
+                </button>
+              </div>
+              <div v-if="clinicalServiceOrders.length === 0" class="text-sm text-slate-700">
+                Chưa có dịch vụ khám lâm sàng.
+              </div>
+              <div v-else class="space-y-3">
+                <div
+                  v-for="order in clinicalServiceOrders"
+                  :key="order.id"
+                  class="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3"
+                >
+                  <div class="flex items-start justify-between gap-3">
+                    <div>
+                      <div class="text-sm font-semibold text-slate-900">
+                        {{ order.medicalService?.name ?? 'N/A' }}
+                      </div>
+                      <div class="text-xs text-slate-600">
+                        Mã: {{ order.medicalService?.code ?? 'N/A' }}
+                      </div>
+                      <div class="text-xs text-slate-600 mt-1">
+                        Bác sĩ phụ trách: {{ order.assignedDoctor?.account?.fullName ?? 'N/A' }}
+                      </div>
+                      <div v-if="order.note" class="mt-1 text-sm text-slate-700">
+                        Ghi chú: {{ order.note }}
+                      </div>
+                    </div>
+                    <span
+                      class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold"
+                      :class="
+                        order.status === 'COMPLETED_WITH_RESULT' || order.status === 'COMPLETED'
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                          : 'bg-amber-100 text-amber-800 border-amber-200'
+                      "
+                    >
+                      {{ getServiceOrderStatusLabel(order.status) }}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1003,7 +1106,7 @@ onMounted(() => {
 
             <div v-else class="space-y-4">
               <div
-                v-for="order in serviceOrders"
+                v-for="order in clsServiceOrders"
                 :key="order.id"
                 class="rounded-xl border border-emerald-100 bg-emerald-50/40 p-4"
               >
@@ -1073,7 +1176,7 @@ onMounted(() => {
 
           <div v-else class="space-y-6">
             <div
-              v-for="order in serviceOrders.filter((o) => serviceOrderResults.has(o.id ?? 0))"
+              v-for="order in clsServiceOrders.filter((o) => serviceOrderResults.has(o.id ?? 0))"
               :key="order.id"
             >
               <h3 class="mb-2 text-sm font-semibold text-slate-900">
@@ -1301,7 +1404,7 @@ onMounted(() => {
         class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm px-4"
         @click.self="editClinicalModalOpen = false"
       >
-        <div class="w-full max-w-2xl rounded-3xl border border-emerald-100 bg-white p-6 shadow-xl">
+        <div class="w-full max-w-xl max-h-[85vh] overflow-y-auto rounded-3xl border border-emerald-100 bg-white p-6 shadow-xl">
           <div class="flex items-start justify-between">
             <div>
               <p class="text-xs font-semibold uppercase tracking-[0.35em] text-emerald-500">Chỉnh sửa thông tin</p>
@@ -1317,7 +1420,7 @@ onMounted(() => {
               </svg>
             </button>
           </div>
-          <div class="mt-6 space-y-4">
+          <div class="mt-4 space-y-3">
             <div class="space-y-1.5">
               <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Chẩn đoán tạm thời</label>
               <textarea
@@ -1325,6 +1428,42 @@ onMounted(() => {
                 rows="3"
                 class="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
               />
+            </div>
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Dịch vụ khám lâm sàng</label>
+                <span v-if="loadingClinicalServices" class="text-[11px] text-slate-500">Đang tải...</span>
+              </div>
+              <div class="space-y-2 rounded-xl border border-slate-200 p-3">
+                <div v-if="!loadingClinicalServices && availableClinicalServices.length === 0" class="text-sm text-slate-600">
+                  Chưa có dịch vụ khám lâm sàng. Vui lòng tạo dịch vụ với "requiresIndicator = 0".
+                </div>
+                <div v-else class="space-y-2 max-h-52 overflow-y-auto">
+                  <label
+                    v-for="svc in availableClinicalServices"
+                    :key="svc.id"
+                    class="flex items-start gap-3 rounded-lg px-2 py-1.5 hover:bg-slate-50"
+                  >
+                    <input
+                      v-model="selectedClinicalServiceIds"
+                      :value="svc.id"
+                      type="checkbox"
+                      class="mt-1 h-4 w-4 text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <div>
+                      <div class="text-sm font-semibold text-slate-900">
+                        {{ svc.name }}
+                      </div>
+                      <div class="text-xs text-slate-600">
+                        Mã: {{ svc.code }}
+                      </div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+              <p class="text-xs text-slate-500">
+                Chọn dịch vụ khám lâm sàng, ghi chú sẽ dùng chẩn đoán tạm thời/ghi chú lâm sàng làm note phiếu.
+              </p>
             </div>
             <div class="space-y-1.5">
               <div class="flex items-center justify-between">
@@ -1377,22 +1516,6 @@ onMounted(() => {
                 </div>
                 <p class="text-xs text-slate-500">Nhập từ khóa để tìm và chọn nhiều bệnh.</p>
               </div>
-            </div>
-            <div class="space-y-1.5">
-              <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Ghi chú chẩn đoán</label>
-              <textarea
-                v-model="clinicalFormState.diagnosisNote"
-                rows="3"
-                class="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-              />
-            </div>
-            <div class="space-y-1.5">
-              <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Ghi chú lâm sàng</label>
-              <textarea
-                v-model="clinicalFormState.clinicalNote"
-                rows="4"
-                class="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-              />
             </div>
           </div>
           <div class="mt-6 flex items-center justify-end gap-3 border-t border-slate-200 pt-4">
@@ -1582,122 +1705,129 @@ onMounted(() => {
             </div>
 
             <div v-else>
-              <!-- Available Indicators -->
-              <div class="mb-4 space-y-2">
-                <h3 class="text-sm font-semibold text-slate-900">Chỉ số có sẵn</h3>
-                <div class="flex flex-wrap gap-2">
-                  <button
-                    v-for="mapping in indicatorMappings"
-                    :key="mapping.id"
-                    type="button"
-                    @click="addIndicatorToResult(mapping)"
-                    :disabled="resultFormState.indicators.some((i) => i.indicatorId === mapping.indicatorTemplate.id)"
-                    class="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-600 shadow-sm transition hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                    </svg>
-                    {{ mapping.indicatorTemplate.name }}
-                    <span v-if="mapping.required" class="text-rose-500">*</span>
-                  </button>
-                </div>
-              </div>
-
-              <!-- Result Form -->
-              <div v-if="resultFormState.indicators.length === 0" class="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/40 p-6 text-center text-sm text-emerald-700">
-                Chưa có chỉ số nào. Nhấn vào các nút ở trên để thêm chỉ số.
-              </div>
-
-              <div v-else class="space-y-4">
-                <div
-                  v-for="item in resultFormState.indicators"
-                  :key="item.indicatorId"
-                  class="rounded-xl border border-emerald-100 bg-emerald-50/40 p-4"
-                >
-                  <div class="mb-3 flex items-center justify-between">
-                    <div>
-                      <span class="text-sm font-semibold text-slate-900">
-                        {{
-                          indicatorMappings.find((m) => m.indicatorTemplate.id === item.indicatorId)
-                            ?.indicatorTemplate.name ?? 'N/A'
-                        }}
-                      </span>
-                      <span
-                        v-if="
-                          indicatorMappings.find((m) => m.indicatorTemplate.id === item.indicatorId)?.required
-                        "
-                        class="ml-1 text-rose-500"
-                      >
-                        *
-                      </span>
-                      <span
-                        v-if="
-                          indicatorMappings.find((m) => m.indicatorTemplate.id === item.indicatorId)
-                            ?.indicatorTemplate.unit
-                        "
-                        class="ml-2 text-xs text-slate-600"
-                      >
-                        ({{ indicatorMappings.find((m) => m.indicatorTemplate.id === item.indicatorId)?.indicatorTemplate.unit }})
-                      </span>
-                    </div>
+              <template v-if="resultNeedsIndicators">
+                <!-- Available Indicators -->
+                <div class="mb-4 space-y-2">
+                  <h3 class="text-sm font-semibold text-slate-900">Chỉ số có sẵn</h3>
+                  <div class="flex flex-wrap gap-2">
                     <button
+                      v-for="mapping in indicatorMappings"
+                      :key="mapping.id"
                       type="button"
-                      @click="removeIndicatorFromResult(item.indicatorId)"
-                      class="flex h-6 w-6 items-center justify-center rounded-full border border-rose-200 text-rose-600 transition hover:border-rose-300 hover:bg-rose-50"
+                      @click="addIndicatorToResult(mapping)"
+                      :disabled="resultFormState.indicators.some((i) => i.indicatorId === mapping.indicatorTemplate.id)"
+                      class="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-600 shadow-sm transition hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m15 9-6 6m0-6 6 6M3 6h18" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                       </svg>
+                      {{ mapping.indicatorTemplate.name }}
+                      <span v-if="mapping.required" class="text-rose-500">*</span>
                     </button>
                   </div>
+                </div>
 
-                  <div class="grid gap-3 sm:grid-cols-2">
-                    <div class="space-y-1.5">
-                      <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Giá trị đo <span class="text-rose-500">*</span>
-                      </label>
-                      <input
-                        v-model.number="item.value"
-                        type="number"
-                        step="0.0001"
-                        min="0"
-                        placeholder="0"
-                        class="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-                      />
-                      <div
-                        v-if="
-                          indicatorMappings.find((m) => m.indicatorTemplate.id === item.indicatorId)
-                            ?.indicatorTemplate.normalMin !== null &&
-                          indicatorMappings.find((m) => m.indicatorTemplate.id === item.indicatorId)
-                            ?.indicatorTemplate.normalMax !== null
-                        "
-                        class="text-xs text-slate-500"
-                      >
-                        Ngưỡng tham chiếu:
-                        {{
-                          indicatorMappings.find((m) => m.indicatorTemplate.id === item.indicatorId)
-                            ?.indicatorTemplate.normalMin
-                        }}
-                        -
-                        {{
-                          indicatorMappings.find((m) => m.indicatorTemplate.id === item.indicatorId)
-                            ?.indicatorTemplate.normalMax
-                        }}
+                <!-- Result Form -->
+                <div v-if="resultFormState.indicators.length === 0" class="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/40 p-6 text-center text-sm text-emerald-700">
+                  Chưa có chỉ số nào. Nhấn vào các nút ở trên để thêm chỉ số.
+                </div>
+
+                <div v-else class="space-y-4">
+                  <div
+                    v-for="item in resultFormState.indicators"
+                    :key="item.indicatorId"
+                    class="rounded-xl border border-emerald-100 bg-emerald-50/40 p-4"
+                  >
+                    <div class="mb-3 flex items-center justify-between">
+                      <div>
+                        <span class="text-sm font-semibold text-slate-900">
+                          {{
+                            indicatorMappings.find((m) => m.indicatorTemplate.id === item.indicatorId)
+                              ?.indicatorTemplate.name ?? 'N/A'
+                          }}
+                        </span>
+                        <span
+                          v-if="
+                            indicatorMappings.find((m) => m.indicatorTemplate.id === item.indicatorId)?.required
+                          "
+                          class="ml-1 text-rose-500"
+                        >
+                          *
+                        </span>
+                        <span
+                          v-if="
+                            indicatorMappings.find((m) => m.indicatorTemplate.id === item.indicatorId)
+                              ?.indicatorTemplate.unit
+                          "
+                          class="ml-2 text-xs text-slate-600"
+                        >
+                          ({{ indicatorMappings.find((m) => m.indicatorTemplate.id === item.indicatorId)?.indicatorTemplate.unit }})
+                        </span>
                       </div>
+                      <button
+                        type="button"
+                        @click="removeIndicatorFromResult(item.indicatorId)"
+                        class="flex h-6 w-6 items-center justify-center rounded-full border border-rose-200 text-rose-600 transition hover:border-rose-300 hover:bg-rose-50"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="m15 9-6 6m0-6 6 6M3 6h18" />
+                        </svg>
+                      </button>
                     </div>
 
-                    <div class="space-y-1.5">
-                      <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Ghi chú</label>
-                      <input
-                        v-model="item.note"
-                        type="text"
-                        placeholder="Ghi chú (nếu có)"
-                        class="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-                      />
+                    <div class="grid gap-3 sm:grid-cols-2">
+                      <div class="space-y-1.5">
+                        <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Giá trị đo <span class="text-rose-500">*</span>
+                        </label>
+                        <input
+                          v-model.number="item.value"
+                          type="number"
+                          step="0.0001"
+                          min="0"
+                          placeholder="0"
+                          class="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+                        />
+                        <div
+                          v-if="
+                            indicatorMappings.find((m) => m.indicatorTemplate.id === item.indicatorId)
+                              ?.indicatorTemplate.normalMin !== null &&
+                            indicatorMappings.find((m) => m.indicatorTemplate.id === item.indicatorId)
+                              ?.indicatorTemplate.normalMax !== null
+                          "
+                          class="text-xs text-slate-500"
+                        >
+                          Ngưỡng tham chiếu:
+                          {{
+                            indicatorMappings.find((m) => m.indicatorTemplate.id === item.indicatorId)
+                              ?.indicatorTemplate.normalMin
+                          }}
+                          -
+                          {{
+                            indicatorMappings.find((m) => m.indicatorTemplate.id === item.indicatorId)
+                              ?.indicatorTemplate.normalMax
+                          }}
+                        </div>
+                      </div>
+
+                      <div class="space-y-1.5">
+                        <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Ghi chú</label>
+                        <input
+                          v-model="item.note"
+                          type="text"
+                          placeholder="Ghi chú (nếu có)"
+                          class="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              </template>
+              <template v-else>
+                <div class="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/40 p-6 text-sm text-emerald-700">
+                  Dịch vụ khám lâm sàng không yêu cầu nhập chỉ số. Vui lòng nhập kết luận/kết quả bên dưới.
+                </div>
+              </template>
 
               <!-- Overall Conclusion -->
               <div class="mt-4 space-y-1.5">

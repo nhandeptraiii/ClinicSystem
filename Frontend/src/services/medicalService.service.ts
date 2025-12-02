@@ -23,6 +23,7 @@ export interface MedicalService {
   code: string;
   name: string;
   basePrice: number;
+  requiresIndicator?: boolean;
   description?: string | null;
   category?: string | null;
   status?: string | null;
@@ -52,6 +53,7 @@ export interface MedicalServicePayload {
 export interface MedicalServiceQuery {
   keyword?: string;
   category?: string;
+  clinicRoomId?: number;
   page?: number;
   size?: number;
 }
@@ -91,6 +93,8 @@ const normalizeMedicalServiceData = (input: MedicalService): MedicalService => {
   return {
     ...input,
     basePrice: normalizeBasePrice(rawBasePrice),
+    requiresIndicator:
+      (input as unknown as { requiresIndicator?: unknown }).requiresIndicator === false ? false : true,
   };
 };
 

@@ -19,7 +19,6 @@ const normalizeResponse = <T>(payload: RestResponse<T> | T): T => {
 export interface PatientVisitCreatePayload {
   primaryAppointmentId: number;
   provisionalDiagnosis?: string | null;
-  clinicalNote?: string | null;
 }
 
 export interface PatientVisit {
@@ -55,9 +54,7 @@ export interface PatientVisit {
     } | null;
   } | null;
   provisionalDiagnosis?: string | null;
-  clinicalNote?: string | null;
   diseases?: Disease[] | null;
-  diagnosisNote?: string | null;
   status?: string;
   serviceOrders?: ServiceOrder[];
   prescriptions?: Prescription[];
@@ -84,6 +81,7 @@ export interface ServiceOrder {
     id: number;
     code?: string;
     name?: string;
+    requiresIndicator?: boolean;
   } | null;
   assignedDoctor?: {
     id: number;
@@ -154,9 +152,7 @@ export interface PatientVisitStatusUpdatePayload {
 
 export interface PatientVisitUpdatePayload {
   provisionalDiagnosis?: string | null;
-  clinicalNote?: string | null;
   diseaseIds?: number[] | null;
-  diagnosisNote?: string | null;
 }
 
 export const fetchVisits = async (params?: { patientId?: number }): Promise<PatientVisit[]> => {
