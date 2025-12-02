@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useAuthStore } from '@/stores/authStore';
 import { useToast, type ToastType } from '@/composables/useToast';
 import {
   createDisease,
@@ -10,6 +11,9 @@ import {
 } from '@/services/disease.service';
 
 const { toast, show: showToast, hide: hideToast } = useToast();
+const authStore = useAuthStore();
+const isAdmin = computed(() => authStore.hasRole(['ADMIN']));
+const isDoctor = computed(() => authStore.hasRole(['DOCTOR']));
 
 type ToastVisual = {
   title: string;
@@ -114,11 +118,13 @@ const loadDiseases = async (targetPage?: number) => {
 };
 
 const openCreateModal = () => {
+  if (!isAdmin.value) return;
   resetForm();
   modalOpen.value = true;
 };
 
 const openEditModal = (disease: Disease) => {
+  if (!isAdmin.value) return;
   editingDisease.value = disease;
   formState.value = {
     code: disease.code,
@@ -168,6 +174,7 @@ const saveDisease = async () => {
 };
 
 const confirmDelete = (disease: Disease) => {
+  if (!isAdmin.value) return;
   diseaseToDelete.value = disease;
   deleteConfirmOpen.value = true;
 };
@@ -231,6 +238,7 @@ onBeforeUnmount(() => {
           <button
             type="button"
             class="inline-flex items-center gap-2 self-start rounded-full bg-emerald-600 px-5 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"
+            v-if="isAdmin"
             @click="openCreateModal"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -311,6 +319,7 @@ onBeforeUnmount(() => {
                 </div>
                 <div class="flex items-center justify-end gap-1.5 pr-4">
                   <button
+                    v-if="isAdmin"
                     type="button"
                     class="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 whitespace-nowrap"
                     @click="openEditModal(disease)"
@@ -321,6 +330,7 @@ onBeforeUnmount(() => {
                     Sửa
                   </button>
                   <button
+                    v-if="isAdmin"
                     type="button"
                     class="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-rose-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 whitespace-nowrap"
                     @click="confirmDelete(disease)"
@@ -364,7 +374,7 @@ onBeforeUnmount(() => {
     <!-- Create / Edit Modal -->
     <Transition name="fade">
       <div
-        v-if="modalOpen"
+        v-if="modalOpen && isAdmin"
         class="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm px-4"
         @click.self="modalOpen = false"
       >
@@ -447,7 +457,7 @@ onBeforeUnmount(() => {
     <!-- Delete Confirmation Modal -->
     <Transition name="fade">
       <div
-        v-if="deleteConfirmOpen"
+        v-if="deleteConfirmOpen && isAdmin"
         class="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/60 px-4"
       >
         <div class="w-full max-w-md rounded-3xl border border-rose-100 bg-white p-6 text-slate-700 shadow-xl">
