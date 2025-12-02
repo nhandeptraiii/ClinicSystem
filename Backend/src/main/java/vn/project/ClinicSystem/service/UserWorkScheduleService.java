@@ -20,6 +20,7 @@ import vn.project.ClinicSystem.model.Role;
 import vn.project.ClinicSystem.model.User;
 import vn.project.ClinicSystem.model.UserWorkSchedule;
 import vn.project.ClinicSystem.model.dto.WorkScheduleDayDto;
+import vn.project.ClinicSystem.model.enums.ClinicRoomType;
 import vn.project.ClinicSystem.repository.ClinicRoomRepository;
 import vn.project.ClinicSystem.repository.UserRepository;
 import vn.project.ClinicSystem.repository.UserWorkScheduleRepository;
@@ -61,6 +62,7 @@ public class UserWorkScheduleService {
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy người dùng với id: " + userId));
         Map<DayOfWeek, WorkScheduleDayDto> normalized = normalizeRequestDays(requestDays);
         ClinicRoom clinicRoom = resolveClinicRoomForSchedule(clinicRoomId, user, normalized);
+        validateRoomCapacity(user, normalized, clinicRoom);
         validateClinicRoomAvailability(user, normalized, clinicRoom);
         return persistSchedule(user, normalized, clinicRoom);
     }
@@ -69,6 +71,7 @@ public class UserWorkScheduleService {
             Long clinicRoomId) {
         Map<DayOfWeek, WorkScheduleDayDto> normalized = normalizeRequestDays(requestDays);
         ClinicRoom clinicRoom = resolveClinicRoomForSchedule(clinicRoomId, user, normalized);
+        validateRoomCapacity(user, normalized, clinicRoom);
         validateClinicRoomAvailability(user, normalized, clinicRoom);
         return persistSchedule(user, normalized, clinicRoom);
     }
@@ -197,6 +200,56 @@ public class UserWorkScheduleService {
         }
 
         return "Phòng " + room.getName() + " (" + room.getCode() + ") " + String.join("; ", userMessages);
+    }
+
+    private void validateRoomCapacity(User user, Map<DayOfWeek, WorkScheduleDayDto> normalized,
+            ClinicRoom clinicRoom) {
+        boolean isDoctor = hasDoctorRole(user);
+        if (!isDoctor) {
+            // Chỉ giới hạn theo sức chứa/slot cho bác sĩ; nhân sự khác có thể cùng ca.
+            return;
+        }
+        if (clinicRoom == null || clinicRoom.getId() == null) {
+            return;
+        }
+        int capacity = clinicRoom.getCapacity() != null && clinicRoom.getCapacity() > 0 ? clinicRoom.getCapacity() : 1;
+        Long roomId = clinicRoom.getId();
+
+        for (DayOfWeek day : SUPPORTED_WORK_DAYS) {
+            WorkScheduleDayDto dto = normalized.get(day);
+            if (dto == null) {
+                continue;
+            }
+            var existing = scheduleRepository.findByUserIdAndDayOfWeek(user.getId(), day).orElse(null);
+
+            if (dto.isMorning()) {
+                long current = scheduleRepository.countDoctorsInRoom(roomId, day, true);
+                if (existing != null && existing.getClinicRoom() != null
+                        && Objects.equals(existing.getClinicRoom().getId(), roomId)
+                        && existing.isMorning()) {
+                    current = Math.max(0, current - 1);
+                }
+                if (current >= capacity) {
+                    throw new IllegalStateException(
+                            "Phòng " + clinicRoom.getName() + " đã đầy (" + current + "/" + capacity
+                                    + " nhân viên) trong ca này");
+                }
+            }
+
+            if (dto.isAfternoon()) {
+                long current = scheduleRepository.countDoctorsInRoom(roomId, day, false);
+                if (existing != null && existing.getClinicRoom() != null
+                        && Objects.equals(existing.getClinicRoom().getId(), roomId)
+                        && existing.isAfternoon()) {
+                    current = Math.max(0, current - 1);
+                }
+                if (current >= capacity) {
+                    throw new IllegalStateException(
+                            "Phòng " + clinicRoom.getName() + " đã đầy (" + current + "/" + capacity
+                                    + " nhân viên) trong ca này");
+                }
+            }
+        }
     }
 
     private String formatDayList(List<DayOfWeek> days) {
@@ -345,6 +398,17 @@ public class UserWorkScheduleService {
         }
         ClinicRoom clinicRoom = clinicRoomRepository.findById(roomId)
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy phòng khám với id: " + roomId));
+
+        if (isDoctor) {
+            ClinicRoomType roomType = clinicRoom.getType() != null ? clinicRoom.getType() : ClinicRoomType.CLINIC;
+            // Bác sĩ chỉ được gán vào phòng khám hoặc phòng dịch vụ
+            if (roomType != ClinicRoomType.CLINIC && roomType != ClinicRoomType.SERVICE) {
+                throw new IllegalArgumentException(
+                        "Phòng " + clinicRoom.getName() + " (" + clinicRoom.getCode()
+                                + ") không phải phòng khám/dịch vụ; vui lòng chọn phòng phù hợp cho bác sĩ.");
+            }
+        }
+
         normalized.values().forEach(dto -> {
             dto.setClinicRoomId(clinicRoom.getId());
             dto.setClinicRoomName(clinicRoom.getName());

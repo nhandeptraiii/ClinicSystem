@@ -71,6 +71,7 @@ public class ClinicRoomService {
             throw new IllegalArgumentException("Thông tin phòng khám không được null");
         }
         room.setCode(normalizeCode(room.getCode()));
+        room.setCapacity(normalizeCapacity(room.getCapacity()));
         validateBean(room);
         validateUniqueCode(room.getCode(), null);
         return clinicRoomRepository.save(room);
@@ -96,6 +97,9 @@ public class ClinicRoomService {
         }
         if (changes.getNote() != null) {
             existing.setNote(changes.getNote());
+        }
+        if (changes.getCapacity() != null) {
+            existing.setCapacity(normalizeCapacity(changes.getCapacity()));
         }
 
         validateBean(existing);
@@ -151,6 +155,16 @@ public class ClinicRoomService {
             throw new IllegalArgumentException("Mã phòng khám không được null");
         }
         return code.trim().toUpperCase();
+    }
+
+    private int normalizeCapacity(Integer capacity) {
+        if (capacity == null) {
+            return 1;
+        }
+        if (capacity < 1) {
+            throw new IllegalArgumentException("Sức chứa phải từ 1 trở lên");
+        }
+        return capacity;
     }
 
     /**

@@ -13,6 +13,7 @@ export interface ClinicRoom {
   name: string;
   floor?: string | null;
   note?: string | null;
+  capacity?: number | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -22,6 +23,7 @@ export interface ClinicRoomPayload {
   name: string;
   floor?: string | null;
   note?: string | null;
+  capacity?: number | null;
 }
 
 export interface ClinicRoomQuery {
