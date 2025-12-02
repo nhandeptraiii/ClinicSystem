@@ -45,6 +45,14 @@ public class ClinicRoom {
     @Column(nullable = false)
     private Integer capacity = 1;
 
+    @Min(value = 0, message = "Sức chứa bác sĩ không được âm")
+    @Column(name = "doctor_capacity", nullable = false)
+    private Integer doctorCapacity = 1;
+
+    @Min(value = 0, message = "Sức chứa nhân sự không được âm")
+    @Column(name = "staff_capacity", nullable = false)
+    private Integer staffCapacity = 0;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "room_type", length = 30, nullable = false)
     private ClinicRoomType type = ClinicRoomType.CLINIC;
@@ -61,10 +69,31 @@ public class ClinicRoom {
         if (this.type == null) {
             this.type = ClinicRoomType.CLINIC;
         }
+        if (this.doctorCapacity == null) {
+            this.doctorCapacity = (this.type == ClinicRoomType.CLINIC || this.type == ClinicRoomType.SERVICE) ? 1 : 0;
+        }
+        if (this.staffCapacity == null) {
+            this.staffCapacity = 0;
+        }
+        if (this.capacity == null || this.capacity < 0) {
+            this.capacity = Math.max(0, this.doctorCapacity) + Math.max(0, this.staffCapacity);
+        }
     }
 
     @PreUpdate
     public void handleBeforeUpdate() {
         this.updatedAt = Instant.now();
+        if (this.type == null) {
+            this.type = ClinicRoomType.CLINIC;
+        }
+        if (this.doctorCapacity == null) {
+            this.doctorCapacity = (this.type == ClinicRoomType.CLINIC || this.type == ClinicRoomType.SERVICE) ? 1 : 0;
+        }
+        if (this.staffCapacity == null) {
+            this.staffCapacity = 0;
+        }
+        if (this.capacity == null || this.capacity < 0) {
+            this.capacity = Math.max(0, this.doctorCapacity) + Math.max(0, this.staffCapacity);
+        }
     }
 }

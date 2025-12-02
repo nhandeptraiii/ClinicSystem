@@ -62,7 +62,14 @@ const loading = ref(false);
 const error = ref<string | null>(null);
 
 const PAGE_SIZE = 10;
-const FLOOR_PRESETS = ['Tầng Trệt', 'Tầng 1', 'Tầng 2', 'Tầng 3', 'Tầng 4'];
+const FLOOR_PRESETS = ['Tầng 1', 'Tầng 2', 'Tầng 3', 'Tầng 4','Tầng 5'];
+const ROOM_TYPE_OPTIONS: Array<{ value: ClinicRoom['type']; label: string; desc: string }> = [
+  { value: 'CLINIC', label: 'Phòng khám', desc: 'Khám chuyên khoa' },
+  { value: 'SERVICE', label: 'Phòng dịch vụ', desc: 'Xét nghiệm/cận lâm sàng' },
+  { value: 'PHARMACY', label: 'Quầy thuốc', desc: 'Nhà thuốc' },
+  { value: 'RECEPTION', label: 'Tiếp tân', desc: 'Sảnh tiếp đón' },
+  { value: 'TECHNICAL', label: 'Kỹ thuật', desc: 'Phụ trợ/thiết bị' },
+];
 const currentPage = ref(1);
 const totalPages = ref(1);
 const totalElements = ref(0);
@@ -83,7 +90,9 @@ const formState = reactive<ClinicRoomPayload>({
   name: '',
   floor: '',
   note: '',
-  capacity: 1,
+  doctorCapacity: 1,
+  staffCapacity: 0,
+  type: 'CLINIC',
 });
 const selectedRoom = ref<ClinicRoom | null>(null);
 
@@ -132,6 +141,20 @@ const extractErrorMessage = (input: unknown) => {
     return maybeError.message;
   }
   return fallback;
+};
+
+const getRoomTypeLabel = (type?: ClinicRoom['type']) => {
+  const matched = ROOM_TYPE_OPTIONS.find((item) => item.value === type);
+  return matched ? matched.label : 'Khác';
+};
+
+const getTotalCapacity = (room?: ClinicRoom | null) => {
+  if (!room) return 0;
+  const doctorCap = room.doctorCapacity ?? 0;
+  const staffCap = room.staffCapacity ?? 0;
+  const sum = doctorCap + staffCap;
+  if (sum > 0) return sum;
+  return room.capacity ?? 0;
 };
 
 const floorOptions = computed(() => {
@@ -206,7 +229,9 @@ const openCreateModal = () => {
   formState.name = '';
   formState.floor = '';
   formState.note = '';
-  formState.capacity = 1;
+  formState.doctorCapacity = 1;
+  formState.staffCapacity = 0;
+  formState.type = 'CLINIC';
   formModalOpen.value = true;
 };
 
@@ -218,7 +243,9 @@ const openEditModal = (room: ClinicRoom) => {
   formState.name = room.name ?? '';
   formState.floor = room.floor ?? '';
   formState.note = room.note ?? '';
-  formState.capacity = room.capacity ?? 1;
+  formState.doctorCapacity = room.doctorCapacity ?? 1;
+  formState.staffCapacity = room.staffCapacity ?? 0;
+  formState.type = room.type ?? 'CLINIC';
   formModalOpen.value = true;
 };
 
@@ -235,15 +262,23 @@ const submitForm = async () => {
     name: formState.name?.trim() ?? '',
     floor: formState.floor?.trim() ? formState.floor.trim() : null,
     note: formState.note?.trim() ? formState.note.trim() : null,
-    capacity: formState.capacity ?? 1,
+    doctorCapacity: formState.doctorCapacity ?? 0,
+    staffCapacity: formState.staffCapacity ?? 0,
+    type: formState.type ?? 'CLINIC',
   };
 
   if (!payload.code || !payload.name) {
     formError.value = 'Vui lòng nhập đầy đủ mã và tên phòng.';
     return;
   }
-  if (!payload.capacity || payload.capacity < 1) {
-    payload.capacity = 1;
+  if (payload.doctorCapacity! < 0 || payload.staffCapacity! < 0) {
+    formError.value = 'Sức chứa không được âm.';
+    return;
+  }
+  const total = (payload.doctorCapacity || 0) + (payload.staffCapacity || 0);
+  if (total < 1) {
+    formError.value = 'Tổng sức chứa phải từ 1 trở lên.';
+    return;
   }
 
   if (!payload.code || !payload.name) {
@@ -402,8 +437,8 @@ onMounted(() => {
           >
             <span>Mã phòng</span>
             <span>Tên phòng</span>
-            <span>Tầng/Khu</span>
-            <span>Sức chứa</span>
+            <span class="text-center">Tầng/Khu</span>
+            <span class="text-center">Số nhân viên</span>
             <span class="flex justify-end pr-20">Thao tác</span>
           </div>
 
@@ -413,7 +448,7 @@ onMounted(() => {
               :key="`clinic-room-skeleton-${skeleton}`"
               class="mt-3 animate-pulse rounded-2xl border border-slate-100 bg-white px-4 py-4 shadow-sm"
             >
-              <div class="grid gap-6 md:grid-cols-[140px_minmax(0,400px)_100px_1fr] md:items-center">
+              <div class="grid gap-6 md:grid-cols-[140px_minmax(0,320px)_100px_100px_1fr] md:items-center">
                 <div class="h-4 rounded-full bg-slate-200/70"></div>
                 <div class="h-4 rounded-full bg-slate-200/60"></div>
                 <div class="h-4 rounded-full bg-slate-200/50"></div>
@@ -447,11 +482,13 @@ onMounted(() => {
                 </div>
                 <div>
                   <p class="text-xs font-semibold uppercase tracking-wide text-slate-400 md:hidden">Tầng/Khu</p>
-                  <p class="text-sm text-slate-700">{{ room.floor || '—' }}</p>
+                  <p class="text-sm text-slate-700 text-center">{{ room.floor || '—' }}</p>
                 </div>
                 <div>
                   <p class="text-xs font-semibold uppercase tracking-wide text-slate-400 md:hidden">Sức chứa</p>
-                  <p class="text-sm text-slate-700">{{ room.capacity ?? 1 }}</p>
+                  <p class="text-sm text-slate-700 text-center">
+                    {{ getTotalCapacity(room) }}
+                  </p>
                 </div>
                 <div class="flex flex-wrap items-center justify-start gap-1.5 md:justify-end">
                   <button
@@ -601,17 +638,46 @@ onMounted(() => {
               </select>
             </div>
             <div class="space-y-1.5">
-              <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="clinic-room-capacity">
-                Sức chứa (số nhân viên tối đa)
+              <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="clinic-room-type">
+                Loại phòng
               </label>
-              <input
-                id="clinic-room-capacity"
-                v-model.number="formState.capacity"
-                type="number"
-                min="1"
+              <select
+                id="clinic-room-type"
+                v-model="formState.type"
                 class="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-                placeholder="VD: 1"
-              />
+              >
+                <option v-for="option in ROOM_TYPE_OPTIONS" :key="option.value" :value="option.value">
+                  {{ option.label }} - {{ option.desc }}
+                </option>
+              </select>
+            </div>
+            <div class="grid gap-4 sm:grid-cols-2">
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="clinic-room-doctor-capacity">
+                  Số lượng Bác sĩ 
+                </label>
+                <input
+                  id="clinic-room-doctor-capacity"
+                  v-model.number="formState.doctorCapacity"
+                  type="number"
+                  min="0"
+                  class="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+                  placeholder="VD: 1"
+                />
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="clinic-room-staff-capacity">
+                  Số lượng Nhân sự khác
+                </label>
+                <input
+                  id="clinic-room-staff-capacity"
+                  v-model.number="formState.staffCapacity"
+                  type="number"
+                  min="0"
+                  class="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+                  placeholder="VD: 1"
+                />
+              </div>
             </div>
             <div class="space-y-1.5">
               <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="clinic-room-note">
@@ -692,12 +758,21 @@ onMounted(() => {
               <span>{{ detailRoom.name }}</span>
             </div>
             <div class="flex items-start gap-3">
+              <span class="w-28 shrink-0 text-xs font-semibold uppercase tracking-wide text-slate-500">Loại phòng</span>
+              <span class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                {{ getRoomTypeLabel(detailRoom.type) }}
+              </span>
+            </div>
+            <div class="flex items-start gap-3">
               <span class="w-28 shrink-0 text-xs font-semibold uppercase tracking-wide text-slate-500">Tầng / Khu</span>
               <span>{{ detailRoom.floor || '—' }}</span>
             </div>
             <div class="flex items-start gap-3">
               <span class="w-28 shrink-0 text-xs font-semibold uppercase tracking-wide text-slate-500">Sức chứa</span>
-              <span>{{ detailRoom.capacity ?? 1 }} nhân viên/ca</span>
+              <span>
+                {{ getTotalCapacity(detailRoom) }} nhân sự/ca
+                <span class="text-xs text-slate-500">(BS {{ detailRoom.doctorCapacity ?? 0 }} · NV {{ detailRoom.staffCapacity ?? 0 }})</span>
+              </span>
             </div>
             <div class="flex items-start gap-3">
               <span class="w-28 shrink-0 text-xs font-semibold uppercase tracking-wide text-slate-500">Ghi chú</span>

@@ -14,6 +14,9 @@ export interface ClinicRoom {
   floor?: string | null;
   note?: string | null;
   capacity?: number | null;
+  doctorCapacity?: number | null;
+  staffCapacity?: number | null;
+  type?: 'CLINIC' | 'SERVICE' | 'PHARMACY' | 'RECEPTION' | 'TECHNICAL';
   createdAt?: string;
   updatedAt?: string;
 }
@@ -24,6 +27,9 @@ export interface ClinicRoomPayload {
   floor?: string | null;
   note?: string | null;
   capacity?: number | null;
+  doctorCapacity?: number | null;
+  staffCapacity?: number | null;
+  type?: ClinicRoom['type'];
 }
 
 export interface ClinicRoomQuery {

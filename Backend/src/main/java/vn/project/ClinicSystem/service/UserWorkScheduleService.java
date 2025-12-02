@@ -204,15 +204,13 @@ public class UserWorkScheduleService {
 
     private void validateRoomCapacity(User user, Map<DayOfWeek, WorkScheduleDayDto> normalized,
             ClinicRoom clinicRoom) {
-        boolean isDoctor = hasDoctorRole(user);
-        if (!isDoctor) {
-            // Chỉ giới hạn theo sức chứa/slot cho bác sĩ; nhân sự khác có thể cùng ca.
-            return;
-        }
         if (clinicRoom == null || clinicRoom.getId() == null) {
             return;
         }
-        int capacity = clinicRoom.getCapacity() != null && clinicRoom.getCapacity() > 0 ? clinicRoom.getCapacity() : 1;
+
+        boolean isDoctor = hasDoctorRole(user);
+        int doctorCapacity = resolveDoctorCapacity(clinicRoom);
+        int staffCapacity = resolveStaffCapacity(clinicRoom);
         Long roomId = clinicRoom.getId();
 
         for (DayOfWeek day : SUPPORTED_WORK_DAYS) {
@@ -223,33 +221,68 @@ public class UserWorkScheduleService {
             var existing = scheduleRepository.findByUserIdAndDayOfWeek(user.getId(), day).orElse(null);
 
             if (dto.isMorning()) {
-                long current = scheduleRepository.countDoctorsInRoom(roomId, day, true);
-                if (existing != null && existing.getClinicRoom() != null
-                        && Objects.equals(existing.getClinicRoom().getId(), roomId)
-                        && existing.isMorning()) {
-                    current = Math.max(0, current - 1);
-                }
-                if (current >= capacity) {
-                    throw new IllegalStateException(
-                            "Phòng " + clinicRoom.getName() + " đã đầy (" + current + "/" + capacity
-                                    + " nhân viên) trong ca này");
-                }
+                validatePerShiftCapacity(isDoctor, doctorCapacity, staffCapacity, clinicRoom, roomId, day, true,
+                        existing);
             }
 
             if (dto.isAfternoon()) {
-                long current = scheduleRepository.countDoctorsInRoom(roomId, day, false);
-                if (existing != null && existing.getClinicRoom() != null
-                        && Objects.equals(existing.getClinicRoom().getId(), roomId)
-                        && existing.isAfternoon()) {
-                    current = Math.max(0, current - 1);
-                }
-                if (current >= capacity) {
-                    throw new IllegalStateException(
-                            "Phòng " + clinicRoom.getName() + " đã đầy (" + current + "/" + capacity
-                                    + " nhân viên) trong ca này");
-                }
+                validatePerShiftCapacity(isDoctor, doctorCapacity, staffCapacity, clinicRoom, roomId, day, false,
+                        existing);
             }
         }
+    }
+
+    private void validatePerShiftCapacity(boolean isDoctor, int doctorCapacity, int staffCapacity,
+            ClinicRoom clinicRoom, Long roomId, DayOfWeek day, boolean isMorning, UserWorkSchedule existing) {
+        if (isDoctor) {
+            if (doctorCapacity <= 0) {
+                throw new IllegalStateException("Phòng " + clinicRoom.getName()
+                        + " không cho phép bác sĩ làm việc trong ca này.");
+            }
+            long currentDoctors = scheduleRepository.countDoctorsInRoom(roomId, day, isMorning);
+            if (existing != null && existing.getClinicRoom() != null
+                    && Objects.equals(existing.getClinicRoom().getId(), roomId)
+                    && (isMorning ? existing.isMorning() : existing.isAfternoon())) {
+                currentDoctors = Math.max(0, currentDoctors - 1);
+            }
+            if (currentDoctors >= doctorCapacity) {
+                throw new IllegalStateException("Phòng " + clinicRoom.getName() + " đã đủ bác sĩ ("
+                        + currentDoctors + "/" + doctorCapacity + ") cho ca này.");
+            }
+        } else {
+            if (staffCapacity <= 0) {
+                throw new IllegalStateException(
+                        "Phòng " + clinicRoom.getName() + " không còn sức chứa cho nhân sự trong ca này.");
+            }
+            long currentStaff = scheduleRepository.countNonDoctorsInRoom(roomId, day, isMorning);
+            if (existing != null && existing.getClinicRoom() != null
+                    && Objects.equals(existing.getClinicRoom().getId(), roomId)
+                    && (isMorning ? existing.isMorning() : existing.isAfternoon())) {
+                currentStaff = Math.max(0, currentStaff - 1);
+            }
+            if (currentStaff >= staffCapacity) {
+                throw new IllegalStateException("Phòng " + clinicRoom.getName() + " đã đủ nhân sự ("
+                        + currentStaff + "/" + staffCapacity + ") cho ca này.");
+            }
+        }
+    }
+
+    private int resolveDoctorCapacity(ClinicRoom clinicRoom) {
+        ClinicRoomType type = clinicRoom.getType() != null ? clinicRoom.getType() : ClinicRoomType.CLINIC;
+        Integer provided = clinicRoom.getDoctorCapacity();
+        if (provided != null && provided >= 0) {
+            return provided;
+        }
+        return (type == ClinicRoomType.CLINIC || type == ClinicRoomType.SERVICE) ? 1 : 0;
+    }
+
+    private int resolveStaffCapacity(ClinicRoom clinicRoom) {
+        Integer provided = clinicRoom.getStaffCapacity();
+        if (provided != null && provided >= 0) {
+            return provided;
+        }
+        int capacity = clinicRoom.getCapacity() != null ? clinicRoom.getCapacity() : 0;
+        return Math.max(0, capacity - resolveDoctorCapacity(clinicRoom));
     }
 
     private String formatDayList(List<DayOfWeek> days) {

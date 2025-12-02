@@ -28,7 +28,6 @@ import jakarta.persistence.Table;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
-import vn.project.ClinicSystem.model.Disease;
 import vn.project.ClinicSystem.model.enums.VisitStatus;
 
 @Getter
@@ -60,9 +59,7 @@ public class PatientVisit {
     private String clinicalNote;
 
     @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(name = "visit_diseases",
-            joinColumns = @JoinColumn(name = "visit_id"),
-            inverseJoinColumns = @JoinColumn(name = "disease_id"))
+    @JoinTable(name = "visit_diseases", joinColumns = @JoinColumn(name = "visit_id"), inverseJoinColumns = @JoinColumn(name = "disease_id"))
     @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
     private java.util.Set<Disease> diseases = new java.util.HashSet<>();
 

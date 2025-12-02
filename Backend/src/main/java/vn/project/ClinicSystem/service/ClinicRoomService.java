@@ -71,7 +71,14 @@ public class ClinicRoomService {
             throw new IllegalArgumentException("Thông tin phòng khám không được null");
         }
         room.setCode(normalizeCode(room.getCode()));
-        room.setCapacity(normalizeCapacity(room.getCapacity()));
+        if (room.getType() == null) {
+            room.setType(vn.project.ClinicSystem.model.enums.ClinicRoomType.CLINIC);
+        }
+        int doctorCap = normalizeDoctorCapacity(room.getDoctorCapacity(), room.getType());
+        int staffCap = normalizeStaffCapacity(room.getStaffCapacity());
+        room.setDoctorCapacity(doctorCap);
+        room.setStaffCapacity(staffCap);
+        room.setCapacity(doctorCap + staffCap);
         validateBean(room);
         validateUniqueCode(room.getCode(), null);
         return clinicRoomRepository.save(room);
@@ -98,9 +105,19 @@ public class ClinicRoomService {
         if (changes.getNote() != null) {
             existing.setNote(changes.getNote());
         }
-        if (changes.getCapacity() != null) {
-            existing.setCapacity(normalizeCapacity(changes.getCapacity()));
+        if (changes.getType() != null) {
+            existing.setType(changes.getType());
         }
+        if (changes.getDoctorCapacity() != null) {
+            existing.setDoctorCapacity(normalizeDoctorCapacity(changes.getDoctorCapacity(), existing.getType()));
+        }
+        if (changes.getStaffCapacity() != null) {
+            existing.setStaffCapacity(normalizeStaffCapacity(changes.getStaffCapacity()));
+        }
+        // Cập nhật tổng capacity để giữ tương thích
+        existing.setCapacity(
+                normalizeDoctorCapacity(existing.getDoctorCapacity(), existing.getType())
+                        + normalizeStaffCapacity(existing.getStaffCapacity()));
 
         validateBean(existing);
         return clinicRoomRepository.save(existing);
@@ -165,6 +182,28 @@ public class ClinicRoomService {
             throw new IllegalArgumentException("Sức chứa phải từ 1 trở lên");
         }
         return capacity;
+    }
+
+    private int normalizeDoctorCapacity(Integer value, vn.project.ClinicSystem.model.enums.ClinicRoomType type) {
+        int fallback = (type == vn.project.ClinicSystem.model.enums.ClinicRoomType.CLINIC
+                || type == vn.project.ClinicSystem.model.enums.ClinicRoomType.SERVICE) ? 1 : 0;
+        if (value == null) {
+            return fallback;
+        }
+        if (value < 0) {
+            throw new IllegalArgumentException("Sức chứa bác sĩ không được âm");
+        }
+        return value;
+    }
+
+    private int normalizeStaffCapacity(Integer value) {
+        if (value == null) {
+            return 0;
+        }
+        if (value < 0) {
+            throw new IllegalArgumentException("Sức chứa nhân sự không được âm");
+        }
+        return value;
     }
 
     /**

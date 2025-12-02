@@ -34,4 +34,18 @@ public interface UserWorkScheduleRepository extends JpaRepository<UserWorkSchedu
             @Param("clinicRoomId") Long clinicRoomId,
             @Param("dayOfWeek") DayOfWeek dayOfWeek,
             @Param("isMorning") boolean isMorning);
+
+    @Query("""
+            SELECT COUNT(DISTINCT uw.user.id) FROM UserWorkSchedule uw
+            WHERE uw.clinicRoom.id = :clinicRoomId
+              AND uw.dayOfWeek = :dayOfWeek
+              AND ((:isMorning = TRUE AND uw.morning = TRUE) OR (:isMorning = FALSE AND uw.afternoon = TRUE))
+              AND NOT EXISTS (
+                SELECT 1 FROM uw.user.roles r WHERE LOWER(r.name) = 'doctor'
+              )
+            """)
+    long countNonDoctorsInRoom(
+            @Param("clinicRoomId") Long clinicRoomId,
+            @Param("dayOfWeek") DayOfWeek dayOfWeek,
+            @Param("isMorning") boolean isMorning);
 }
