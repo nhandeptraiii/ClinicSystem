@@ -28,7 +28,7 @@ const roleDisplayMap: Record<StaffRole, { label: string; desc: string }> = {
   ADMIN: { label: 'Admin', desc: 'Quản trị toàn hệ thống.' },
   DOCTOR: { label: 'Bác sĩ', desc: 'Khám chữa bệnh, cập nhật hồ sơ.' },
   NURSE: { label: 'Điều dưỡng', desc: 'Hỗ trợ chăm sóc và theo dõi.' },
-  RECEPTIONIST: { label: 'Tiếp đón', desc: 'Tiếp nhận và thu ngân.' },
+  RECEPTIONIST: { label: 'Tiếp tân', desc: 'Tiếp nhận và thu ngân.' },
   PHARMACIST: { label: 'Dược sĩ', desc: 'Quản lý kho thuốc.' },
 };
 
@@ -110,6 +110,7 @@ const scheduleModalOpen = ref(false);
 const scheduleBaseline = ref('');
 
 const clinicRooms = ref<ClinicRoom[]>([]);
+const allowedRoomTypes: ClinicRoom['type'][] = ['CLINIC', 'SERVICE'];
 const clinicRoomsLoading = ref(false);
 const clinicRoomsError = ref<string | null>(null);
 const selectedClinicRoomId = ref<number | null>(null);
@@ -239,6 +240,13 @@ const scheduleHasAnyShift = computed(() =>
 );
 
 const isDoctorSelected = computed(() => hasDoctorRole(selectedStaff.value));
+
+const selectableClinicRooms = computed(() => {
+  if (isDoctorSelected.value) {
+    return clinicRooms.value.filter((room) => room?.type && allowedRoomTypes.includes(room.type));
+  }
+  return clinicRooms.value;
+});
 
 const scheduleMissingRoom = computed(
   () => isDoctorSelected.value && scheduleHasAnyShift.value && !selectedClinicRoomId.value,
@@ -549,6 +557,9 @@ const ensureClinicRoomsLoaded = async () => {
   clinicRoomsError.value = null;
   try {
     clinicRooms.value = await fetchClinicRooms();
+    if (isDoctorSelected.value && !selectableClinicRooms.value.length) {
+      clinicRoomsError.value = 'Không có phòng loại CLINIC hoặc SERVICE để gán lịch.';
+    }
   } catch (error) {
     clinicRoomsError.value =
       extractErrorMessage(error) ?? 'Không thể tải danh sách phòng khám. Vui lòng thử lại.';
@@ -695,24 +706,27 @@ watch(
       return;
     }
 
+    const candidates = selectableClinicRooms.value;
+
     if (selectedClinicRoomId.value != null) {
-      const matched = rooms.find((room) => room.id === selectedClinicRoomId.value);
+      const matched = candidates.find((room) => room.id === selectedClinicRoomId.value);
       if (matched) {
         scheduleClinicRoomFallback.name = matched.name ?? null;
         scheduleClinicRoomFallback.code = matched.code ?? null;
         scheduleClinicRoomFallback.floor = matched.floor ?? null;
         return;
+      } else {
+        selectedClinicRoomId.value = null;
       }
     }
 
-    if (isDoctorSelected.value && selectedClinicRoomId.value == null) {
-      const firstRoom = rooms[0];
-      if (firstRoom) {
-        selectedClinicRoomId.value = firstRoom.id ?? null;
-        scheduleClinicRoomFallback.name = firstRoom.name ?? null;
-        scheduleClinicRoomFallback.code = firstRoom.code ?? null;
-        scheduleClinicRoomFallback.floor = firstRoom.floor ?? null;
-      }
+    if (isDoctorSelected.value && selectedClinicRoomId.value == null && candidates.length) {
+      const firstRoom = candidates[0];
+      if (!firstRoom) return;
+      selectedClinicRoomId.value = firstRoom.id ?? null;
+      scheduleClinicRoomFallback.name = firstRoom.name ?? null;
+      scheduleClinicRoomFallback.code = firstRoom.code ?? null;
+      scheduleClinicRoomFallback.floor = firstRoom.floor ?? null;
     }
   },
   { flush: 'post' },
@@ -1111,20 +1125,26 @@ onMounted(async () => {
                 <select
                   id="manager-schedule-clinic-room"
                   v-model="selectedClinicRoomId"
-                  :disabled="clinicRoomsLoading || !clinicRooms.length || scheduleSaving"
+                  :disabled="clinicRoomsLoading || !selectableClinicRooms.length || scheduleSaving"
                   class="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80 disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  <option :value="null">Chọn phòng khám</option>
-                  <option v-for="room in clinicRooms" :key="`manager-clinic-room-${room.id}`" :value="room.id">
-                    {{ room.name }} ({{ room.code }}){{ room.floor ? ` · Tầng ${room.floor}` : '' }}
+                  <option :value="null">{{ isDoctorSelected ? 'Chọn phòng (CLINIC/SERVICE)' : 'Chọn phòng' }}</option>
+                  <option v-for="room in selectableClinicRooms" :key="`manager-clinic-room-${room.id}`" :value="room.id">
+                    {{ room.name }} ({{ room.code }}){{ room.floor ? ` · ${room.floor}` : '' }}
                   </option>
                 </select>
                 <p v-if="clinicRoomsLoading" class="text-xs text-slate-500">Đang tải danh sách phòng khám...</p>
                 <p
-                  v-else-if="!clinicRoomsLoading && !clinicRooms.length"
+                  v-else-if="!clinicRoomsLoading && !selectableClinicRooms.length && isDoctorSelected"
                   class="text-xs text-amber-600"
                 >
-                  Hiện chưa có phòng khám nào. Vui lòng thêm phòng trước khi cấu hình lịch.
+                  Chưa có phòng loại CLINIC hoặc SERVICE. Vui lòng thêm phòng trước khi cấu hình lịch.
+                </p>
+                <p
+                  v-else-if="!clinicRoomsLoading && !selectableClinicRooms.length && !isDoctorSelected"
+                  class="text-xs text-amber-600"
+                >
+                  Chưa có phòng nào. Vui lòng thêm phòng trước khi cấu hình lịch.
                 </p>
               </div>
 

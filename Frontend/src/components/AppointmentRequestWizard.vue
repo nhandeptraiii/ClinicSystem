@@ -186,6 +186,8 @@ const stepLabels = computed<Record<Step, string>>(() => ({
   3: 'Lên lịch khám',
 }));
 
+const requesterNote = computed(() => props.request?.symptomDescription?.trim() || null);
+
 const patientModeOptions: Array<{ key: PatientMode; label: string; description: string }> = [
   { key: 'existing', label: 'Chọn bệnh nhân sẵn có', description: 'Tìm kiếm và gắn với hồ sơ bệnh nhân đã có.' },
   { key: 'new', label: 'Tạo bệnh nhân mới', description: 'Nhập nhanh thông tin và lưu hồ sơ mới.' },
@@ -644,11 +646,17 @@ const fetchAvailableRooms = async () => {
 
   try {
     availableRoomsLoading.value = true;
-    // Format: yyyy-MM-ddTHH:mm:ss
-    const scheduledAt = `${scheduleForm.value.scheduledDate}T${scheduleForm.value.scheduledTime}:00`;
-    const rooms = await fetchAvailableGeneralRooms(scheduledAt, APPOINTMENT_DURATION);
-    availableRooms.value = Array.isArray(rooms) ? rooms : [];
-    console.log('Fetched available rooms:', rooms);
+    if (!clinicRoomsLoaded.value) {
+      await ensureClinicRoomsLoaded();
+    }
+    const rooms = clinicRooms.value.filter((room) => room.type === 'CLINIC');
+    availableRooms.value = rooms.map((room) => ({
+      id: room.id,
+      code: room.code,
+      name: room.name,
+      floor: room.floor,
+      available: true,
+    }));
   } catch (error) {
     console.error('Error fetching available rooms:', error);
     availableRooms.value = [];
@@ -1059,13 +1067,13 @@ onMounted(() => {
                   <span v-else>Bác sĩ: {{ selectedDoctor.account?.fullName || ('#' + selectedDoctor.id) }}</span>
                 </span>
               </div>
-              <div class="mt-5 grid gap-4 md:grid-cols-2">
+              <div class="mt-5 space-y-4">
                 <div>
                   <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="schedule-clinic-room">Phòng khám *</label>
                   <div v-if="availableRoomsLoading" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-400">
                     Đang kiểm tra phòng khám...
                   </div>
-                  <div v-else-if="availableRooms.length > 0" class="grid grid-cols-1 gap-2">
+                  <div v-else-if="availableRooms.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-2">
                     <button
                       v-for="room in availableRooms"
                       :key="room.id"
@@ -1095,7 +1103,36 @@ onMounted(() => {
                   <div v-else class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-400">
                     Vui lòng chọn ngày và giờ khám để xem phòng khám có sẵn
                   </div>
-                  <p class="mt-1 text-xs text-slate-400">Bác sĩ sẽ tự động được chọn theo lịch làm việc</p>
+                </div>
+                <div class="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="schedule-date">Ngày khám *</label>
+                    <input
+                      id="schedule-date"
+                      v-model="scheduleForm.scheduledDate"
+                      type="date"
+                      :min="today"
+                      required
+                      class="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+                    />
+                  </div>
+                  <div>
+                    <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="schedule-time">Giờ khám *</label>
+                    <select
+                      id="schedule-time"
+                      v-model="scheduleForm.scheduledTime"
+                      required
+                      class="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+                    >
+                      <option :value="''">Chọn giờ khám</option>
+                      <optgroup label="Buổi sáng">
+                        <option v-for="time in MORNING_SLOTS" :key="time" :value="time">{{ time }}</option>
+                      </optgroup>
+                      <optgroup label="Buổi chiều">
+                        <option v-for="time in AFTERNOON_SLOTS" :key="time" :value="time">{{ time }}</option>
+                      </optgroup>
+                    </select>
+                  </div>
                 </div>
                 <div>
                   <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="schedule-doctor">Bác sĩ phụ trách *</label>
@@ -1109,33 +1146,10 @@ onMounted(() => {
                   />
                   <p class="mt-1 text-xs text-slate-400">Tự động chọn từ lịch làm việc</p>
                 </div>
-                <div>
-                  <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="schedule-date">Ngày khám *</label>
-                  <input
-                    id="schedule-date"
-                    v-model="scheduleForm.scheduledDate"
-                    type="date"
-                    :min="today"
-                    required
-                    class="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-                  />
-                </div>
-                <div>
-                  <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="schedule-time">Giờ khám *</label>
-                  <select
-                    id="schedule-time"
-                    v-model="scheduleForm.scheduledTime"
-                    required
-                    class="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-                  >
-                    <option :value="''">Chọn giờ khám</option>
-                    <optgroup label="Buổi sáng">
-                      <option v-for="time in MORNING_SLOTS" :key="time" :value="time">{{ time }}</option>
-                    </optgroup>
-                    <optgroup label="Buổi chiều">
-                      <option v-for="time in AFTERNOON_SLOTS" :key="time" :value="time">{{ time }}</option>
-                    </optgroup>
-                  </select>
+                <div v-if="requesterNote" class="md:col-span-2">
+                  <div class="mt-2 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                    Ghi chú từ người đặt: {{ requesterNote }}
+                  </div>
                 </div>
                 <div v-if="isDirectAppointmentMode" class="md:col-span-2">
                   <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="schedule-reason">Lý do khám</label>

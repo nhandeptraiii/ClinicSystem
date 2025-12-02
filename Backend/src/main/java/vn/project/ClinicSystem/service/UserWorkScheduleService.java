@@ -212,6 +212,7 @@ public class UserWorkScheduleService {
         int doctorCapacity = resolveDoctorCapacity(clinicRoom);
         int staffCapacity = resolveStaffCapacity(clinicRoom);
         Long roomId = clinicRoom.getId();
+        List<CapacityHit> conflicts = new ArrayList<>();
 
         for (DayOfWeek day : SUPPORTED_WORK_DAYS) {
             WorkScheduleDayDto dto = normalized.get(day);
@@ -222,22 +223,40 @@ public class UserWorkScheduleService {
 
             if (dto.isMorning()) {
                 validatePerShiftCapacity(isDoctor, doctorCapacity, staffCapacity, clinicRoom, roomId, day, true,
-                        existing);
+                        existing).ifPresent(conflicts::add);
             }
 
             if (dto.isAfternoon()) {
                 validatePerShiftCapacity(isDoctor, doctorCapacity, staffCapacity, clinicRoom, roomId, day, false,
-                        existing);
+                        existing).ifPresent(conflicts::add);
             }
+        }
+
+        if (!conflicts.isEmpty()) {
+            Map<String, CapacityHit> merged = new LinkedHashMap<>();
+            for (CapacityHit hit : conflicts) {
+                merged.computeIfAbsent(hit.key, k -> {
+                    hit.shiftLabels = new ArrayList<>();
+                    return hit;
+                }).shiftLabels.add(hit.shiftLabel);
+            }
+            List<String> messages = new ArrayList<>(merged.size());
+            for (CapacityHit hit : merged.values()) {
+                messages.add(hit.prefix + " " + String.join(", ", hit.shiftLabels));
+            }
+            throw new IllegalStateException(String.join(", ", messages));
         }
     }
 
-    private void validatePerShiftCapacity(boolean isDoctor, int doctorCapacity, int staffCapacity,
+    private java.util.Optional<CapacityHit> validatePerShiftCapacity(boolean isDoctor, int doctorCapacity, int staffCapacity,
             ClinicRoom clinicRoom, Long roomId, DayOfWeek day, boolean isMorning, UserWorkSchedule existing) {
+        String dayLabel = formatDayOfWeek(day);
+        String shiftLabel = buildShiftLabel(isMorning) + " " + dayLabel;
         if (isDoctor) {
             if (doctorCapacity <= 0) {
-                throw new IllegalStateException("Phòng " + clinicRoom.getName()
-                        + " không cho phép bác sĩ làm việc trong ca này.");
+                String prefix = clinicRoom.getName()
+                        + " không cho phép bác sĩ làm việc";
+                return java.util.Optional.of(new CapacityHit("DOCTOR|" + roomId, prefix, shiftLabel));
             }
             long currentDoctors = scheduleRepository.countDoctorsInRoom(roomId, day, isMorning);
             if (existing != null && existing.getClinicRoom() != null
@@ -246,13 +265,14 @@ public class UserWorkScheduleService {
                 currentDoctors = Math.max(0, currentDoctors - 1);
             }
             if (currentDoctors >= doctorCapacity) {
-                throw new IllegalStateException("Phòng " + clinicRoom.getName() + " đã đủ bác sĩ ("
-                        + currentDoctors + "/" + doctorCapacity + ") cho ca này.");
+                String prefix = clinicRoom.getName() + " đã đủ bác sĩ ("
+                        + currentDoctors + "/" + doctorCapacity + ")";
+                return java.util.Optional.of(new CapacityHit("DOCTOR|" + roomId, prefix, shiftLabel));
             }
         } else {
             if (staffCapacity <= 0) {
-                throw new IllegalStateException(
-                        "Phòng " + clinicRoom.getName() + " không còn sức chứa cho nhân sự trong ca này.");
+                String prefix = clinicRoom.getName() + " không còn sức chứa cho nhân sự";
+                return java.util.Optional.of(new CapacityHit("STAFF|" + roomId, prefix, shiftLabel));
             }
             long currentStaff = scheduleRepository.countNonDoctorsInRoom(roomId, day, isMorning);
             if (existing != null && existing.getClinicRoom() != null
@@ -261,10 +281,12 @@ public class UserWorkScheduleService {
                 currentStaff = Math.max(0, currentStaff - 1);
             }
             if (currentStaff >= staffCapacity) {
-                throw new IllegalStateException("Phòng " + clinicRoom.getName() + " đã đủ nhân sự ("
-                        + currentStaff + "/" + staffCapacity + ") cho ca này.");
+                String prefix = clinicRoom.getName() + " đã đủ nhân sự ("
+                        + currentStaff + "/" + staffCapacity + ")";
+                return java.util.Optional.of(new CapacityHit("STAFF|" + roomId, prefix, shiftLabel));
             }
         }
+        return java.util.Optional.empty();
     }
 
     private int resolveDoctorCapacity(ClinicRoom clinicRoom) {
@@ -337,6 +359,23 @@ public class UserWorkScheduleService {
             return "ca sáng";
         }
         return "ca chiều";
+    }
+
+    private String buildShiftLabel(boolean isMorning) {
+        return isMorning ? "sáng" : "chiều";
+    }
+
+    private static class CapacityHit {
+        private final String key;
+        private final String prefix;
+        private final String shiftLabel;
+        private List<String> shiftLabels;
+
+        private CapacityHit(String key, String prefix, String shiftLabel) {
+            this.key = key;
+            this.prefix = prefix;
+            this.shiftLabel = shiftLabel;
+        }
     }
 
     private String formatDayOfWeek(DayOfWeek day) {
