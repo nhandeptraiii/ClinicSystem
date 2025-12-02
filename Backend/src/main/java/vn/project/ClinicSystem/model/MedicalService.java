@@ -45,6 +45,9 @@ public class MedicalService {
     @Column(nullable = false)
     private Long basePrice; // đơn vị: đồng
 
+    @Column(name = "requires_indicator", nullable = false, columnDefinition = "boolean default true")
+    private Boolean requiresIndicator = true;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "clinic_room_id")
     @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
@@ -62,10 +65,16 @@ public class MedicalService {
         Instant now = Instant.now();
         this.createdAt = now;
         this.updatedAt = now;
+        if (this.requiresIndicator == null) {
+            this.requiresIndicator = true;
+        }
     }
 
     @PreUpdate
     public void handleBeforeUpdate() {
+        if (this.requiresIndicator == null) {
+            this.requiresIndicator = true;
+        }
         this.updatedAt = Instant.now();
     }
 }

@@ -133,7 +133,6 @@ public class VisitService {
         visit.setPrimaryAppointment(primaryAppointment);
         visit.setPatient(primaryAppointment.getPatient());
         visit.setProvisionalDiagnosis(request.getProvisionalDiagnosis());
-        visit.setClinicalNote(request.getClinicalNote());
         visit.setStatus(VisitStatus.OPEN);
         return patientVisitRepository.save(visit);
     }
@@ -193,8 +192,6 @@ public class VisitService {
         PatientVisit visit = getById(visitId);
 
         visit.setProvisionalDiagnosis(normalizeNullableText(request.getProvisionalDiagnosis()));
-        visit.setClinicalNote(normalizeNullableText(request.getClinicalNote()));
-        visit.setDiagnosisNote(normalizeNullableText(request.getDiagnosisNote()));
 
         // Multi-disease handling
         if (request.getDiseaseIds() != null) {

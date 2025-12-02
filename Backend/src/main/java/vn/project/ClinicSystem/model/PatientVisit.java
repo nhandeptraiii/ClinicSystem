@@ -54,18 +54,10 @@ public class PatientVisit {
     @Column(length = 500)
     private String provisionalDiagnosis;
 
-    @Size(max = 2000)
-    @Column(length = 2000)
-    private String clinicalNote;
-
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(name = "visit_diseases", joinColumns = @JoinColumn(name = "visit_id"), inverseJoinColumns = @JoinColumn(name = "disease_id"))
     @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
     private java.util.Set<Disease> diseases = new java.util.HashSet<>();
-
-    @Size(max = 2000)
-    @Column(length = 2000)
-    private String diagnosisNote;
 
     @Enumerated(EnumType.STRING)
     @Column(length = 30, nullable = false)

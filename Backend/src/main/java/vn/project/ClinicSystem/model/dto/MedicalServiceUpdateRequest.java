@@ -14,4 +14,6 @@ public class MedicalServiceUpdateRequest {
     private Long basePrice;
 
     private Long clinicRoomId;
+
+    private Boolean requiresIndicator;
 }

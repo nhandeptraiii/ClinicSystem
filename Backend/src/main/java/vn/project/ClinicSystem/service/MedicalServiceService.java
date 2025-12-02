@@ -62,6 +62,7 @@ public class MedicalServiceService {
         service.setCode(normalizeCode(request.getCode()));
         service.setName(request.getName());
         service.setBasePrice(request.getBasePrice());
+        service.setRequiresIndicator(request.getRequiresIndicator() != null ? request.getRequiresIndicator() : true);
 
         ClinicRoom clinicRoom = loadClinicRoom(request.getClinicRoomId());
         service.setClinicRoom(clinicRoom);
@@ -85,6 +86,9 @@ public class MedicalServiceService {
         }
         if (request.getBasePrice() != null) {
             existing.setBasePrice(request.getBasePrice());
+        }
+        if (request.getRequiresIndicator() != null) {
+            existing.setRequiresIndicator(request.getRequiresIndicator());
         }
         if (request.getClinicRoomId() != null) {
             ClinicRoom clinicRoom = loadClinicRoom(request.getClinicRoomId());

@@ -4,7 +4,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
@@ -20,6 +19,5 @@ public class ServiceOrderResultRequest {
     @Size(max = 1000, message = "Kết luận tối đa 1000 ký tự")
     private String overallConclusion;
 
-    @NotEmpty(message = "Cần nhập ít nhất một chỉ số kết quả")
     private List<@Valid ServiceOrderResultEntryRequest> indicators;
 }

@@ -20,4 +20,7 @@ public class MedicalServiceRequest {
 
     @NotNull(message = "Cần chỉ định phòng khám")
     private Long clinicRoomId;
+
+    @NotNull(message = "Cần xác định dịch vụ có yêu cầu nhập chỉ số hay không")
+    private Boolean requiresIndicator = true;
 }

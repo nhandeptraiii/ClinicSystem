@@ -64,15 +64,28 @@ public class ServiceOrderResultService {
             throw new IllegalStateException("Không thể nhập kết quả cho phiếu dịch vụ đã hủy.");
         }
 
-        Map<Long, IndicatorTemplate> templatesById = loadTemplatesMap(medicalService.getId(), request.getIndicators());
-        ensureRequiredTemplatesFilled(medicalService.getId(), request.getIndicators());
+        boolean requiresIndicator = Boolean.TRUE.equals(medicalService.getRequiresIndicator());
+        boolean hasIndicatorEntries = request.getIndicators() != null && !request.getIndicators().isEmpty();
 
-        order.clearIndicatorResults();
-        request.getIndicators().forEach(entry -> {
-            IndicatorTemplate template = templatesById.get(entry.getIndicatorId());
-            ServiceOrderResult result = buildResult(template, entry);
-            order.addIndicatorResult(result);
-        });
+        // Chỉ validate/ghi kết quả chỉ số khi dịch vụ yêu cầu
+        if (requiresIndicator) {
+            if (!hasIndicatorEntries) {
+                throw new IllegalArgumentException("Cần nhập ít nhất một chỉ số kết quả");
+            }
+
+            Map<Long, IndicatorTemplate> templatesById = loadTemplatesMap(medicalService.getId(), request.getIndicators());
+            ensureRequiredTemplatesFilled(medicalService.getId(), request.getIndicators());
+
+            order.clearIndicatorResults();
+            request.getIndicators().forEach(entry -> {
+                IndicatorTemplate template = templatesById.get(entry.getIndicatorId());
+                ServiceOrderResult result = buildResult(template, entry);
+                order.addIndicatorResult(result);
+            });
+        } else {
+            // Dịch vụ lâm sàng không yêu cầu chỉ số: luôn xoá kết quả cũ (nếu có)
+            order.clearIndicatorResults();
+        }
 
         if (request.getOverallConclusion() != null) {
             order.setResultNote(request.getOverallConclusion().trim());
@@ -85,7 +98,7 @@ public class ServiceOrderResultService {
         }
 
         order.setPerformedAt(request.getPerformedAt() != null ? request.getPerformedAt() : LocalDateTime.now());
-        order.setStatus(ServiceOrderStatus.COMPLETED_WITH_RESULT);
+        order.setStatus(requiresIndicator ? ServiceOrderStatus.COMPLETED_WITH_RESULT : ServiceOrderStatus.COMPLETED);
 
         return serviceOrderRepository.save(order);
     }

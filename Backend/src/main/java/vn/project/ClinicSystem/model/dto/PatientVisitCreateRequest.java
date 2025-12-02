@@ -14,7 +14,4 @@ public class PatientVisitCreateRequest {
 
     @Size(max = 500)
     private String provisionalDiagnosis;
-
-    @Size(max = 2000)
-    private String clinicalNote;
 }
