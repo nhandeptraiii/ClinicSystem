@@ -93,7 +93,7 @@ public class DiseaseService {
     @Transactional
     public void delete(Long id) {
         Disease disease = getById(id);
-        if (patientVisitRepository.existsByDiseaseId(id)) {
+        if (patientVisitRepository.existsByDiseases_Id(id)) {
             throw new IllegalStateException("Không thể xóa bệnh đang được sử dụng trong hồ sơ khám.");
         }
         diseaseRepository.delete(disease);

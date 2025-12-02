@@ -196,13 +196,19 @@ public class VisitService {
         visit.setClinicalNote(normalizeNullableText(request.getClinicalNote()));
         visit.setDiagnosisNote(normalizeNullableText(request.getDiagnosisNote()));
 
-        Disease disease = null;
-        if (request.getDiseaseId() != null) {
-            disease = diseaseRepository.findById(request.getDiseaseId())
-                    .orElseThrow(() -> new EntityNotFoundException(
-                            "Không tìm thấy bệnh với id: " + request.getDiseaseId()));
+        // Multi-disease handling
+        if (request.getDiseaseIds() != null) {
+            if (request.getDiseaseIds().isEmpty()) {
+                visit.getDiseases().clear();
+            } else {
+                List<Disease> diseases = diseaseRepository.findAllById(request.getDiseaseIds());
+                if (diseases.size() != request.getDiseaseIds().size()) {
+                    throw new EntityNotFoundException("Một hoặc nhiều bệnh không tồn tại.");
+                }
+                visit.getDiseases().clear();
+                visit.getDiseases().addAll(diseases);
+            }
         }
-        visit.setDisease(disease);
 
         return patientVisitRepository.save(visit);
     }

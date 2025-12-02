@@ -14,7 +14,7 @@ public class PatientVisitUpdateRequest {
     @Size(max = 2000, message = "Ghi chú lâm sàng không được vượt quá 2000 ký tự")
     private String clinicalNote;
 
-    private Long diseaseId;
+    private java.util.List<Long> diseaseIds;
 
     @Size(max = 2000, message = "Ghi chú chẩn đoán không được vượt quá 2000 ký tự")
     private String diagnosisNote;

@@ -17,6 +17,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
@@ -57,10 +59,12 @@ public class PatientVisit {
     @Column(length = 2000)
     private String clinicalNote;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "disease_id")
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(name = "visit_diseases",
+            joinColumns = @JoinColumn(name = "visit_id"),
+            inverseJoinColumns = @JoinColumn(name = "disease_id"))
     @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
-    private Disease disease;
+    private java.util.Set<Disease> diseases = new java.util.HashSet<>();
 
     @Size(max = 2000)
     @Column(length = 2000)

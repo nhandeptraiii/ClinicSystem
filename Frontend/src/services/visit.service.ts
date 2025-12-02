@@ -56,7 +56,7 @@ export interface PatientVisit {
   } | null;
   provisionalDiagnosis?: string | null;
   clinicalNote?: string | null;
-  disease?: Disease | null;
+  diseases?: Disease[] | null;
   diagnosisNote?: string | null;
   status?: string;
   serviceOrders?: ServiceOrder[];
@@ -155,7 +155,7 @@ export interface PatientVisitStatusUpdatePayload {
 export interface PatientVisitUpdatePayload {
   provisionalDiagnosis?: string | null;
   clinicalNote?: string | null;
-  diseaseId?: number | null;
+  diseaseIds?: number[] | null;
   diagnosisNote?: string | null;
 }
 

@@ -116,11 +116,11 @@ const editClinicalModalOpen = ref(false);
 const clinicalFormState = ref({
   provisionalDiagnosis: '',
   clinicalNote: '',
-  diseaseId: null as number | null,
   diagnosisNote: '',
 });
 const clinicalSubmitting = ref(false);
 const diseaseOptions = ref<Disease[]>([]);
+const selectedDiseases = ref<Disease[]>([]);
 const diseaseSearchTerm = ref('');
 const loadingDiseases = ref(false);
 let diseaseSearchTimer: ReturnType<typeof setTimeout> | null = null;
@@ -244,13 +244,30 @@ const loadDiseaseOptions = async (keyword?: string) => {
   loadingDiseases.value = true;
   try {
     const sanitized = keyword?.trim();
-    diseaseOptions.value = await fetchDiseases(sanitized ? sanitized : undefined);
+    if (!sanitized) {
+      diseaseOptions.value = [];
+      return;
+    }
+    diseaseOptions.value = await fetchDiseases(sanitized);
   } catch (err: any) {
     diseaseOptions.value = [];
     showToast('error', err?.response?.data?.message ?? 'Không thể tải danh mục bệnh.');
   } finally {
     loadingDiseases.value = false;
   }
+};
+
+const addDisease = (disease: Disease) => {
+  const exists = selectedDiseases.value.some((d) => d.id === disease.id);
+  if (!exists) {
+    selectedDiseases.value = [...selectedDiseases.value, disease];
+  }
+  diseaseSearchTerm.value = '';
+  diseaseOptions.value = [];
+};
+
+const removeDisease = (id: number) => {
+  selectedDiseases.value = selectedDiseases.value.filter((d) => d.id !== id);
 };
 
 const updateStatus = async () => {
@@ -277,11 +294,11 @@ const openEditClinicalModal = () => {
     clinicalFormState.value = {
       provisionalDiagnosis: visit.value.provisionalDiagnosis ?? '',
       clinicalNote: visit.value.clinicalNote ?? '',
-      diseaseId: visit.value.disease?.id ?? null,
       diagnosisNote: visit.value.diagnosisNote ?? '',
     };
+    selectedDiseases.value = Array.isArray(visit.value.diseases) ? [...(visit.value.diseases ?? [])] : [];
     diseaseSearchTerm.value = '';
-    void loadDiseaseOptions();
+    diseaseOptions.value = [];
     editClinicalModalOpen.value = true;
   }
 };
@@ -292,15 +309,12 @@ const saveClinicalInfo = async () => {
   const trimmedDiagnosis = clinicalFormState.value.provisionalDiagnosis?.trim() ?? '';
   const trimmedNote = clinicalFormState.value.clinicalNote?.trim() ?? '';
   const trimmedDiagnosisNote = clinicalFormState.value.diagnosisNote?.trim() ?? '';
-  const normalizedDiseaseId =
-    clinicalFormState.value.diseaseId === null || clinicalFormState.value.diseaseId === undefined
-      ? null
-      : Number(clinicalFormState.value.diseaseId);
+  const selectedIds = selectedDiseases.value.map((d) => d.id);
 
   const payload: PatientVisitUpdatePayload = {
     provisionalDiagnosis: trimmedDiagnosis.length > 0 ? trimmedDiagnosis : null,
     clinicalNote: trimmedNote.length > 0 ? trimmedNote : null,
-    diseaseId: normalizedDiseaseId,
+    diseaseIds: selectedIds,
     diagnosisNote: trimmedDiagnosisNote.length > 0 ? trimmedDiagnosisNote : null,
   };
 
@@ -312,16 +326,16 @@ const saveClinicalInfo = async () => {
       ...existingVisit,
       provisionalDiagnosis: updatedVisit.provisionalDiagnosis ?? null,
       clinicalNote: updatedVisit.clinicalNote ?? null,
-      disease: updatedVisit.disease ?? null,
+      diseases: updatedVisit.diseases ?? [],
       diagnosisNote: updatedVisit.diagnosisNote ?? null,
       updatedAt: updatedVisit.updatedAt ?? existingVisit?.updatedAt,
     };
     clinicalFormState.value = {
       provisionalDiagnosis: payload.provisionalDiagnosis ?? '',
       clinicalNote: payload.clinicalNote ?? '',
-      diseaseId: normalizedDiseaseId,
       diagnosisNote: payload.diagnosisNote ?? '',
     };
+    selectedDiseases.value = updatedVisit.diseases ?? [];
     showToast('success', 'Đã cập nhật thông tin lâm sàng.');
     editClinicalModalOpen.value = false;
   } catch (err: any) {
@@ -422,7 +436,12 @@ watch(diseaseSearchTerm, (value) => {
     if (!editClinicalModalOpen.value) {
       return;
     }
-    void loadDiseaseOptions(value);
+    const term = value?.trim();
+    if (!term || term.length < 2) {
+      diseaseOptions.value = [];
+      return;
+    }
+    void loadDiseaseOptions(term);
   }, 320);
 });
 
@@ -930,14 +949,20 @@ onMounted(() => {
 
             <div>
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Chẩn đoán chính</p>
-              <p class="mt-1 text-sm text-slate-900">
-                <template v-if="visit.disease">
-                  <span class="font-semibold">{{ visit.disease.code }}</span>
-                  <span class="mx-1 text-slate-400">•</span>
-                  <span>{{ visit.disease.name }}</span>
+              <div class="mt-1 flex flex-wrap gap-2">
+                <template v-if="visit.diseases && visit.diseases.length">
+                  <span
+                    v-for="d in visit.diseases"
+                    :key="d.id"
+                    class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-100"
+                  >
+                    <span class="font-bold">{{ d.code }}</span>
+                    <span class="text-slate-500">-</span>
+                    <span>{{ d.name }}</span>
+                  </span>
                 </template>
-                <span v-else>Chưa xác định</span>
-              </p>
+                <span v-else class="text-sm text-slate-700">Chưa xác định</span>
+              </div>
               <p v-if="visit.diagnosisNote" class="mt-1 text-sm text-slate-700 whitespace-pre-wrap">
                 {{ visit.diagnosisNote }}
               </p>
@@ -1306,31 +1331,52 @@ onMounted(() => {
                 <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Chẩn đoán chính</label>
                 <span v-if="loadingDiseases" class="text-[11px] text-slate-500">Đang tải danh mục...</span>
               </div>
-              <div class="grid gap-2 sm:grid-cols-[1fr,180px]">
-                <input
-                  v-model="diseaseSearchTerm"
-                  type="text"
-                  placeholder="Tìm mã hoặc tên bệnh"
-                  class="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-                />
-                <button
-                  type="button"
-                  class="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-700 shadow-sm transition hover:bg-emerald-100"
-                  @click="loadDiseaseOptions(diseaseSearchTerm)"
-                >
-                  Làm mới
-                </button>
+              <div class="space-y-2">
+                <div class="relative">
+                  <input
+                    v-model="diseaseSearchTerm"
+                    type="text"
+                    placeholder="Nhập từ khóa (tối thiểu 2 ký tự) để tìm bệnh..."
+                    class="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+                  />
+                  <div
+                    v-if="diseaseOptions.length > 0"
+                    class="absolute z-10 mt-2 max-h-52 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg"
+                  >
+                    <button
+                      v-for="option in diseaseOptions"
+                      :key="option.id"
+                      type="button"
+                      class="flex w-full items-start gap-2 px-4 py-2 text-left text-sm text-slate-700 hover:bg-emerald-50"
+                      @click="addDisease(option)"
+                    >
+                      <span class="font-semibold text-emerald-700">{{ option.code }}</span>
+                      <span class="text-slate-500">-</span>
+                      <span>{{ option.name }}</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <span
+                    v-for="d in selectedDiseases"
+                    :key="d.id"
+                    class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-100"
+                  >
+                    <span class="font-bold">{{ d.code }}</span>
+                    <span class="text-slate-500">-</span>
+                    <span>{{ d.name }}</span>
+                    <button
+                      type="button"
+                      class="ml-1 text-slate-500 hover:text-rose-600"
+                      @click="removeDisease(d.id)"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                  <span v-if="selectedDiseases.length === 0" class="text-xs text-slate-500">Chưa chọn bệnh nào.</span>
+                </div>
+                <p class="text-xs text-slate-500">Nhập từ khóa để tìm và chọn nhiều bệnh.</p>
               </div>
-              <select
-                v-model="clinicalFormState.diseaseId"
-                class="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-              >
-                <option :value="null">-- Chưa chọn bệnh --</option>
-                <option v-for="disease in diseaseOptions" :key="disease.id" :value="disease.id">
-                  {{ disease.code }} - {{ disease.name }}
-                </option>
-              </select>
-              <p class="text-xs text-slate-500">Chọn bệnh chính để gắn vào hồ sơ và đơn thuốc.</p>
             </div>
             <div class="space-y-1.5">
               <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Ghi chú chẩn đoán</label>
