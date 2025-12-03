@@ -17,7 +17,11 @@ public class FormatRestResponse implements ResponseBodyAdvice {
 
     @Override
     public boolean supports(MethodParameter returnType, Class converterType) {
-        return true;
+        Class<?> paramType = returnType.getParameterType();
+        // Bỏ qua wrap cho byte[]/Resource (file, PDF, image...) để tránh lỗi cast
+        return !(byte[].class.equals(paramType)
+                || org.springframework.core.io.Resource.class.isAssignableFrom(paramType)
+                || org.springframework.http.ResponseEntity.class.isAssignableFrom(paramType));
     }
 
     @Override
@@ -36,6 +40,16 @@ public class FormatRestResponse implements ResponseBodyAdvice {
         res.setStatusCode(status);
 
         if (body instanceof String) {
+            return body;
+        }
+
+        // Không wrap file bytes/PDF
+        if (body instanceof byte[]) {
+            return body;
+        }
+
+        if (selectedContentType != null && selectedContentType.includes(MediaType.APPLICATION_OCTET_STREAM)
+                || selectedContentType != null && selectedContentType.includes(MediaType.APPLICATION_PDF)) {
             return body;
         }
 

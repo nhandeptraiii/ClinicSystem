@@ -29,6 +29,7 @@ dependencies {
 	implementation("org.apache.httpcomponents.client5:httpclient5:5.4.1")
 	implementation("org.thymeleaf.extras:thymeleaf-extras-springsecurity6")
 	implementation ("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
+	implementation("com.github.librepdf:openpdf:1.3.30")
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
 	runtimeOnly("com.mysql:mysql-connector-j")
 	testImplementation("org.springframework.boot:spring-boot-starter-test")

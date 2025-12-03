@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import vn.project.ClinicSystem.model.ServiceOrderResult;
 import vn.project.ClinicSystem.model.dto.ServiceOrderResultRequest;
+import vn.project.ClinicSystem.service.ServiceOrderPrintService;
 import vn.project.ClinicSystem.service.ServiceOrderResultService;
 
 @RestController
@@ -22,9 +23,12 @@ import vn.project.ClinicSystem.service.ServiceOrderResultService;
 public class ServiceOrderResultController {
 
     private final ServiceOrderResultService resultService;
+    private final ServiceOrderPrintService printService;
 
-    public ServiceOrderResultController(ServiceOrderResultService resultService) {
+    public ServiceOrderResultController(ServiceOrderResultService resultService,
+            ServiceOrderPrintService printService) {
         this.resultService = resultService;
+        this.printService = printService;
     }
 
     @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
@@ -41,5 +45,16 @@ public class ServiceOrderResultController {
         resultService.recordResults(orderId, request);
         List<ServiceOrderResult> results = resultService.findResults(orderId);
         return ResponseEntity.status(HttpStatus.CREATED).body(results);
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'RECEPTIONIST')")
+    @GetMapping("/print")
+    public ResponseEntity<byte[]> printServiceOrder(@PathVariable("orderId") Long orderId) {
+        byte[] pdfBytes = printService.generateServiceOrderPdf(orderId);
+        return ResponseEntity.ok()
+                .header("Content-Type", "application/pdf")
+                .header("Content-Disposition", "inline; filename=\"service-order-" + orderId + ".pdf\"")
+                .header("X-Content-Type-Options", "nosniff")
+                .body(pdfBytes);
     }
 }
