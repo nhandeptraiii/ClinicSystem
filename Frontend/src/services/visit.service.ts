@@ -283,3 +283,10 @@ export const recordServiceOrderResults = async (
   const unwrapped = normalizeResponse(data);
   return Array.isArray(unwrapped) ? unwrapped : [];
 };
+
+export const fetchServiceOrderPdf = async (serviceOrderId: number): Promise<Blob> => {
+  const response = await http.get<Blob>(`/service-orders/${serviceOrderId}/results/print`, {
+    responseType: 'blob',
+  });
+  return response.data;
+};
