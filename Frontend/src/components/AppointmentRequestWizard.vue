@@ -4,7 +4,7 @@ import { approveAppointmentRequest, type AppointmentRequest } from '@/services/a
 import { fetchDoctors, type Doctor } from '@/services/doctor.service';
 import { createPatient, fetchPatientPage, type Patient, type PatientPage } from '@/services/patient.service';
 import { createAppointment } from '@/services/appointment.service';
-import { fetchClinicRooms, fetchAvailableGeneralRooms, type ClinicRoom, type ClinicRoomAvailability } from '@/services/clinicRoom.service';
+import { fetchClinicRooms, type ClinicRoom, type ClinicRoomAvailability } from '@/services/clinicRoom.service';
 import { useToast, type ToastType } from '@/composables/useToast';
 
 type Step = 1 | 2 | 3;
@@ -13,6 +13,7 @@ type PatientMode = 'existing' | 'new';
 const props = defineProps<{
   modelValue: boolean;
   request: AppointmentRequest | null;
+  prefillPatientKeyword?: string;
 }>();
 
 const emit = defineEmits<{
@@ -297,7 +298,7 @@ const resetWizardState = () => {
   currentStep.value = isDirectAppointmentMode.value ? 2 : 1;
   patientMode.value = 'existing';
   selectedPatient.value = null;
-  patientSearchKeyword.value = '';
+  patientSearchKeyword.value = props.prefillPatientKeyword?.trim() ?? '';
   patientSearchResults.value = [];
   patientPage.value = null;
   patientCurrentPage.value = 0;

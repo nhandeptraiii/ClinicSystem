@@ -29,6 +29,11 @@ export interface PrescriptionItem {
   instruction?: string | null;
 }
 
+export type PrescriptionStatus =
+  | 'WAITING'
+  | 'DISPENSED'
+  | 'ON_HOLD';
+
 export const fetchPrescriptionPdf = async (id: number): Promise<Blob> => {
   const response = await http.get<Blob>(`/prescriptions/${id}/print`, { responseType: 'blob' });
   return response.data;
@@ -38,6 +43,16 @@ export interface Prescription {
   id: number;
   visit?: {
     id: number;
+    patient?: {
+      id: number;
+      fullName?: string | null;
+      code?: string | null;
+    } | null;
+    primaryAppointment?: {
+      clinicRoom?: {
+        name?: string | null;
+      } | null;
+    } | null;
   } | null;
   prescribedBy?: {
     id: number;
@@ -48,6 +63,9 @@ export interface Prescription {
   } | null;
   issuedAt?: string;
   notes?: string | null;
+  status?: PrescriptionStatus | null;
+  pharmacistNote?: string | null;
+  dispensedAt?: string | null;
   items?: PrescriptionItem[];
   createdAt?: string;
   updatedAt?: string;
@@ -79,8 +97,24 @@ export interface PrescriptionUpdatePayload {
   items?: PrescriptionItemPayload[];
 }
 
-export const fetchPrescriptions = async (visitId?: number): Promise<Prescription[]> => {
-  const params = visitId ? { visitId } : undefined;
+export interface PrescriptionStatusUpdatePayload {
+  status: PrescriptionStatus;
+  pharmacistNote?: string | null;
+}
+
+type PrescriptionQuery =
+  | { visitId?: number; status?: PrescriptionStatus }
+  | number
+  | undefined;
+
+export const fetchPrescriptions = async (query?: PrescriptionQuery): Promise<Prescription[]> => {
+  const params =
+    typeof query === 'number'
+      ? { visitId: query }
+      : query && typeof query === 'object'
+        ? { visitId: query.visitId, status: query.status }
+        : undefined;
+
   const { data } = await http.get<RestResponse<Prescription[]> | Prescription[]>('/prescriptions', { params });
   const unwrapped = normalizeResponse(data);
   return Array.isArray(unwrapped) ? unwrapped : [];
@@ -101,7 +135,14 @@ export const updatePrescription = async (id: number, payload: PrescriptionUpdate
   return normalizeResponse(data);
 };
 
+export const updatePrescriptionStatus = async (
+  id: number,
+  payload: PrescriptionStatusUpdatePayload,
+): Promise<Prescription> => {
+  const { data } = await http.patch<RestResponse<Prescription>>(`/prescriptions/${id}/status`, payload);
+  return normalizeResponse(data);
+};
+
 export const deletePrescription = async (id: number): Promise<void> => {
   await http.delete(`/prescriptions/${id}`);
 };
-

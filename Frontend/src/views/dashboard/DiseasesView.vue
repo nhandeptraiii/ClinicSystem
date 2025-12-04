@@ -13,7 +13,6 @@ import {
 const { toast, show: showToast, hide: hideToast } = useToast();
 const authStore = useAuthStore();
 const isAdmin = computed(() => authStore.hasRole(['ADMIN']));
-const isDoctor = computed(() => authStore.hasRole(['DOCTOR']));
 
 type ToastVisual = {
   title: string;
