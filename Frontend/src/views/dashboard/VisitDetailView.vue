@@ -28,6 +28,7 @@ import {
   fetchServiceOrderResults,
   recordServiceOrderResults,
   fetchServiceOrderPdf,
+  fetchServiceOrderResultPdf,
   type ServiceOrderResult,
   type ServiceOrderResultPayload,
 } from '@/services/visit.service';
@@ -717,6 +718,24 @@ const printServiceOrder = async (order: ServiceOrder) => {
   }
 };
 
+const printServiceOrderResult = async (order: ServiceOrder) => {
+  if (!order.id) return;
+  try {
+    const blob = await fetchServiceOrderResultPdf(order.id);
+    const url = URL.createObjectURL(blob);
+    const printWindow = window.open(url);
+    if (!printWindow) {
+      showToast('error', 'Trình duyệt chặn cửa sổ in. Vui lòng cho phép pop-up.');
+      return;
+    }
+    printWindow.focus();
+    printWindow.print();
+  } catch (err: any) {
+    const errorMessage = err?.response?.data?.message ?? err?.message ?? 'Không thể in kết quả CLS.';
+    showToast('error', errorMessage);
+  }
+};
+
 const openEditPrescriptionModal = async () => {
   if (!currentPrescription.value) return;
   prescriptionModalOpen.value = true;
@@ -1168,15 +1187,6 @@ onMounted(() => {
                   <div v-if="order.note" class="mt-2 text-sm text-slate-600">
                     Ghi chú: {{ order.note }}
                   </div>
-                  <div v-if="order.performedBy || order.performedAt" class="mt-1 text-xs text-slate-600">
-                    <span v-if="order.performedBy">Thực hiện: {{ order.performedBy.account?.fullName ?? 'N/A' }}</span>
-                    <span v-if="order.performedAt">
-                      <span v-if="order.performedBy"> • </span>{{ formatDate(order.performedAt) }}
-                    </span>
-                  </div>
-                  <div v-if="order.resultNote" class="mt-2 text-sm text-slate-700">
-                    Kết luận: {{ order.resultNote }}
-                  </div>
                   </div>
                   <div class="flex flex-col gap-2">
                     <button
@@ -1204,7 +1214,7 @@ onMounted(() => {
                 </div>
               </div>
             </div>
-        </div>
+          </div>
 
           <!-- Khu vực 4: Kết quả Cận lâm sàng (CLS) -->
           <div class="rounded-2xl border border-emerald-100 bg-white/90 p-6 shadow-sm">
@@ -1232,7 +1242,14 @@ onMounted(() => {
                     <p class="text-xs text-slate-600">
                       Mã: {{ order.medicalService?.code ?? 'N/A' }}
                     </p>
+                    <div v-if="order.performedBy || order.performedAt" class="text-xs text-slate-600">
+                    <span v-if="order.performedBy">Thực hiện: {{ order.performedBy.account?.fullName ?? 'N/A' }}</span>
+                    <span v-if="order.performedAt">
+                      <span v-if="order.performedBy"> • </span>{{ formatDate(order.performedAt) }}
+                    </span>
                   </div>
+                  </div>
+                  <div class="flex flex-col gap-2">
                   <button
                     type="button"
                     @click="toggleResultVisibility(order.id)"
@@ -1254,6 +1271,17 @@ onMounted(() => {
                     </svg>
                     {{ expandedResultOrders.has(order.id ?? 0) ? 'Thu gọn' : 'Xem chỉ số' }}
                   </button>
+                  <button
+                      type="button"
+                      @click="printServiceOrderResult(order)"
+                      class="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M7 7h10M7 12h6m-8 7h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-4.382a1 1 0 0 1-.723-.309L9.105 3.105A1 1 0 0 0 8.382 2.8H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2Z" />
+                      </svg>
+                      In kết quả
+                    </button>
+                  </div>
                 </div>
 
                 <div v-if="expandedResultOrders.has(order.id ?? 0)" class="mt-3 overflow-x-auto">

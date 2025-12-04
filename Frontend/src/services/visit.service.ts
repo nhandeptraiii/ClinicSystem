@@ -290,3 +290,10 @@ export const fetchServiceOrderPdf = async (serviceOrderId: number): Promise<Blob
   });
   return response.data;
 };
+
+export const fetchServiceOrderResultPdf = async (serviceOrderId: number): Promise<Blob> => {
+  const response = await http.get<Blob>(`/service-orders/${serviceOrderId}/results/print-result`, {
+    responseType: 'blob',
+  });
+  return response.data;
+};

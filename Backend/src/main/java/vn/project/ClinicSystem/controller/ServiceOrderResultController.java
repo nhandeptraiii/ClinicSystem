@@ -57,4 +57,15 @@ public class ServiceOrderResultController {
                 .header("X-Content-Type-Options", "nosniff")
                 .body(pdfBytes);
     }
+
+    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'RECEPTIONIST')")
+    @GetMapping("/print-result")
+    public ResponseEntity<byte[]> printServiceOrderResult(@PathVariable("orderId") Long orderId) {
+        byte[] pdfBytes = printService.generateServiceOrderResultPdf(orderId);
+        return ResponseEntity.ok()
+                .header("Content-Type", "application/pdf")
+                .header("Content-Disposition", "inline; filename=\"service-order-result-" + orderId + ".pdf\"")
+                .header("X-Content-Type-Options", "nosniff")
+                .body(pdfBytes);
+    }
 }
