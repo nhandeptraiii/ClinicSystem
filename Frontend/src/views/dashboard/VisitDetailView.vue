@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AdminHeader from '@/components/AdminHeader.vue';
+import AppointmentRequestWizard from '@/components/AppointmentRequestWizard.vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast, type ToastType } from '@/composables/useToast';
 import {
@@ -134,6 +135,8 @@ const currentPrescription = computed(() => prescriptions.value[0] ?? null);
 // Status update
 const statusUpdateModalOpen = ref(false);
 const newStatus = ref<string>('');
+const appointmentWizardOpen = ref(false);
+const appointmentPrefillPatient = computed(() => visit.value?.patient?.code ?? '');
 
 // Clinical info edit
 const editClinicalModalOpen = ref(false);
@@ -339,6 +342,10 @@ const updateStatus = async () => {
     const errorMessage = err?.response?.data?.message ?? err?.message ?? 'Không thể cập nhật trạng thái.';
     showToast('error', errorMessage);
   }
+};
+
+const openRevisitAppointment = () => {
+  appointmentWizardOpen.value = true;
 };
 
 const openEditClinicalModal = () => {
@@ -785,6 +792,15 @@ const openEditPrescriptionModal = async () => {
   }
 };
 
+const handleEditPrescriptionClick = () => {
+  if (!currentPrescription.value) return;
+  if ((currentPrescription.value as any).status === 'DISPENSED') {
+    showToast('warning', 'Đơn thuốc đã được phát, xin hãy liên hệ bệnh nhân sau.');
+    return;
+  }
+  void openEditPrescriptionModal();
+};
+
 const addPrescriptionItem = () => {
   prescriptionFormState.value.items.push({
     medicationId: null,
@@ -888,10 +904,38 @@ const getServiceOrderStatusLabel = (status?: string) => {
   }
 };
 
+const getPrescriptionStatusLabel = (status?: string) => {
+  switch (status) {
+    case 'WAITING':
+      return 'Chờ phát';
+    case 'DISPENSED':
+      return 'Đã phát';
+    case 'ON_HOLD':
+      return 'Hoãn phát';
+    default:
+      return status ?? 'N/A';
+  }
+};
+
+const getPrescriptionStatusBadgeClass = (status?: string) => {
+  switch (status) {
+    case 'WAITING':
+      return 'bg-blue-100 text-blue-800 border-blue-200';
+    case 'DISPENSED':
+      return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+    case 'ON_HOLD':
+      return 'bg-amber-100 text-amber-800 border-amber-200';
+    default:
+      return 'bg-slate-100 text-slate-800 border-slate-200';
+  }
+};
+
 const formatDate = (dateString?: string | null) => {
   if (!dateString) return 'N/A';
   try {
-    const date = new Date(dateString);
+    const hasZone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(dateString);
+    const iso = hasZone ? dateString : `${dateString}Z`;
+    const date = new Date(iso);
     return date.toLocaleString('vi-VN', {
       day: '2-digit',
       month: '2-digit',
@@ -986,16 +1030,25 @@ onMounted(() => {
           <div class="rounded-2xl border border-emerald-100 bg-white/90 p-6 shadow-sm">
             <div class="mb-4 flex items-center justify-between">
               <h2 class="text-lg font-semibold text-slate-900">Thông tin Hành chính</h2>
-              <button
-                type="button"
-                @click="
-                  newStatus = visit.status ?? '';
-                  statusUpdateModalOpen = true;
-                "
-                class="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-600 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-blue-700"
-              >
-                Cập nhật trạng thái
-              </button>
+              <div class="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  @click="
+                    newStatus = visit.status ?? '';
+                    statusUpdateModalOpen = true;
+                  "
+                  class="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-600 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-blue-700"
+                >
+                  Cập nhật trạng thái
+                </button>
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50"
+                  @click="openRevisitAppointment"
+                >
+                  Đặt lịch tái khám
+                </button>
+              </div>
             </div>
 
             
@@ -1373,8 +1426,13 @@ onMounted(() => {
                 <button
                 v-if="currentPrescription"
                 type="button"
-                @click="openEditPrescriptionModal"
-                class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-600 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700"
+                @click="handleEditPrescriptionClick"
+                :class="[
+                  'inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-wide shadow-sm transition',
+                  (currentPrescription as any)?.status === 'DISPENSED'
+                    ? 'border-slate-200 bg-slate-200 text-slate-600 cursor-not-allowed'
+                    : 'border-emerald-200 bg-emerald-600 text-white hover:bg-emerald-700',
+                ]"
               >
                 Sửa Đơn thuốc
               </button>
@@ -1382,7 +1440,7 @@ onMounted(() => {
                 v-else
                 type="button"
                 @click="openPrescriptionModal"
-                class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-600 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700"
+                 class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-600 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700"
               >
                 Tạo Đơn thuốc
               </button>
@@ -1410,6 +1468,16 @@ onMounted(() => {
           </div>
 
           <div v-else class="space-y-4">
+            <div class="flex items-center gap-2">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Trạng thái</p>
+              <span
+                :class="getPrescriptionStatusBadgeClass((currentPrescription as any)?.status)"
+                class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold"
+              >
+                {{ getPrescriptionStatusLabel((currentPrescription as any)?.status) }}
+              </span>
+            </div>
+
             <div>
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Ngày kê đơn</p>
               <p class="mt-1 text-sm text-slate-900">
@@ -1462,10 +1530,10 @@ onMounted(() => {
                       <td class="px-4 py-2 font-medium text-slate-900">
                         {{ item.medicationName ?? item.medication?.name ?? 'N/A' }}
                       </td>
-                      <td class="px-4 py-2 text-slate-600">{{ item.quantity ?? 'N/A' }}</td>
-                      <td class="px-4 py-2 text-slate-600">{{ item.dosage ?? 'N/A' }}</td>
-                      <td class="px-4 py-2 text-slate-600">{{ item.frequency ?? 'N/A' }}</td>
-                      <td class="px-4 py-2 text-slate-600">{{ item.instruction ?? 'N/A' }}</td>
+                      <td class="px-9 py-2 text-slate-600">{{ item.quantity ?? 'N/A' }}</td>
+                      <td class="px-10 py-2 text-slate-600">{{ item.dosage ?? 'N/A' }}</td>
+                      <td class="px-10 py-2 text-slate-600">{{ item.frequency ?? 'N/A' }}</td>
+                      <td class="px-9 py-2 text-slate-600">{{ item.instruction ?? 'N/A' }}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -2200,6 +2268,13 @@ onMounted(() => {
         </div>
       </div>
     </Transition>
+
+    <AppointmentRequestWizard
+      v-model="appointmentWizardOpen"
+      :request="null"
+      :prefill-patient-keyword="appointmentPrefillPatient"
+      @completed="showToast('success', 'Đã tạo lịch hẹn tái khám.')"
+    />
 
     <!-- Toast Notification -->
     <Teleport to="body">
