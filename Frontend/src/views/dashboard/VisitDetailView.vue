@@ -20,6 +20,7 @@ import {
   fetchPrescriptions,
   createPrescription,
   updatePrescription,
+  fetchPrescriptionPdf,
   type Prescription,
   type PrescriptionCreatePayload,
   type PrescriptionUpdatePayload,
@@ -700,6 +701,24 @@ const openPrescriptionModal = async () => {
   }
 };
 
+const printPrescription = async () => {
+  if (!currentPrescription.value?.id) return;
+  try {
+    const blob = await fetchPrescriptionPdf(currentPrescription.value.id);
+    const url = URL.createObjectURL(blob);
+    const printWindow = window.open(url);
+    if (!printWindow) {
+      showToast('error', 'Trình duyệt chặn cửa sổ in. Vui lòng cho phép pop-up.');
+      return;
+    }
+    printWindow.focus();
+    printWindow.print();
+  } catch (err: any) {
+    const errorMessage = err?.response?.data?.message ?? err?.message ?? 'Không thể in đơn thuốc.';
+    showToast('error', errorMessage);
+  }
+};
+
 const printServiceOrder = async (order: ServiceOrder) => {
   if (!order.id) return;
   try {
@@ -1350,7 +1369,8 @@ onMounted(() => {
           <div class="rounded-2xl border border-emerald-100 bg-white/90 p-6 shadow-sm">
             <div class="mb-4 flex items-center justify-between">
               <h2 class="text-lg font-semibold text-slate-900">Đơn thuốc</h2>
-              <button
+               <div class="flex flex-col gap-2">
+                <button
                 v-if="currentPrescription"
                 type="button"
                 @click="openEditPrescriptionModal"
@@ -1366,6 +1386,19 @@ onMounted(() => {
               >
                 Tạo Đơn thuốc
               </button>
+              <button
+                v-if="currentPrescription"
+                type="button"
+                @click="printPrescription"
+                class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-700 shadow-sm transition hover:bg-slate-50"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 9V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v3m-2 4h2a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h2m0 0h8m-8 0v3a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-3" />
+                </svg>
+                In đơn thuốc
+              </button>
+               </div>
+              
             </div>
 
           <div v-if="loadingPrescriptions" class="p-4 text-center text-sm text-slate-600">

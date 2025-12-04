@@ -19,6 +19,7 @@ import jakarta.validation.Valid;
 import vn.project.ClinicSystem.model.Prescription;
 import vn.project.ClinicSystem.model.dto.PrescriptionCreateRequest;
 import vn.project.ClinicSystem.model.dto.PrescriptionUpdateRequest;
+import vn.project.ClinicSystem.service.PrescriptionPrintService;
 import vn.project.ClinicSystem.service.PrescriptionService;
 
 @RestController
@@ -26,9 +27,12 @@ import vn.project.ClinicSystem.service.PrescriptionService;
 public class PrescriptionController {
 
     private final PrescriptionService prescriptionService;
+    private final PrescriptionPrintService prescriptionPrintService;
 
-    public PrescriptionController(PrescriptionService prescriptionService) {
+    public PrescriptionController(PrescriptionService prescriptionService,
+            PrescriptionPrintService prescriptionPrintService) {
         this.prescriptionService = prescriptionService;
+        this.prescriptionPrintService = prescriptionPrintService;
     }
 
     @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
@@ -69,5 +73,16 @@ public class PrescriptionController {
     public ResponseEntity<Void> deletePrescription(@PathVariable("id") Long id) {
         prescriptionService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'RECEPTIONIST')")
+    @GetMapping("/{id}/print")
+    public ResponseEntity<byte[]> printPrescription(@PathVariable("id") Long id) {
+        byte[] pdfBytes = prescriptionPrintService.generatePrescriptionPdf(id);
+        return ResponseEntity.ok()
+                .header("Content-Type", "application/pdf")
+                .header("Content-Disposition", "inline; filename=\"prescription-" + id + ".pdf\"")
+                .header("X-Content-Type-Options", "nosniff")
+                .body(pdfBytes);
     }
 }

@@ -29,6 +29,11 @@ export interface PrescriptionItem {
   instruction?: string | null;
 }
 
+export const fetchPrescriptionPdf = async (id: number): Promise<Blob> => {
+  const response = await http.get<Blob>(`/prescriptions/${id}/print`, { responseType: 'blob' });
+  return response.data;
+};
+
 export interface Prescription {
   id: number;
   visit?: {
