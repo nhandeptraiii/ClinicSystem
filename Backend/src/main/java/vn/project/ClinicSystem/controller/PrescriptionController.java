@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -18,7 +19,9 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import vn.project.ClinicSystem.model.Prescription;
 import vn.project.ClinicSystem.model.dto.PrescriptionCreateRequest;
+import vn.project.ClinicSystem.model.dto.PrescriptionStatusUpdateRequest;
 import vn.project.ClinicSystem.model.dto.PrescriptionUpdateRequest;
+import vn.project.ClinicSystem.model.enums.PrescriptionStatus;
 import vn.project.ClinicSystem.service.PrescriptionPrintService;
 import vn.project.ClinicSystem.service.PrescriptionService;
 
@@ -43,18 +46,22 @@ public class PrescriptionController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'PHARMACIST')")
     @GetMapping("/{id}")
     public ResponseEntity<Prescription> getPrescription(@PathVariable("id") Long id) {
         return ResponseEntity.ok(prescriptionService.getById(id));
     }
 
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'PHARMACIST')")
     @GetMapping
     public ResponseEntity<List<Prescription>> getPrescriptions(
-            @RequestParam(value = "visitId", required = false) Long visitId) {
+            @RequestParam(value = "visitId", required = false) Long visitId,
+            @RequestParam(value = "status", required = false) PrescriptionStatus status) {
         if (visitId != null) {
             return ResponseEntity.ok(prescriptionService.findByVisit(visitId));
+        }
+        if (status != null) {
+            return ResponseEntity.ok(prescriptionService.findByStatus(status));
         }
         return ResponseEntity.ok(prescriptionService.findAll());
     }
@@ -68,6 +75,15 @@ public class PrescriptionController {
         return ResponseEntity.ok(updated);
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'PHARMACIST')")
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<Prescription> updatePrescriptionStatus(
+            @PathVariable("id") Long id,
+            @Valid @RequestBody PrescriptionStatusUpdateRequest request) {
+        Prescription updated = prescriptionService.updateStatus(id, request);
+        return ResponseEntity.ok(updated);
+    }
+
     @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletePrescription(@PathVariable("id") Long id) {
@@ -75,7 +91,7 @@ public class PrescriptionController {
         return ResponseEntity.noContent().build();
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'RECEPTIONIST')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'PHARMACIST', 'RECEPTIONIST')")
     @GetMapping("/{id}/print")
     public ResponseEntity<byte[]> printPrescription(@PathVariable("id") Long id) {
         byte[] pdfBytes = prescriptionPrintService.generatePrescriptionPdf(id);

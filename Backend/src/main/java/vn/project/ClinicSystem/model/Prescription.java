@@ -10,6 +10,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -25,6 +27,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
+import vn.project.ClinicSystem.model.enums.PrescriptionStatus;
 
 @Getter
 @Setter
@@ -52,6 +55,17 @@ public class Prescription {
     @Size(max = 1000, message = "Ghi chú tối đa 1000 ký tự")
     @Column(length = 1000)
     private String notes;
+
+    @NotNull(message = "Trạng thái đơn thuốc không được để trống")
+    @Enumerated(EnumType.STRING)
+    @Column(length = 40, nullable = false)
+    private PrescriptionStatus status = PrescriptionStatus.WAITING;
+
+    @Size(max = 1000, message = "Ghi chú dược sĩ tối đa 1000 ký tự")
+    @Column(length = 1000)
+    private String pharmacistNote;
+
+    private LocalDateTime dispensedAt;
 
     @Valid
     @OneToMany(mappedBy = "prescription", cascade = CascadeType.ALL, orphanRemoval = true)

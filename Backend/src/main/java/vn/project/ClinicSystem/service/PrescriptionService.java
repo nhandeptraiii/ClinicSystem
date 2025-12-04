@@ -22,7 +22,9 @@ import vn.project.ClinicSystem.model.PrescriptionItem;
 import vn.project.ClinicSystem.model.ServiceOrder;
 import vn.project.ClinicSystem.model.dto.PrescriptionCreateRequest;
 import vn.project.ClinicSystem.model.dto.PrescriptionItemRequest;
+import vn.project.ClinicSystem.model.dto.PrescriptionStatusUpdateRequest;
 import vn.project.ClinicSystem.model.dto.PrescriptionUpdateRequest;
+import vn.project.ClinicSystem.model.enums.PrescriptionStatus;
 import vn.project.ClinicSystem.model.enums.ServiceOrderStatus;
 import vn.project.ClinicSystem.model.enums.VisitStatus;
 import vn.project.ClinicSystem.repository.DoctorRepository;
@@ -73,6 +75,12 @@ public class PrescriptionService {
         return prescriptions;
     }
 
+    public List<Prescription> findByStatus(PrescriptionStatus status) {
+        List<Prescription> prescriptions = prescriptionRepository.findByStatusOrderByIssuedAtDesc(status);
+        prescriptions.forEach(this::hydratePrescription);
+        return prescriptions;
+    }
+
     public List<Prescription> findByVisit(Long visitId) {
         ensureVisitExists(visitId);
         List<Prescription> prescriptions = prescriptionRepository.findByVisitIdOrderByIssuedAtDesc(visitId);
@@ -101,7 +109,12 @@ public class PrescriptionService {
             prescription.setPrescribedBy(visit.getPrimaryAppointment().getDoctor());
         }
 
+        prescription.setStatus(PrescriptionStatus.WAITING);
         applyItems(prescription, request.getItems());
+        if (prescription.getStatus() == null) {
+            prescription.setStatus(PrescriptionStatus.WAITING);
+        }
+
         validateBean(prescription);
         Prescription saved = prescriptionRepository.save(prescription);
         hydratePrescription(saved);
@@ -137,6 +150,38 @@ public class PrescriptionService {
     }
 
     @Transactional
+    public Prescription updateStatus(Long id, PrescriptionStatusUpdateRequest request) {
+        if (request == null || request.getStatus() == null) {
+            throw new IllegalArgumentException("Cần cung cấp trạng thái đơn thuốc hợp lệ");
+        }
+
+        Prescription prescription = getById(id);
+        PrescriptionStatus previousStatus = prescription.getStatus();
+        PrescriptionStatus newStatus = request.getStatus();
+
+        // Điều chỉnh tồn kho dựa trên chuyển trạng thái
+        if (previousStatus != PrescriptionStatus.DISPENSED && newStatus == PrescriptionStatus.DISPENSED) {
+            deductStockForPrescription(prescription);
+            prescription.setDispensedAt(LocalDateTime.now());
+        } else if (previousStatus == PrescriptionStatus.DISPENSED && newStatus != PrescriptionStatus.DISPENSED) {
+            returnStockForPrescription(prescription);
+            prescription.setDispensedAt(null);
+        } else if (newStatus == PrescriptionStatus.DISPENSED && prescription.getDispensedAt() == null) {
+            prescription.setDispensedAt(LocalDateTime.now());
+        } else if (newStatus != PrescriptionStatus.DISPENSED) {
+            prescription.setDispensedAt(null);
+        }
+
+        prescription.setStatus(newStatus);
+        prescription.setPharmacistNote(normalizeText(request.getPharmacistNote()));
+
+        validateBean(prescription);
+        Prescription saved = prescriptionRepository.save(prescription);
+        hydratePrescription(saved);
+        return saved;
+    }
+
+    @Transactional
     public void delete(Long id) {
         if (!prescriptionRepository.existsById(id)) {
             throw new EntityNotFoundException("Không tìm thấy đơn thuốc với id: " + id);
@@ -145,8 +190,9 @@ public class PrescriptionService {
     }
 
     private void applyItems(Prescription prescription, List<PrescriptionItemRequest> itemRequests) {
-        prescription.getItems().forEach(this::returnStockForItem);
         prescription.clearItems();
+
+        java.util.Set<String> medicationKeys = new java.util.HashSet<>();
 
         for (PrescriptionItemRequest itemRequest : itemRequests) {
             PrescriptionItem item = new PrescriptionItem();
@@ -164,6 +210,13 @@ public class PrescriptionService {
             if (medication != null && !StringUtils.hasText(medicationName)) {
                 medicationName = medication.getName();
             }
+            String key = medication != null
+                    ? "ID_" + medication.getId()
+                    : "NAME_" + (medicationName != null ? medicationName.trim().toLowerCase() : "");
+            if (medicationKeys.contains(key)) {
+                throw new IllegalArgumentException("Thuốc " + medicationName + " đã tồn tại trong đơn.");
+            }
+            medicationKeys.add(key);
 
             item.setMedicationName(medicationName);
             item.setDosage(requireText(itemRequest.getDosage(), "Liều dùng không được để trống"));
@@ -181,11 +234,6 @@ public class PrescriptionService {
             // unitPrice là giá cho 1 đơn vị (1 viên hoặc 1 gói), không còn tính theo hộp
             BigDecimal unitPrice = BigDecimal.ZERO;
             if (medication != null) {
-                // Kiểm tra tồn kho: quantity là số đơn vị trực tiếp
-                if (medication.getStockQuantity() == null || medication.getStockQuantity() < quantity) {
-                    throw new IllegalStateException("Thuốc " + medication.getName() + " không đủ tồn kho.");
-                }
-                deductMedicationStock(medication, quantity);
                 unitPrice = medication.getUnitPrice() != null ? medication.getUnitPrice() : BigDecimal.ZERO;
                 item.setExpiryDateSnapshot(medication.getExpiryDate());
             }
@@ -283,6 +331,15 @@ public class PrescriptionService {
         });
     }
 
+    private void deductMedicationStock(Medication medication, int quantity) {
+        if (medication.getStockQuantity() == null || medication.getStockQuantity() < quantity) {
+            throw new IllegalStateException("Thuốc " + medication.getName() + " không đủ tồn kho.");
+        }
+        int current = medication.getStockQuantity();
+        medication.setStockQuantity(current - quantity);
+        medicationRepository.save(medication);
+    }
+
     private void returnStockForItem(PrescriptionItem item) {
         if (item.getMedication() != null && item.getQuantity() != null) {
             Medication med = item.getMedication();
@@ -292,13 +349,18 @@ public class PrescriptionService {
         }
     }
 
-    private void deductMedicationStock(Medication medication, int quantity) {
-        if (medication.getStockQuantity() == null || medication.getStockQuantity() < quantity) {
-            throw new IllegalStateException("Thuốc " + medication.getName() + " không đủ tồn kho.");
+    private void deductStockForPrescription(Prescription prescription) {
+        for (PrescriptionItem item : prescription.getItems()) {
+            if (item.getMedication() != null && item.getQuantity() != null) {
+                deductMedicationStock(item.getMedication(), item.getQuantity());
+            }
         }
-        int current = medication.getStockQuantity();
-        medication.setStockQuantity(current - quantity);
-        medicationRepository.save(medication);
+    }
+
+    private void returnStockForPrescription(Prescription prescription) {
+        for (PrescriptionItem item : prescription.getItems()) {
+            returnStockForItem(item);
+        }
     }
 
     private void validateBean(Prescription prescription) {
