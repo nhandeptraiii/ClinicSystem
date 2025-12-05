@@ -155,6 +155,14 @@ export interface PatientVisitUpdatePayload {
   diseaseIds?: number[] | null;
 }
 
+export type ServiceOrderStatus =
+  | 'PENDING'
+  | 'SCHEDULED'
+  | 'IN_PROGRESS'
+  | 'COMPLETED_WITH_RESULT'
+  | 'COMPLETED'
+  | 'CANCELLED';
+
 export const fetchVisits = async (params?: { patientId?: number }): Promise<PatientVisit[]> => {
   const { data } = await http.get<RestResponse<PatientVisit[]> | PatientVisit[]>('/visits', { params });
   const unwrapped = normalizeResponse(data);
@@ -261,6 +269,17 @@ export const createServiceOrders = async (
   payloads: ServiceOrderCreatePayload[],
 ): Promise<ServiceOrder[]> => {
   const { data } = await http.post<RestResponse<ServiceOrder[]>>(`/visits/${visitId}/service-orders`, payloads);
+  return normalizeResponse(data);
+};
+
+export const updateServiceOrderStatus = async (
+  orderId: number,
+  payload: { status: ServiceOrderStatus; resultNote?: string | null },
+): Promise<ServiceOrder> => {
+  const { data } = await http.patch<RestResponse<ServiceOrder>>(
+    `/visits/service-orders/${orderId}/status`,
+    payload,
+  );
   return normalizeResponse(data);
 };
 

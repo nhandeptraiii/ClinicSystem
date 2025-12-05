@@ -174,16 +174,6 @@ public class ClinicRoomService {
         return code.trim().toUpperCase();
     }
 
-    private int normalizeCapacity(Integer capacity) {
-        if (capacity == null) {
-            return 1;
-        }
-        if (capacity < 1) {
-            throw new IllegalArgumentException("Sức chứa phải từ 1 trở lên");
-        }
-        return capacity;
-    }
-
     private int normalizeDoctorCapacity(Integer value, vn.project.ClinicSystem.model.enums.ClinicRoomType type) {
         int fallback = (type == vn.project.ClinicSystem.model.enums.ClinicRoomType.CLINIC
                 || type == vn.project.ClinicSystem.model.enums.ClinicRoomType.SERVICE) ? 1 : 0;

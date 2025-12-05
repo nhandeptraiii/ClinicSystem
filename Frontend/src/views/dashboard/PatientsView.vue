@@ -13,6 +13,7 @@ import {
   updatePatient,
   fetchPatientById,
 } from '@/services/patient.service';
+import PatientHistoryModal from '@/components/PatientHistoryModal.vue';
 
 const authStore = useAuthStore();
 const router = useRouter();
@@ -96,9 +97,17 @@ const selectedPatient = ref<Patient | null>(null);
 const detailModalOpen = ref(false);
 const detailPatient = ref<Patient | null>(null);
 const loadingDetail = ref(false);
-
+const historyModalOpen = ref(false);
+const historyPatient = ref<Patient | null>(null);
 const deleteTarget = ref<Patient | null>(null);
 const deleting = ref(false);
+
+const handleHistoryOpenChange = (val: boolean) => {
+  historyModalOpen.value = val;
+  if (!val) {
+    historyPatient.value = null;
+  }
+};
 
 const formatDate = (input?: string | null) => {
   if (!input) return '—';
@@ -336,6 +345,16 @@ const closeDetailModal = () => {
   detailModalOpen.value = false;
 };
 
+const openHistoryModal = async (patient: Patient) => {
+  historyPatient.value = patient;
+  historyModalOpen.value = true;
+};
+
+const closeHistoryModal = () => {
+  historyModalOpen.value = false;
+  historyPatient.value = null;
+};
+
 const confirmDelete = (patient: Patient) => {
   deleteTarget.value = patient;
 };
@@ -444,14 +463,14 @@ onMounted(() => {
 
         <div class="mt-5">
           <div
-            class="hidden rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-emerald-700 md:grid md:grid-cols-[150px_250px_150px_150px_160px_240px] md:gap-4"
+            class="hidden rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-emerald-700 md:grid md:grid-cols-[120px_220px_120px_150px_150px_330px] md:gap-4"
           >
             <span>Mã BN</span>
             <span>Họ và tên</span>
             <span>Giới tính</span>
             <span>Ngày sinh</span>
             <span>Điện thoại</span>
-            <span class="flex justify-end pr-20">Thao tác</span>
+            <span class="text-center pl-2">Thao tác</span>
           </div>
 
           <template v-if="loading">
@@ -460,7 +479,7 @@ onMounted(() => {
               :key="`patient-skeleton-${skeleton}`"
               class="mt-3 animate-pulse rounded-2xl border border-slate-100 bg-white px-4 py-4 shadow-sm"
             >
-              <div class="grid gap-4 md:grid-cols-[150px_250px_150px_150px_160px_240px] md:items-center">
+              <div class="grid gap-4 md:grid-cols-[120px_220px_120px_150px_150px_330px] md:items-center">
                 <div class="h-4 rounded-full bg-slate-200/70"></div>
                 <div class="h-4 rounded-full bg-slate-200/60"></div>
                 <div class="h-4 rounded-full bg-slate-200/50"></div>
@@ -485,7 +504,7 @@ onMounted(() => {
               :key="patient.id"
               class="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm transition hover:border-emerald-200 hover:shadow-md"
             >
-              <div class="grid gap-4 md:grid-cols-[150px_250px_150px_150px_160px_240px] md:items-center">
+              <div class="grid gap-4 md:grid-cols-[120px_220px_120px_150px_150px_330px] md:items-center">
                 <div>
                   <p class="text-xs font-semibold uppercase tracking-wide text-slate-400 md:hidden">Mã BN</p>
                   <p class="text-sm font-semibold text-slate-900">{{ patient.code }}</p>
@@ -516,6 +535,16 @@ onMounted(() => {
                       <path stroke-linecap="round" stroke-linejoin="round" d="M12 5c-7 0-9 7-9 7s2 7 9 7 9-7 9-7-2-7-9-7Zm0 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z" />
                     </svg>
                     Chi tiết
+                  </button>
+                  <button
+                    type="button"
+                    class="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-600 shadow-sm transition hover:border-amber-300 hover:bg-amber-50"
+                    @click="openHistoryModal(patient)"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 2m5-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                    Lịch sử
                   </button>
                   <button
                     type="button"
@@ -849,6 +878,12 @@ onMounted(() => {
         </div>
       </div>
     </Transition>
+
+    <PatientHistoryModal
+      v-model:open="historyModalOpen"
+      :patient="historyPatient"
+      @update:open="handleHistoryOpenChange"
+    />
 
     <!-- Modal Xóa -->
     <Transition name="fade">

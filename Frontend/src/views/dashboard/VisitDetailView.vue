@@ -11,6 +11,7 @@ import {
   updateVisitClinicalInfo,
   fetchServiceOrders,
   createServiceOrders,
+  updateServiceOrderStatus,
   type PatientVisit,
   type ServiceOrder,
   type ServiceOrderCreatePayload,
@@ -103,11 +104,15 @@ const hasBlockingOrders = computed(() =>
 );
 
 const clinicalServiceOrders = computed(() =>
-  serviceOrders.value.filter((o) => o.medicalService?.requiresIndicator === false),
+  serviceOrders.value.filter(
+    (o) => o.medicalService?.requiresIndicator === false && o.status !== 'CANCELLED',
+  ),
 );
 
 const clsServiceOrders = computed(() =>
-  serviceOrders.value.filter((o) => o.medicalService?.requiresIndicator !== false),
+  serviceOrders.value.filter(
+    (o) => o.medicalService?.requiresIndicator !== false && o.status !== 'CANCELLED',
+  ),
 );
 
 const expandedResultOrders = ref<Set<number>>(new Set());
@@ -357,7 +362,10 @@ const openEditClinicalModal = () => {
     diseaseSearchTerm.value = '';
     diseaseOptions.value = [];
     const existingClinicalOrders = serviceOrders.value.filter(
-      (o) => o.medicalService?.requiresIndicator === false && o.medicalService?.id,
+      (o) =>
+        o.medicalService?.requiresIndicator === false &&
+        o.medicalService?.id &&
+        o.status !== 'CANCELLED',
     );
     selectedClinicalServiceIds.value = existingClinicalOrders
       .map((o) => o.medicalService?.id)
@@ -393,22 +401,43 @@ const saveClinicalInfo = async () => {
     };
     selectedDiseases.value = updatedVisit.diseases ?? [];
 
-    // Thêm dịch vụ khám lâm sàng (requiresIndicator=false) nếu được chọn
-    const existingClinicalOrderIds = serviceOrders.value
-      .filter((o) => o.medicalService?.requiresIndicator === false && o.medicalService?.id)
-      .map((o) => o.medicalService?.id as number);
+    // Thêm mới và hủy dịch vụ khám lâm sàng (requiresIndicator=false) theo chọn hiện tại
+    const existingClinicalOrders = serviceOrders.value.filter(
+      (o) => o.medicalService?.requiresIndicator === false && o.medicalService?.id,
+    );
+    const existingClinicalOrderIds = existingClinicalOrders.map((o) => o.medicalService?.id as number);
+    const selectedIdSet = new Set(selectedClinicalServiceIds.value);
     const missingClinicalIds = selectedClinicalServiceIds.value.filter(
       (id) => !existingClinicalOrderIds.includes(id),
     );
+    const clinicalOrdersToCancel = existingClinicalOrders.filter(
+      (o) => o.medicalService?.id && !selectedIdSet.has(o.medicalService.id) && o.status !== 'CANCELLED',
+    );
+    const clinicalNote = payload.provisionalDiagnosis || null;
+
     if (missingClinicalIds.length > 0 && visit.value?.id) {
-  const clinicalNote = payload.provisionalDiagnosis || null;
       const clinicalPayloads: ServiceOrderCreatePayload[] = missingClinicalIds.map((id) => ({
         medicalServiceId: id,
         note: clinicalNote,
       }));
-      await createServiceOrders(visit.value.id, clinicalPayloads);
-      await loadServiceOrders();
+      const createdClinicalOrders = await createServiceOrders(visit.value.id, clinicalPayloads);
+      // Với dịch vụ lâm sàng (không có chỉ số), set trạng thái hoàn thành ngay
+      await Promise.all(
+        createdClinicalOrders
+          .filter((o) => o.medicalService?.requiresIndicator === false)
+          .map((o) => updateServiceOrderStatus(o.id, { status: 'COMPLETED', resultNote: null })),
+      );
     }
+
+    if (clinicalOrdersToCancel.length > 0) {
+      await Promise.all(
+        clinicalOrdersToCancel.map((order) =>
+          updateServiceOrderStatus(order.id, { status: 'CANCELLED', resultNote: null }),
+        ),
+      );
+    }
+
+    await loadServiceOrders();
 
     showToast('success', 'Đã cập nhật thông tin lâm sàng.');
     editClinicalModalOpen.value = false;
@@ -1154,13 +1183,7 @@ onMounted(() => {
             <div>
               <div class="mb-2 flex items-center justify-between">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Dịch vụ khám lâm sàng</p>
-                <button
-                  type="button"
-                  @click="openEditClinicalModal"
-                  class="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-600 shadow-sm transition hover:bg-emerald-50"
-                >
-                  Sửa dịch vụ
-                </button>
+
               </div>
               <div v-if="clinicalServiceOrders.length === 0" class="text-sm text-slate-700">
                 Chưa có dịch vụ khám lâm sàng.
@@ -1182,9 +1205,7 @@ onMounted(() => {
                       <div class="text-xs text-slate-600 mt-1">
                         Bác sĩ phụ trách: {{ order.assignedDoctor?.account?.fullName ?? 'N/A' }}
                       </div>
-                      <div v-if="order.note" class="mt-1 text-sm text-slate-700">
-                        Ghi chú: {{ order.note }}
-                      </div>
+                    
                     </div>
                     <span
                       class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold"
