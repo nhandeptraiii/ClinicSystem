@@ -20,6 +20,8 @@ const userName = computed(() => authStore.user?.username ?? 'Quản trị viên'
 const { toast, show: showToast, hide: hideToast } = useToast();
 const isAdmin = computed(() => authStore.hasRole(['ADMIN']));
 const isReceptionist = computed(() => authStore.hasRole(['RECEPTIONIST']));
+const isNurse = computed(() => authStore.hasRole(['NURSE']));
+const canModify = computed(() => isAdmin.value || isReceptionist.value || isNurse.value);
 
 type ToastVisual = {
   title: string;
@@ -953,6 +955,7 @@ const handleCheckIn = async () => {
           <div class="flex flex-col items-start gap-3 sm:flex-row sm:items-center lg:flex-col lg:items-end">
             <div class="flex flex-wrap items-center gap-2">
               <button
+                v-if="canModify"
                 type="button"
                 class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-600 px-5 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700"
                 @click="createAppointmentWizardOpen = true"
@@ -1449,6 +1452,7 @@ const handleCheckIn = async () => {
 
             <div class="mt-8 flex flex-col gap-3">
               <button
+                v-if="canModify"
                 type="button"
                 class="inline-flex items-center justify-center gap-2 rounded-full border border-blue-200 bg-blue-500 px-5 py-3 text-sm font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
                 :disabled="checkingIn || (selectedAppointment.status as AppointmentLifecycleStatus) !== 'CONFIRMED'"
@@ -1465,7 +1469,7 @@ const handleCheckIn = async () => {
               </button>
 
               <button
-                v-if="(isAdmin || isReceptionist) && (selectedAppointment.status as AppointmentLifecycleStatus) === 'CONFIRMED'"
+                v-if="canModify && (selectedAppointment.status as AppointmentLifecycleStatus) === 'CONFIRMED'"
                 type="button"
                 class="inline-flex items-center justify-center gap-2 rounded-full border border-rose-200 bg-white px-5 py-3 text-sm font-semibold uppercase tracking-wide text-rose-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
                 :disabled="updatingAppointmentStatus"
@@ -1583,7 +1587,7 @@ const handleCheckIn = async () => {
                 <span>{{ deletingRequest ? 'Đang xóa...' : 'Xóa yêu cầu' }}</span>
               </button>
               <button
-                v-if="selectedRequest.status === 'PENDING'"
+                v-if="canModify && selectedRequest.status === 'PENDING'"
                 type="button"
                 class="inline-flex w-full items-center justify-center gap-2 rounded-full border border-emerald-200 bg-emerald-500 px-5 py-3 text-sm font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-600"
                 :disabled="!canOpenWizard"
@@ -1596,7 +1600,7 @@ const handleCheckIn = async () => {
                 </svg>
               </button>
               <button
-                v-if="selectedRequest.status === 'PENDING'"
+                v-if="canModify && selectedRequest.status === 'PENDING'"
                 type="button"
                 class="inline-flex w-full items-center justify-center gap-2 rounded-full border border-rose-200 bg-white px-5 py-3 text-sm font-semibold uppercase tracking-wide text-rose-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
                 :disabled="rejecting"

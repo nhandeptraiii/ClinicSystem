@@ -47,7 +47,6 @@ public class AppointmentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'RECEPTIONIST')")
     @GetMapping
     public ResponseEntity<?> getAppointments(
             @RequestParam(value = "doctorId", required = false) Long doctorId,
@@ -82,7 +81,6 @@ public class AppointmentController {
         return ResponseEntity.ok(appointmentService.findAll());
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'RECEPTIONIST')")
     @GetMapping("/{id}")
     public ResponseEntity<Appointment> getAppointmentById(@PathVariable("id") Long id) {
         return ResponseEntity.ok(appointmentService.getById(id));

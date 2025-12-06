@@ -46,13 +46,11 @@ public class VisitController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'RECEPTIONIST')")
     @GetMapping("/{id}")
     public ResponseEntity<PatientVisit> getVisit(@PathVariable("id") Long id) {
         return ResponseEntity.ok(visitService.getById(id));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'RECEPTIONIST')")
     @GetMapping
     public ResponseEntity<?> getVisits(
             @RequestParam(value = "patientId", required = false) Long patientId,

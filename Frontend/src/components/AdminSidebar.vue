@@ -24,7 +24,7 @@ const authStore = useAuthStore();
 
 const menuItems = [
   { label: 'Tổng quan', to: 'dashboard-home', icon: HomeIcon, roles: ['ADMIN', 'DOCTOR', 'RECEPTIONIST', 'PHARMACIST'] },
-  { label: 'Yêu cầu đặt lịch', to: 'appointment-requests', icon: CalendarIcon, roles: ['RECEPTIONIST', 'ADMIN'] },
+  { label: 'Yêu cầu đặt lịch', to: 'appointment-requests', icon: CalendarIcon },
   { label: 'Khám bệnh', to: 'visits', icon: ClipboardDocumentListIcon, roles: ['RECEPTIONIST', 'ADMIN', 'DOCTOR'] },
   { label: 'Hàng chờ phát thuốc', to: 'prescription-queue', icon: ClipboardDocumentCheckIcon, roles: ['ADMIN', 'DOCTOR', 'PHARMACIST'] },
   { label: 'Thu ngân', to: 'billing', icon: BanknotesIcon, roles: ['RECEPTIONIST', 'ADMIN'] },
@@ -39,7 +39,7 @@ const menuItems = [
   { label: 'Thống kê', to: 'analytics', icon: ChartBarSquareIcon, roles: ['ADMIN'] },
 ];
 
-const visibleMenuItems = computed(() => menuItems.filter((item) => authStore.hasRole(item.roles)));
+const visibleMenuItems = computed(() => menuItems.filter((item) => !item.roles || authStore.hasRole(item.roles)));
 const isActive = (name: string) => route.name === name;
 </script>
 

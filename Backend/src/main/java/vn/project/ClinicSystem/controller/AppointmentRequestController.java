@@ -50,7 +50,7 @@ public class AppointmentRequestController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPTIONIST')")
+    // @PreAuthorize("hasAnyRole('ADMIN', 'RECEPTIONIST')")
     @GetMapping
     public ResponseEntity<?> getAppointmentRequests(
             @RequestParam(value = "keyword", required = false) String keyword,
@@ -73,7 +73,6 @@ public class AppointmentRequestController {
         return ResponseEntity.ok(appointmentRequestService.findAll());
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPTIONIST')")
     @GetMapping("/{id}")
     public ResponseEntity<AppointmentRequest> getAppointmentRequestById(@PathVariable("id") Long id) {
         return ResponseEntity.ok(appointmentRequestService.getById(id));

@@ -35,7 +35,7 @@ const router = createRouter({
       meta: { requiresAuth: true },
       children: [
         { path: '', name: 'dashboard-home', component: () => import('@/views/dashboard/DashboardHomeView.vue') },
-        { path: 'appointment-requests', name: 'appointment-requests', component: AppointmentRequestsView, meta: { roles: ['ADMIN', 'RECEPTIONIST', 'CASHIER'] } },
+        { path: 'appointment-requests', name: 'appointment-requests', component: AppointmentRequestsView },
         { path: 'patients', name: 'patients', component: () => import('@/views/dashboard/PatientsView.vue'), meta: { roles: ['ADMIN', 'DOCTOR', 'RECEPTIONIST'] } },
         { path: 'staffs', name: 'staffs', component: () => import('@/views/dashboard/StaffManagementView.vue'), meta: { roles: ['ADMIN'] } },
         { path: 'clinic-rooms', name: 'clinic-rooms', component: () => import('@/views/dashboard/ClinicRoomsView.vue'), meta: { roles: ['ADMIN'] } },
