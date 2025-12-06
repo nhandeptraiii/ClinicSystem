@@ -150,6 +150,17 @@ const getItemTypeLabel = (type: BillingItemType) => {
   return option?.label ?? type;
 };
 
+const serviceItems = computed(() => {
+  return selectedBilling.value?.items?.filter((it) => it.itemType === 'SERVICE') ?? [];
+});
+
+const medicationItems = computed(() => {
+  return selectedBilling.value?.items?.filter((it) => it.itemType === 'MEDICATION') ?? [];
+});
+
+const otherItems = computed(() => {
+  return selectedBilling.value?.items?.filter((it) => it.itemType !== 'SERVICE' && it.itemType !== 'MEDICATION') ?? [];
+});
 const visitPaginationLabel = computed(() => {
   if (!visitTotalElements.value) {
     return `Đang hiển thị ${visitCandidates.value.length} hồ sơ khám`;
@@ -799,40 +810,129 @@ onBeforeUnmount(() => {
                 <div v-if="!selectedBilling.items || selectedBilling.items.length === 0" class="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 text-center text-sm text-slate-600">
                   Hóa đơn chưa có mục nào. Hãy thêm mới hoặc tạo từ hồ sơ khám.
                 </div>
-                <div v-else class="space-y-3">
-                  <div
-                    v-for="item in selectedBilling.items"
-                    :key="item.id"
-                    class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-                  >
-                    <div class="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p class="text-sm font-semibold text-slate-900">{{ item.description }}</p>
-                        <p class="text-xs text-slate-500">Loại: {{ getItemTypeLabel(item.itemType) }}</p>
-                      </div>
-                      <button
-                        type="button"
-                        class="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-rose-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50"
-                        @click="removeBillingItem(item.id)"
+                <div v-else class="space-y-4">
+                  <div v-if="serviceItems.length">
+                    <h4 class="text-sm font-semibold text-slate-800 mb-1">Dịch vụ</h4>
+                    <div class="space-y-3">
+                      <div
+                        v-for="item in serviceItems"
+                        :key="item.id"
+                        class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="m15 9-6 6m0-6 6 6M3 6h18" />
-                        </svg>
-                        Xóa
-                      </button>
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p class="text-sm font-semibold text-slate-900">{{ item.description }}</p>
+                            <p class="text-xs text-slate-500">Loại: {{ getItemTypeLabel(item.itemType) }}</p>
+                          </div>
+                          <button
+                            type="button"
+                            class="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-rose-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50"
+                            @click="removeBillingItem(item.id)"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="m15 9-6 6m0-6 6 6M3 6h18" />
+                            </svg>
+                            Xóa
+                          </button>
+                        </div>
+                        <div class="mt-3 grid gap-2 text-xs text-slate-600 md:grid-cols-3">
+                          <div>
+                            <span class="font-semibold text-slate-500">Số lượng:</span>
+                            <span class="ml-1 text-slate-700">{{ item.quantity }}</span>
+                          </div>
+                          <div>
+                            <span class="font-semibold text-slate-500">Đơn giá:</span>
+                            <span class="ml-1 text-slate-700">{{ formatCurrency(item.unitPrice) }}</span>
+                          </div>
+                          <div>
+                            <span class="font-semibold text-slate-500">Thành tiền:</span>
+                            <span class="ml-1 text-slate-700">{{ formatCurrency(item.amount) }}</span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div class="mt-3 grid gap-2 text-xs text-slate-600 md:grid-cols-3">
-                      <div>
-                        <span class="font-semibold text-slate-500">Số lượng:</span>
-                        <span class="ml-1 text-slate-700">{{ item.quantity }}</span>
+                  </div>
+
+                  <div v-if="medicationItems.length">
+                    <h4 class="mt-2 text-sm font-semibold text-slate-800 mb-1">Đơn thuốc</h4>
+                    <div class="space-y-3">
+                      <div
+                        v-for="item in medicationItems"
+                        :key="item.id"
+                        class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                      >
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p class="text-sm font-semibold text-slate-900">{{ item.description }}</p>
+                            <p class="text-xs text-slate-500">Loại: {{ getItemTypeLabel(item.itemType) }}</p>
+                          </div>
+                          <button
+                            type="button"
+                            class="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-rose-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50"
+                            @click="removeBillingItem(item.id)"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="m15 9-6 6m0-6 6 6M3 6h18" />
+                            </svg>
+                            Xóa
+                          </button>
+                        </div>
+                        <div class="mt-3 grid gap-2 text-xs text-slate-600 md:grid-cols-3">
+                          <div>
+                            <span class="font-semibold text-slate-500">Số lượng:</span>
+                            <span class="ml-1 text-slate-700">{{ item.quantity }}</span>
+                          </div>
+                          <div>
+                            <span class="font-semibold text-slate-500">Đơn giá:</span>
+                            <span class="ml-1 text-slate-700">{{ formatCurrency(item.unitPrice) }}</span>
+                          </div>
+                          <div>
+                            <span class="font-semibold text-slate-500">Thành tiền:</span>
+                            <span class="ml-1 text-slate-700">{{ formatCurrency(item.amount) }}</span>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <span class="font-semibold text-slate-500">Đơn giá:</span>
-                        <span class="ml-1 text-slate-700">{{ formatCurrency(item.unitPrice) }}</span>
-                      </div>
-                      <div>
-                        <span class="font-semibold text-slate-500">Thành tiền:</span>
-                        <span class="ml-1 text-slate-700">{{ formatCurrency(item.amount) }}</span>
+                    </div>
+                  </div>
+
+                  <div v-if="otherItems.length">
+                    <h4 class="mt-2 text-sm font-semibold text-slate-800">Khác</h4>
+                    <div class="space-y-3">
+                      <div
+                        v-for="item in otherItems"
+                        :key="item.id"
+                        class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                      >
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p class="text-sm font-semibold text-slate-900">{{ item.description }}</p>
+                            <p class="text-xs text-slate-500">Loại: {{ getItemTypeLabel(item.itemType) }}</p>
+                          </div>
+                          <button
+                            type="button"
+                            class="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-rose-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50"
+                            @click="removeBillingItem(item.id)"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="m15 9-6 6m0-6 6 6M3 6h18" />
+                            </svg>
+                            Xóa
+                          </button>
+                        </div>
+                        <div class="mt-3 grid gap-2 text-xs text-slate-600 md:grid-cols-3">
+                          <div>
+                            <span class="font-semibold text-slate-500">Số lượng:</span>
+                            <span class="ml-1 text-slate-700">{{ item.quantity }}</span>
+                          </div>
+                          <div>
+                            <span class="font-semibold text-slate-500">Đơn giá:</span>
+                            <span class="ml-1 text-slate-700">{{ formatCurrency(item.unitPrice) }}</span>
+                          </div>
+                          <div>
+                            <span class="font-semibold text-slate-500">Thành tiền:</span>
+                            <span class="ml-1 text-slate-700">{{ formatCurrency(item.amount) }}</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>

@@ -224,9 +224,9 @@ public class BillingService {
                 if (!StringUtils.hasText(name)) {
                     name = "Thuốc";
                 }
-                if (StringUtils.hasText(item.getDosage())) {
-                    name = name + " - " + item.getDosage();
-                }
+                // Keep description as medication name only. Do not append dosage to avoid
+                // showing quantity-like suffixes (e.g. "Paracetamol 500mg - 1"). If needed,
+                // dosage/frequency can be shown separately in the UI in the future.
                 billingItem.setDescription(name);
 
                 // Số lượng là số đơn vị trực tiếp (viên hoặc gói), không còn tính theo hộp
