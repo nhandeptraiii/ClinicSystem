@@ -53,6 +53,11 @@ const userName = computed(() => {
   return authStore.user?.username ?? 'Quản trị viên';
 });
 
+const canModifyClinical = computed(() => {
+  const authStore = useAuthStore();
+  return authStore.hasRole(['ADMIN', 'DOCTOR']);
+});
+
 type ToastVisual = {
   title: string;
   container: string;
@@ -1061,6 +1066,7 @@ onMounted(() => {
               <h2 class="text-lg font-semibold text-slate-900">Thông tin Hành chính</h2>
               <div class="flex flex-wrap items-center gap-2">
                 <button
+                  v-if="canModifyClinical"
                   type="button"
                   @click="
                     newStatus = visit.status ?? '';
@@ -1071,6 +1077,7 @@ onMounted(() => {
                   Cập nhật trạng thái
                 </button>
                 <button
+                  v-if="canModifyClinical"
                   type="button"
                   class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50"
                   @click="openRevisitAppointment"
@@ -1139,6 +1146,7 @@ onMounted(() => {
             <div class="mb-4 flex items-center justify-between">
               <h2 class="text-lg font-semibold text-slate-900">Khám lâm sàng & Chẩn đoán</h2>
               <button
+                v-if="canModifyClinical"
                 type="button"
                 @click="openEditClinicalModal"
                 class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-600 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700"
@@ -1229,6 +1237,7 @@ onMounted(() => {
             <div class="mb-4 flex items-center justify-between">
               <h2 class="text-lg font-semibold text-slate-900">Chỉ định Dịch vụ Cận lâm sàng</h2>
               <button
+                v-if="canModifyClinical"
                 type="button"
                 @click="openServiceOrderModal"
                 class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-600 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700"
@@ -1283,7 +1292,7 @@ onMounted(() => {
                   </div>
                   <div class="flex flex-col gap-2">
                     <button
-                      v-if="order.status !== 'CANCELLED'"
+                      v-if="canModifyClinical && order.status !== 'CANCELLED'"
                       type="button"
                       @click="openResultModal(order)"
                       class="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-200 bg-emerald-600 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700"
@@ -1445,7 +1454,7 @@ onMounted(() => {
               <h2 class="text-lg font-semibold text-slate-900">Đơn thuốc</h2>
                <div class="flex flex-col gap-2">
                 <button
-                v-if="currentPrescription"
+                v-if="currentPrescription && canModifyClinical"
                 type="button"
                 @click="handleEditPrescriptionClick"
                 :class="[
@@ -1458,7 +1467,7 @@ onMounted(() => {
                 Sửa Đơn thuốc
               </button>
               <button
-                v-else
+                v-else-if="!currentPrescription && canModifyClinical"
                 type="button"
                 @click="openPrescriptionModal"
                  class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-600 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700"

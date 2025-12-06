@@ -30,7 +30,6 @@ public class ServiceIndicatorMappingController {
         this.mappingService = mappingService;
     }
 
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
     @GetMapping
     public ResponseEntity<List<ServiceIndicatorMapping>> listMappings(@PathVariable("serviceId") Long serviceId) {
         return ResponseEntity.ok(mappingService.listByMedicalService(serviceId));

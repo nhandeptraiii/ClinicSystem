@@ -46,13 +46,11 @@ public class PrescriptionController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'PHARMACIST')")
     @GetMapping("/{id}")
     public ResponseEntity<Prescription> getPrescription(@PathVariable("id") Long id) {
         return ResponseEntity.ok(prescriptionService.getById(id));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'PHARMACIST')")
     @GetMapping
     public ResponseEntity<List<Prescription>> getPrescriptions(
             @RequestParam(value = "visitId", required = false) Long visitId,
@@ -91,7 +89,6 @@ public class PrescriptionController {
         return ResponseEntity.noContent().build();
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'PHARMACIST', 'RECEPTIONIST')")
     @GetMapping("/{id}/print")
     public ResponseEntity<byte[]> printPrescription(@PathVariable("id") Long id) {
         byte[] pdfBytes = prescriptionPrintService.generatePrescriptionPdf(id);

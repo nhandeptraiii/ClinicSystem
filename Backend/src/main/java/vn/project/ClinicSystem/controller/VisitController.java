@@ -77,7 +77,6 @@ public class VisitController {
         return ResponseEntity.ok(visitService.findAll());
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'RECEPTIONIST')")
     @GetMapping("/completed-without-billing")
     public ResponseEntity<PatientVisitPageResponse> getCompletedVisitsWithoutBilling(
             @RequestParam(value = "keyword", required = false) String keyword,
@@ -93,7 +92,6 @@ public class VisitController {
         return ResponseEntity.ok(response);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR')")
     @GetMapping("/{id}/service-orders")
     public ResponseEntity<List<ServiceOrder>> getServiceOrders(@PathVariable("id") Long id) {
         return ResponseEntity.ok(visitService.findServiceOrders(id));
@@ -127,5 +125,12 @@ public class VisitController {
     public ResponseEntity<ServiceOrder> updateServiceOrderStatus(@PathVariable("id") Long id,
             @Valid @RequestBody ServiceOrderStatusUpdateRequest request) {
         return ResponseEntity.ok(visitService.updateServiceOrderStatus(id, request));
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @org.springframework.web.bind.annotation.DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteVisit(@PathVariable("id") Long id) {
+        visitService.deleteVisit(id);
+        return ResponseEntity.noContent().build();
     }
 }

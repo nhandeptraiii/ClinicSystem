@@ -31,7 +31,6 @@ public class ServiceOrderResultController {
         this.printService = printService;
     }
 
-    @PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR')")
     @GetMapping
     public ResponseEntity<List<ServiceOrderResult>> getResults(@PathVariable("orderId") Long orderId) {
         return ResponseEntity.ok(resultService.findResults(orderId));
@@ -47,7 +46,6 @@ public class ServiceOrderResultController {
         return ResponseEntity.status(HttpStatus.CREATED).body(results);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'RECEPTIONIST')")
     @GetMapping("/print")
     public ResponseEntity<byte[]> printServiceOrder(@PathVariable("orderId") Long orderId) {
         byte[] pdfBytes = printService.generateServiceOrderPdf(orderId);
@@ -58,7 +56,6 @@ public class ServiceOrderResultController {
                 .body(pdfBytes);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'RECEPTIONIST')")
     @GetMapping("/print-result")
     public ResponseEntity<byte[]> printServiceOrderResult(@PathVariable("orderId") Long orderId) {
         byte[] pdfBytes = printService.generateServiceOrderResultPdf(orderId);

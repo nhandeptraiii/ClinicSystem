@@ -323,4 +323,10 @@ public class VisitService {
             throw new EntityNotFoundException("Không tìm thấy hồ sơ khám với id: " + visitId);
         }
     }
+
+    @Transactional
+    public void deleteVisit(Long id) {
+        ensureVisitExists(id);
+        patientVisitRepository.deleteById(id);
+    }
 }

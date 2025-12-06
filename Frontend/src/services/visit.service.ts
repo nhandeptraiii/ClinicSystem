@@ -316,3 +316,7 @@ export const fetchServiceOrderResultPdf = async (serviceOrderId: number): Promis
   });
   return response.data;
 };
+
+export const deleteVisit = async (id: number): Promise<void> => {
+  await http.delete(`/visits/${id}`);
+};

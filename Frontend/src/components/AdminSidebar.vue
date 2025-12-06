@@ -25,7 +25,7 @@ const authStore = useAuthStore();
 const menuItems = [
   { label: 'Tổng quan', to: 'dashboard-home', icon: HomeIcon, roles: ['ADMIN', 'DOCTOR', 'RECEPTIONIST', 'PHARMACIST'] },
   { label: 'Yêu cầu đặt lịch', to: 'appointment-requests', icon: CalendarIcon },
-  { label: 'Khám bệnh', to: 'visits', icon: ClipboardDocumentListIcon, roles: ['RECEPTIONIST', 'ADMIN', 'DOCTOR'] },
+  { label: 'Khám bệnh', to: 'visits', icon: ClipboardDocumentListIcon },
   { label: 'Hàng chờ phát thuốc', to: 'prescription-queue', icon: ClipboardDocumentCheckIcon, roles: ['ADMIN', 'DOCTOR', 'PHARMACIST'] },
   { label: 'Thu ngân', to: 'billing', icon: BanknotesIcon, roles: ['RECEPTIONIST', 'ADMIN'] },
   { label: 'Bệnh nhân', to: 'patients', icon: UsersIcon, roles: ['ADMIN', 'DOCTOR', 'RECEPTIONIST'] },
