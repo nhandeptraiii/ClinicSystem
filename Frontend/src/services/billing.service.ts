@@ -182,3 +182,9 @@ export const updateBillingItem = async (
 export const deleteBillingItem = async (billingId: number, itemId: number): Promise<void> => {
   await http.delete(`/billings/${billingId}/items/${itemId}`);
 };
+
+export const printBilling = async (id: number): Promise<Blob> => {
+  const response = await http.get(`/billings/${id}/print`, { responseType: 'arraybuffer' as const });
+  const blob = new Blob([response.data], { type: 'application/pdf' });
+  return blob;
+};

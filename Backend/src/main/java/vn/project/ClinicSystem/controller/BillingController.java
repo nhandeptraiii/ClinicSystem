@@ -27,15 +27,19 @@ import vn.project.ClinicSystem.model.dto.BillingPageResponse;
 import vn.project.ClinicSystem.model.dto.BillingStatusUpdateRequest;
 import vn.project.ClinicSystem.model.enums.BillingStatus;
 import vn.project.ClinicSystem.service.BillingService;
+import vn.project.ClinicSystem.service.BillingPrintService;
 
 @RestController
 @RequestMapping("/billings")
 public class BillingController {
 
     private final BillingService billingService;
+    private final BillingPrintService billingPrintService;
 
-    public BillingController(BillingService billingService) {
+    public BillingController(BillingService billingService,
+            BillingPrintService billingPrintService) {
         this.billingService = billingService;
+        this.billingPrintService = billingPrintService;
     }
 
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPTIONIST')")
@@ -107,5 +111,16 @@ public class BillingController {
             @PathVariable("itemId") Long itemId) {
         billingService.deleteItem(billingId, itemId);
         return ResponseEntity.noContent().build();
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPTIONIST')")
+    @GetMapping("/{id}/print")
+    public ResponseEntity<byte[]> printBilling(@PathVariable("id") Long id) {
+        byte[] pdfBytes = billingPrintService.generateBillingPdf(id);
+        return ResponseEntity.ok()
+                .header("Content-Type", "application/pdf")
+                .header("Content-Disposition", "inline; filename=\"billing-" + id + ".pdf\"")
+                .header("X-Content-Type-Options", "nosniff")
+                .body(pdfBytes);
     }
 }

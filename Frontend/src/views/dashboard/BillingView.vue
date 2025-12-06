@@ -10,6 +10,7 @@ import {
   generateBillingForVisit,
   updateBillingStatus,
   deleteBillingItem,
+  printBilling,
   type Billing,
   type BillingItemType,
   type BillingStatus,
@@ -112,6 +113,39 @@ const itemTypeOptions: Array<{ value: BillingItemType; label: string }> = [
   { value: 'MEDICATION', label: 'Thuốc' },
   { value: 'OTHER', label: 'Khác' },
 ];
+
+const statusCounts = ref({
+  ALL: 0,
+  UNPAID: 0,
+  PAID: 0,
+  CANCELLED: 0,
+});
+
+const statusFilterPills = [
+  { value: '', label: 'Tất cả', dataKey: 'ALL' },
+  { value: 'UNPAID', label: 'Chưa thanh toán', dataKey: 'UNPAID' },
+  { value: 'PAID', label: 'Đã thanh toán', dataKey: 'PAID' },
+  { value: 'CANCELLED', label: 'Đã hủy', dataKey: 'CANCELLED' },
+];
+
+const loadStatusCounts = async () => {
+  try {
+    const [all, unpaid, paid, cancelled] = await Promise.all([
+      fetchBillingPage({ page: 0, size: 1 }),
+      fetchBillingPage({ page: 0, size: 1, status: 'UNPAID' }),
+      fetchBillingPage({ page: 0, size: 1, status: 'PAID' }),
+      fetchBillingPage({ page: 0, size: 1, status: 'CANCELLED' }),
+    ]);
+    statusCounts.value = {
+      ALL: all.totalElements ?? 0,
+      UNPAID: unpaid.totalElements ?? 0,
+      PAID: paid.totalElements ?? 0,
+      CANCELLED: cancelled.totalElements ?? 0,
+    };
+  } catch (error) {
+    console.error('Failed to load status counts', error);
+  }
+};
 
 const formatCurrency = (value: number | undefined | null) => {
   const numeric = typeof value === 'number' ? value : 0;
@@ -272,7 +306,7 @@ const goToVisitDetail = (visitId?: number) => {
 };
 
 const refreshBillings = async () => {
-  await loadBillings(true);
+  await Promise.all([loadBillings(true), loadStatusCounts()]);
 };
 
 const goToPage = async (page: number) => {
@@ -452,6 +486,19 @@ const removeBillingItem = async (itemId: number) => {
   }
 };
 
+const printInvoice = async () => {
+  if (!selectedBilling.value) return;
+  try {
+    const blob = await printBilling(selectedBilling.value.id);
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  } catch (error) {
+    const message = extractErrorMessage(error);
+    showToast('error', message);
+  }
+};
+
 const generateModalOpen = ref(false);
 const generateSubmitting = ref(false);
 const openGenerateModal = () => {
@@ -488,6 +535,7 @@ const submitGenerateBilling = async () => {
 
 onMounted(() => {
   void loadBillings();
+  void loadStatusCounts();
 });
 
 onBeforeUnmount(() => {
@@ -504,110 +552,95 @@ onBeforeUnmount(() => {
   <div class="relative min-h-screen bg-gradient-to-br from-emerald-50 via-white to-white">
     <AdminHeader :user-name="userName" @sign-out="handleSignOut" />
 
-    <main class="mx-auto w-full max-w-7xl px-4 pb-20 pt-10 sm:px-6 lg:px-8">
-      <section class="flex flex-col gap-4 border-b border-emerald-100 pb-6 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.35em] text-emerald-500">Quản lý thanh toán</p>
-          <h1 class="mt-2 text-2xl font-semibold text-slate-900">Danh sách hóa đơn</h1>
-          <p class="mt-1 text-sm text-slate-600">
-            Theo dõi tình trạng thanh toán, chỉnh sửa các mục phí và cập nhật trạng thái hóa đơn của bệnh nhân.
-          </p>
-        </div>
-        <div class="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            class="inline-flex items-center gap-2 whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-600 px-5 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700"
-            @click="openGenerateModal"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            <span>Tạo hóa đơn</span>
-          </button>
-          <button
-            type="button"
-            class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-5 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
-            :disabled="loading"
-            @click="refreshBillings"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 0 0 5.582 9H4m0 0a8.003 8.003 0 0 1 14.9-3m1.518 9H20v5h.004m-.586-2A8.001 8.001 0 0 1 5.518 15H4m0 0a8.003 8.003 0 0 0 14.9 3" />
-            </svg>
-            <span>{{ loading ? 'Đang tải...' : 'Làm mới' }}</span>
-          </button>
-        </div>
-      </section>
-
-      <section class="mt-6 space-y-6">
-        <div class="grid gap-4 md:grid-cols-3">
-          <div class="flex items-center gap-2 rounded-2xl border border-emerald-100 bg-white/90 px-4 py-3 shadow-sm">
-            <div class="rounded-full bg-emerald-50 p-2 text-emerald-600">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3 6h18M3 10h18M3 14h18M3 18h18" />
-              </svg>
-            </div>
-            <div>
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tổng số hóa đơn</p>
-              <p class="text-lg font-semibold text-slate-900">{{ totalElements }}</p>
-            </div>
+    <main class="relative mx-auto max-w-7xl px-4 pb-20 pt-10 sm:px-6 lg:px-8">
+      <section class="rounded-[32px] border border-emerald-100 bg-white/90 p-8 shadow-[0_24px_60px_-40px_rgba(13,148,136,0.6)]">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div class="max-w-2xl">
+            <span class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.3em] text-emerald-600">
+              Quản lý thanh toán
+            </span>
+            <h1 class="mt-4 text-2xl font-semibold text-slate-900 md:text-3xl">Danh sách hóa đơn</h1>
+            <p class="mt-3 text-sm leading-relaxed text-slate-600">
+               Theo dõi tình trạng thanh toán, chỉnh sửa các mục phí và cập nhật trạng thái hóa đơn của bệnh nhân.
+            </p>
           </div>
-          <div class="flex items-center gap-2 rounded-2xl border border-emerald-100 bg-white/90 px-4 py-3 shadow-sm">
-            <div class="rounded-full bg-sky-50 p-2 text-sky-600">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3 7h18M3 12h18M3 17h18" />
-              </svg>
-            </div>
-            <div>
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Trang hiện tại</p>
-              <p class="text-lg font-semibold text-slate-900">{{ currentPage }} / {{ totalPages }}</p>
-            </div>
-          </div>
-          <div class="flex items-center gap-2 rounded-2xl border border-emerald-100 bg-white/90 px-4 py-3 shadow-sm">
-            <div class="rounded-full bg-amber-50 p-2 text-amber-600">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2" />
-              </svg>
-            </div>
-            <div>
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Bộ lọc trạng thái</p>
-              <p class="text-lg font-semibold text-slate-900">
-                {{ statusOptions.find((opt) => opt.value === statusFilter)?.label ?? 'Tất cả' }}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div class="rounded-3xl border border-emerald-100 bg-white/90 p-6 shadow">
-          <div class="grid gap-4 md:grid-cols-3">
-            <div class="md:col-span-2">
-              <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tìm kiếm</label>
-              <div class="mt-1 flex items-center rounded-xl border border-slate-200 bg-white px-3 py-1.5 shadow-sm focus-within:border-emerald-400 focus-within:ring-4 focus-within:ring-emerald-100/80">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35m0 0a7 7 0 1 0-9.9-9.9 7 7 0 0 0 9.9 9.9Z" />
-                </svg>
-                <input
-                  v-model="searchTerm"
-                  type="text"
-                  placeholder="Tìm theo tên bệnh nhân, mã bệnh nhân..."
-                  class="ml-2 w-full border-0 bg-transparent text-sm leading-tight text-slate-700 placeholder:text-slate-400 focus:outline-none"
-                />
-              </div>
-            </div>
-            <div>
-              <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Trạng thái</label>
-              <select
-                v-model="statusFilter"
-                class="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+          <div class="flex flex-col items-start gap-3 sm:flex-row sm:items-center lg:flex-col lg:items-end">
+            <div class="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                class="inline-flex items-center gap-2 whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-600 px-5 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700"
+                @click="openGenerateModal"
               >
-                <option v-for="option in statusOptions" :key="option.value" :value="option.value">
-                  {{ option.label }}
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+                <span>Tạo hóa đơn</span>
+              </button>
+              <button
+                type="button"
+                class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-5 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+                :disabled="loading"
+                @click="refreshBillings"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 0 0 5.582 9H4m0 0a8.003 8.003 0 0 1 14.9-3m1.518 9H20v5h.004m-.586-2A8.001 8.001 0 0 1 5.518 15H4m0 0a8.003 8.003 0 0 0 14.9 3" />
+                </svg>
+                <span>{{ loading ? 'Đang tải...' : 'Làm mới' }}</span>
+              </button>
+            </div>
+            <div class="rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-2 text-sm text-emerald-700 shadow-inner">
+               <p class="font-semibold">Tổng hóa đơn: {{ statusCounts.ALL }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-8 grid gap-4 sm:grid-cols-3">
+          <div class="rounded-2xl border border-amber-100 bg-amber-50/70 p-5 text-amber-700 shadow-sm">
+            <p class="text-xs font-semibold uppercase tracking-wide text-amber-600/80">Chưa thanh toán</p>
+            <p class="mt-2 text-3xl font-semibold">{{ statusCounts.UNPAID }}</p>
+            <p class="mt-2 text-xs text-amber-600/80">Cần theo dõi và nhắc nhở</p>
+          </div>
+          <div class="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-5 text-emerald-700 shadow-sm">
+            <p class="text-xs font-semibold uppercase tracking-wide text-emerald-600/80">Đã thanh toán</p>
+            <p class="mt-2 text-3xl font-semibold">{{ statusCounts.PAID }}</p>
+            <p class="mt-2 text-xs text-emerald-600/80">Doanh thu đã ghi nhận</p>
+          </div>
+          <div class="rounded-2xl border border-rose-100 bg-rose-50/70 p-5 text-rose-700 shadow-sm">
+            <p class="text-xs font-semibold uppercase tracking-wide text-rose-600/80">Đã hủy</p>
+            <p class="mt-2 text-3xl font-semibold">{{ statusCounts.CANCELLED }}</p>
+            <p class="mt-2 text-xs text-rose-600/80">Hóa đơn không còn hiệu lực</p>
+          </div>
+        </div>
+
+        <div class="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div class="relative flex-1 max-w-md">
+            <svg class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35m0 0A7.35 7.35 0 1 0 6.3 6.3a7.35 7.35 0 0 0 10.35 10.35Z" />
+            </svg>
+            <input
+              v-model.trim="searchTerm"
+              type="search"
+              placeholder="Tìm theo tên hoặc mã bệnh nhân..."
+              class="w-full rounded-xl border border-emerald-100 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+            />
+          </div>
+          <div class="w-full sm:w-56">
+             <select
+                v-model="statusFilter"
+                class="w-full rounded-xl border border-emerald-100 bg-white py-2.5 px-4 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+              >
+                <option v-for="filter in statusFilterPills" :key="filter.value" :value="filter.value">
+                   {{ filter.label }} ({{ statusCounts[filter.dataKey] }})
                 </option>
               </select>
-            </div>
           </div>
         </div>
 
-        <div class="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+      </section>
+
+      <section class="mt-10 mb-6">
+
+        <div class="grid gap-6 xl:grid-cols-[1.5fr_1.2fr]">
           <div class="rounded-3xl border border-emerald-100 bg-white/90 p-6 shadow h-full flex flex-col">
             <div class="flex items-center justify-between border-b border-slate-200 pb-4">
               <div>
@@ -630,43 +663,55 @@ onBeforeUnmount(() => {
               <div v-else-if="billings.length === 0" class="rounded-2xl border border-slate-200 bg-slate-50/60 p-6 text-center text-sm text-slate-600">
                 Chưa có hóa đơn nào phù hợp với bộ lọc hiện tại.
               </div>
-              <div v-else class="divide-y divide-slate-200">
+              <div v-else class="space-y-3">
                 <button
                   v-for="billing in billings"
                   :key="billing.id"
                   type="button"
-                  class="flex w-full flex-col gap-2 px-3 py-4 text-left transition hover:bg-emerald-50/60 focus:outline-none"
-                  :class="selectedBillingId === billing.id ? 'bg-emerald-50/60 ring-2 ring-emerald-200' : ''"
+                  class="w-full rounded-2xl border p-5 text-left transition focus:outline-none"
+                  :class="[
+                    selectedBillingId === billing.id
+                      ? 'border-emerald-300 bg-emerald-50/70 shadow-md ring-2 ring-emerald-200/70'
+                      : 'border-emerald-100 bg-white hover:border-emerald-200 hover:bg-emerald-50/40'
+                  ]"
                   @click="selectBilling(billing)"
                 >
-                  <div class="flex items-start justify-between gap-3">
-                    <div>
-                      <p class="text-sm font-semibold text-slate-900">
-                        {{ billing.patient?.fullName ?? 'Không xác định' }}
-                      </p>
-                      <p class="text-xs text-slate-500">
-                        Mã bệnh nhân: {{ billing.patient?.code ?? '—' }}
-                      </p>
+                  <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div class="flex items-start gap-3">
+                         <span
+                          class="mt-1 flex h-2.5 w-2.5 flex-shrink-0 rounded-full"
+                          :class="{
+                            'bg-amber-500': billing.status === 'UNPAID' || billing.status === 'PARTIALLY_PAID',
+                            'bg-emerald-500': billing.status === 'PAID',
+                            'bg-rose-500': billing.status === 'CANCELLED',
+                            'bg-slate-400': !billing.status
+                          }"
+                        ></span>
+                      <div>
+                        <p class="text-sm font-semibold uppercase tracking-wider text-slate-400">{{ formatDateTime(billing.issuedAt) }}</p>
+                        <h3 class="mt-1 text-lg font-semibold text-slate-900">{{ billing.patient?.fullName ?? 'Không xác định' }}</h3>
+                        <p class="mt-1 text-sm text-slate-600">
+                           Mã BN: {{ billing.patient?.code ?? '—' }}
+                        </p>
+                        <div class="mt-2 grid gap-x-6 gap-y-1 text-sm text-slate-600 sm:grid-cols-2">
+                             <div>
+                                <span class="font-semibold text-slate-500">Tổng cộng:</span>
+                                <span class="ml-1 text-slate-900">{{ formatCurrency(billing.totalAmount) }}</span>
+                            </div>
+                           <div>
+                                <span class="font-semibold text-slate-500">Phương thức:</span>
+                                <span class="ml-1 text-slate-700">{{ billing.paymentMethod ?? 'Chưa cập nhật' }}</span>
+                           </div>
+                        </div>
+                      </div>
                     </div>
-                    <span
-                      class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide"
-                      :class="getStatusBadgeClass(billing.status)"
-                    >
-                      {{ billingStatusLabels[billing.status ?? 'UNPAID'] ?? billing.status }}
-                    </span>
-                  </div>
-                  <div class="grid gap-2 text-xs text-slate-600 md:grid-cols-3">
-                    <div>
-                      <span class="font-semibold text-slate-500">Ngày lập:</span>
-                      <span class="ml-1 text-slate-700">{{ formatDateTime(billing.issuedAt) }}</span>
-                    </div>
-                    <div>
-                      <span class="font-semibold text-slate-500">Tổng cộng:</span>
-                      <span class="ml-1 text-slate-700">{{ formatCurrency(billing.totalAmount) }}</span>
-                    </div>
-                    <div>
-                      <span class="font-semibold text-slate-500">Phương thức:</span>
-                      <span class="ml-1 text-slate-700">{{ billing.paymentMethod ?? 'Chưa cập nhật' }}</span>
+                    <div class="flex flex-col items-start gap-2 text-sm text-slate-500 sm:items-end">
+                      <span
+                        class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
+                        :class="getStatusBadgeClass(billing.status)"
+                      >
+                        {{ billingStatusLabels[billing.status ?? 'UNPAID'] ?? billing.status }}
+                      </span>
                     </div>
                   </div>
                 </button>
@@ -737,7 +782,7 @@ onBeforeUnmount(() => {
                         {{ selectedBilling.patient?.fullName ?? 'Không xác định' }}
                       </p>
                       <p class="text-xs text-slate-500">
-                        Mã bệnh nhân: {{ selectedBilling.patient?.code ?? '—' }} | SĐT: {{ selectedBilling.patient?.phone ?? '—' }}
+                        SĐT: {{ selectedBilling.patient?.phone ?? '—' }}
                       </p>
                     </div>
                   </div>
@@ -752,7 +797,7 @@ onBeforeUnmount(() => {
                     </div>
                     <div>
                       <span class="font-semibold text-slate-500">Ghi chú:</span>
-                      <span class="ml-1 text-slate-700">{{ selectedBilling.notes ?? '—' }}</span>
+                      <span class="ml-1 text-slate-700">{{ selectedBilling.notes ?? 'Không có' }}</span>
                     </div>
                     <div>
                       <span class="font-semibold text-slate-500">Hồ sơ khám:</span>
@@ -797,11 +842,19 @@ onBeforeUnmount(() => {
                     <button
                       type="button"
                       class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50"
+                      @click="printInvoice"
+                      :disabled="!selectedBilling"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 9V2h12v7M6 14h12v8H6z" />
+                      </svg>
+                      In hóa đơn
+                    </button>
+                    <button
+                      type="button"
+                      class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50"
                       @click="openStatusModal"
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-                      </svg>
                       Cập nhật trạng thái
                     </button>
                   </div>
@@ -835,18 +888,10 @@ onBeforeUnmount(() => {
                             Xóa
                           </button>
                         </div>
-                        <div class="mt-3 grid gap-2 text-xs text-slate-600 md:grid-cols-3">
-                          <div>
-                            <span class="font-semibold text-slate-500">Số lượng:</span>
-                            <span class="ml-1 text-slate-700">{{ item.quantity }}</span>
-                          </div>
-                          <div>
-                            <span class="font-semibold text-slate-500">Đơn giá:</span>
-                            <span class="ml-1 text-slate-700">{{ formatCurrency(item.unitPrice) }}</span>
-                          </div>
-                          <div>
-                            <span class="font-semibold text-slate-500">Thành tiền:</span>
-                            <span class="ml-1 text-slate-700">{{ formatCurrency(item.amount) }}</span>
+                        <div class="mt-3 flex flex-col gap-2 text-xs text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+                          <div class="flex items-center gap-2">
+                             <span class="font-semibold text-slate-500">Thành tiền:</span>
+                             <span class="text-sm font-semibold text-emerald-600">{{ formatCurrency(item.amount) }}</span>
                           </div>
                         </div>
                       </div>
@@ -888,7 +933,7 @@ onBeforeUnmount(() => {
                           </div>
                           <div>
                             <span class="font-semibold text-slate-500">Thành tiền:</span>
-                            <span class="ml-1 text-slate-700">{{ formatCurrency(item.amount) }}</span>
+                            <span class="ml-1  font-semibold text-emerald-600">{{ formatCurrency(item.amount) }}</span>
                           </div>
                         </div>
                       </div>
@@ -944,73 +989,89 @@ onBeforeUnmount(() => {
       </section>
     </main>
 
-    <Transition name="fade">
-      <div v-if="toast" class="fixed bottom-6 right-6 z-[120] w-full max-w-sm">
-        <div :class="['flex items-start gap-3 rounded-2xl border p-4 shadow-lg', toastVisuals.container]">
-          <div
-            :class="['flex h-10 w-10 items-center justify-center rounded-full', toastVisuals.icon]"
-          >
-            <svg
-              v-if="toastVisuals.iconType === 'success'"
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="1.8"
+    <!-- Toast -->
+    <Teleport to="body">
+      <Transition
+        enter-active-class="transition duration-200"
+        enter-from-class="translate-y-2 opacity-0"
+        enter-to-class="translate-y-0 opacity-100"
+        leave-active-class="transition duration-200"
+        leave-from-class="translate-y-0 opacity-100"
+        leave-to-class="translate-y-2 opacity-0"
+      >
+        <div
+          v-if="toast"
+          class="fixed top-6 right-6 z-[100] w-[min(320px,90vw)] rounded-2xl border px-5 py-4 shadow-xl backdrop-blur"
+          :class="toastVisuals.container"
+        >
+          <div class="flex items-start gap-3">
+            <span
+              class="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full"
+              :class="toastVisuals.icon"
             >
-              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
-            <svg
-              v-else-if="toastVisuals.iconType === 'error'"
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="1.8"
+              <svg
+                v-if="toastVisuals.iconType === 'success'"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                class="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7" />
+              </svg>
+              <svg
+                v-else-if="toastVisuals.iconType === 'error'"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                class="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="m15 9-6 6m0-6 6 6" />
+              </svg>
+              <svg
+                v-else-if="toastVisuals.iconType === 'warning'"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                class="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01m-6.938 2h13.856a1 1 0 0 0 .894-1.447L12.894 4.553a1 1 0 0 0-1.788 0l-6.918 12.004A1 1 0 0 0 5.062 19Z" />
+              </svg>
+              <svg
+                v-else
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                class="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01m0-14a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z" />
+              </svg>
+            </span>
+            <div class="flex-1">
+              <p class="text-sm font-semibold">{{ toastVisuals.title }}</p>
+              <p class="mt-1 text-sm leading-relaxed">{{ toast.message }}</p>
+            </div>
+            <button
+              type="button"
+              class="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-white/70 text-slate-500 transition hover:bg-white hover:text-slate-700"
+              @click="dismissToast"
+              aria-label="Đóng thông báo"
             >
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-            <svg
-              v-else-if="toastVisuals.iconType === 'warning'"
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="1.8"
-            >
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86 1.82 18a1 1 0 0 0 .86 1.5h18.64a1 1 0 0 0 .86-1.5L13.71 3.86a1 1 0 0 0-1.72 0z" />
-            </svg>
-            <svg
-              v-else
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="1.8"
-            >
-              <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
-            </svg>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m16 8-8 8m0-8 8 8" />
+              </svg>
+            </button>
           </div>
-          <div class="flex-1">
-            <p class="text-sm font-semibold text-slate-900">{{ toastVisuals.title }}</p>
-            <p class="mt-1 text-sm text-slate-600">{{ toast?.message }}</p>
-          </div>
-          <button
-            type="button"
-            class="text-slate-400 transition hover:text-slate-600"
-            @click="dismissToast"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-              <path stroke-linecap="round" stroke-linejoin="round" d="m16 8-8 8m0-8 8 8" />
-            </svg>
-          </button>
         </div>
-      </div>
-    </Transition>
+      </Transition>
+    </Teleport>
 
     <!-- Update Status Modal -->
     <Transition name="fade">
