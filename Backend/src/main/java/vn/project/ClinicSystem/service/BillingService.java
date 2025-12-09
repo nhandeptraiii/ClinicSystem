@@ -270,4 +270,10 @@ public class BillingService {
         String trimmed = keyword.trim();
         return trimmed.isEmpty() ? null : trimmed;
     }
+
+    @Transactional
+    public void deleteBilling(Long id) {
+        Billing billing = getById(id);
+        billingRepository.delete(billing);
+    }
 }

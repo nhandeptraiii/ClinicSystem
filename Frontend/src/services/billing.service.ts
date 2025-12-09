@@ -188,3 +188,7 @@ export const printBilling = async (id: number): Promise<Blob> => {
   const blob = new Blob([response.data], { type: 'application/pdf' });
   return blob;
 };
+
+export const deleteBilling = async (id: number): Promise<void> => {
+  await http.delete(`/billings/${id}`);
+};

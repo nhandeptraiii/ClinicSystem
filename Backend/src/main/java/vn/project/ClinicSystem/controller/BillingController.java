@@ -123,4 +123,11 @@ public class BillingController {
                 .header("X-Content-Type-Options", "nosniff")
                 .body(pdfBytes);
     }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteBilling(@PathVariable("id") Long id) {
+        billingService.deleteBilling(id);
+        return ResponseEntity.noContent().build();
+    }
 }
