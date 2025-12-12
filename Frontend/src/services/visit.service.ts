@@ -81,7 +81,7 @@ export interface ServiceOrder {
     id: number;
     code?: string;
     name?: string;
-    requiresIndicator?: boolean;
+    type?: 'CLINICAL' | 'SUB_CLINICAL' | null;
   } | null;
   assignedDoctor?: {
     id: number;

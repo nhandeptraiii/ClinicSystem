@@ -110,13 +110,15 @@ const hasBlockingOrders = computed(() =>
 
 const clinicalServiceOrders = computed(() =>
   serviceOrders.value.filter(
-    (o) => o.medicalService?.requiresIndicator === false && o.status !== 'CANCELLED',
+    (o) => o.medicalService?.type === 'CLINICAL' && o.status !== 'CANCELLED',
   ),
 );
 
 const clsServiceOrders = computed(() =>
   serviceOrders.value.filter(
-    (o) => o.medicalService?.requiresIndicator !== false && o.status !== 'CANCELLED',
+    (o) =>
+      (o.medicalService?.type === 'SUB_CLINICAL' || !o.medicalService?.type) && // Default to SUB_CLINICAL if type is missing (migration)
+      o.status !== 'CANCELLED',
   ),
 );
 
@@ -162,6 +164,12 @@ let diseaseSearchTimer: ReturnType<typeof setTimeout> | null = null;
 const availableClinicalServices = ref<MedicalService[]>([]);
 const loadingClinicalServices = ref(false);
 const selectedClinicalServiceIds = ref<number[]>([]);
+const selectedClinicalServiceId = computed({
+  get: () => selectedClinicalServiceIds.value[0] ?? null,
+  set: (val: number | null) => {
+    selectedClinicalServiceIds.value = val ? [val] : [];
+  },
+});
 
 // Service Order Modal
 const serviceOrderModalOpen = ref(false);
@@ -192,10 +200,11 @@ const resultFormState = ref<ServiceOrderResultPayload>({
 const resultSubmitting = ref(false);
 
 const resultNeedsIndicators = computed(() => {
-  const requiresFlag = currentServiceOrderForResult.value?.medicalService?.requiresIndicator;
-  const serviceRequires = requiresFlag !== undefined ? requiresFlag : true;
+  const service = currentServiceOrderForResult.value?.medicalService;
+  const isClinical = service?.type === 'CLINICAL';
+  const isSubClinical = service?.type === 'SUB_CLINICAL';
   const hasMappings = indicatorMappings.value.length > 0;
-  return serviceRequires && hasMappings;
+  return (isClinical || isSubClinical) && hasMappings;
 });
 
 const filteredServices = computed(() => availableServices.value);
@@ -302,6 +311,56 @@ const loadDiseaseOptions = async (keyword?: string) => {
   }
 };
 
+// Diagnosis Modal State
+const diagnosisModalOpen = ref(false);
+const diagnosisSubmitting = ref(false);
+
+const openDiagnosisModal = () => {
+    if (visit.value) {
+        selectedDiseases.value = Array.isArray(visit.value.diseases) ? [...(visit.value.diseases ?? [])] : [];
+        diseaseSearchTerm.value = '';
+        diseaseOptions.value = [];
+        diagnosisModalOpen.value = true;
+    }
+};
+
+const saveDiagnosis = async () => {
+    if (!visit.value) return;
+
+    try {
+        diagnosisSubmitting.value = true;
+        const selectedIds = selectedDiseases.value.map((d) => d.id);
+        
+        // Preserve existing provisional diagnosis
+        const currentProvisional = visit.value.provisionalDiagnosis;
+        
+        const payload: PatientVisitUpdatePayload = {
+            provisionalDiagnosis: currentProvisional,
+            diseaseIds: selectedIds,
+        };
+
+        const updatedVisit = await updateVisitClinicalInfo(visit.value.id, payload);
+        
+        // Update local state
+        visit.value = {
+            ...visit.value,
+            diseases: updatedVisit.diseases ?? [],
+            updatedAt: updatedVisit.updatedAt,
+        };
+        
+        showToast('success', 'Đã cập nhật chẩn đoán chính.');
+        diagnosisModalOpen.value = false;
+    } catch (err: any) {
+        const errorMessage = err?.response?.data?.message ?? err?.message ?? 'Không thể cập nhật chẩn đoán.';
+        showToast('error', errorMessage);
+    } finally {
+        diagnosisSubmitting.value = false;
+    }
+};
+
+// ... existing loadDiseaseOptions ...
+
+
 const loadClinicalServices = async () => {
   loadingClinicalServices.value = true;
   try {
@@ -312,7 +371,7 @@ const loadClinicalServices = async () => {
       clinicRoomId: clinicRoomId ?? undefined,
     });
     availableClinicalServices.value = (response.items ?? []).filter(
-      (svc) => svc.requiresIndicator === false,
+      (svc) => svc.type === 'CLINICAL',
     );
   } catch (err: any) {
     availableClinicalServices.value = [];
@@ -363,14 +422,9 @@ const openEditClinicalModal = () => {
     clinicalFormState.value = {
       provisionalDiagnosis: visit.value.provisionalDiagnosis ?? '',
     };
-    selectedDiseases.value = Array.isArray(visit.value.diseases) ? [...(visit.value.diseases ?? [])] : [];
-    diseaseSearchTerm.value = '';
-    diseaseOptions.value = [];
+    // Removed disease loading logic
     const existingClinicalOrders = serviceOrders.value.filter(
-      (o) =>
-        o.medicalService?.requiresIndicator === false &&
-        o.medicalService?.id &&
-        o.status !== 'CANCELLED',
+      (o) => o.medicalService?.type === 'CLINICAL' && o.medicalService?.id && o.status !== 'CANCELLED',
     );
     selectedClinicalServiceIds.value = existingClinicalOrders
       .map((o) => o.medicalService?.id)
@@ -384,11 +438,12 @@ const saveClinicalInfo = async () => {
   if (!visit.value) return;
 
   const trimmedDiagnosis = clinicalFormState.value.provisionalDiagnosis?.trim() ?? '';
-  const selectedIds = selectedDiseases.value.map((d) => d.id);
+  // Preserve existing diseases
+  const currentDiseaseIds = visit.value.diseases?.map(d => d.id) ?? [];
 
   const payload: PatientVisitUpdatePayload = {
     provisionalDiagnosis: trimmedDiagnosis.length > 0 ? trimmedDiagnosis : null,
-    diseaseIds: selectedIds,
+    diseaseIds: currentDiseaseIds,
   };
 
   try {
@@ -406,9 +461,9 @@ const saveClinicalInfo = async () => {
     };
     selectedDiseases.value = updatedVisit.diseases ?? [];
 
-    // Thêm mới và hủy dịch vụ khám lâm sàng (requiresIndicator=false) theo chọn hiện tại
+    // Thêm mới và hủy dịch vụ khám lâm sàng theo chọn hiện tại
     const existingClinicalOrders = serviceOrders.value.filter(
-      (o) => o.medicalService?.requiresIndicator === false && o.medicalService?.id,
+      (o) => o.medicalService?.type === 'CLINICAL' && o.medicalService?.id && o.status !== 'CANCELLED',
     );
     const existingClinicalOrderIds = existingClinicalOrders.map((o) => o.medicalService?.id as number);
     const selectedIdSet = new Set(selectedClinicalServiceIds.value);
@@ -426,10 +481,14 @@ const saveClinicalInfo = async () => {
         note: clinicalNote,
       }));
       const createdClinicalOrders = await createServiceOrders(visit.value.id, clinicalPayloads);
-      // Với dịch vụ lâm sàng (không có chỉ số), set trạng thái hoàn thành ngay
+      
+      // Chỉ set hoàn thành cho dịch vụ KHÔNG phải lâm sàng và KHÔNG yêu cầu chỉ số
+      // (Để đảm bảo dịch vụ Clinical dù ko có indicator cũng không bị auto-completed nếu không muốn)
+      // Hoặc nếu muốn giữ logic cũ cho non-clinical:
+      
       await Promise.all(
         createdClinicalOrders
-          .filter((o) => o.medicalService?.requiresIndicator === false)
+          .filter((o) => o.medicalService?.type !== 'CLINICAL')
           .map((o) => updateServiceOrderStatus(o.id, { status: 'COMPLETED', resultNote: null })),
       );
     }
@@ -590,17 +649,16 @@ const openResultModal = async (order: ServiceOrder) => {
     // Load indicator mappings for this service
     const mappings = await fetchServiceIndicatorMappings(order.medicalService.id);
     indicatorMappings.value = mappings;
-    const requiresIndicators = order.medicalService?.requiresIndicator !== false;
     const hasMappings = mappings.length > 0;
 
-    if (requiresIndicators && hasMappings && order.indicatorResults && order.indicatorResults.length > 0) {
+    if (hasMappings && order.indicatorResults && order.indicatorResults.length > 0) {
       // Prefill from existing results
       resultFormState.value.indicators = order.indicatorResults.map((result) => ({
         indicatorId: result.indicatorTemplate?.id ?? 0,
         value: result.measuredValue ?? 0,
         note: result.note ?? null,
       }));
-    } else if (requiresIndicators && hasMappings) {
+    } else if (hasMappings) {
       // Initialize with all required indicators
       resultFormState.value.indicators = mappings
         .filter((m) => m.required)
@@ -610,7 +668,7 @@ const openResultModal = async (order: ServiceOrder) => {
           note: null,
         }));
     } else {
-      // Dịch vụ lâm sàng không yêu cầu chỉ số: không cần prefill indicators
+      // Không có mapping: không cần prefill indicators
       resultFormState.value.indicators = [];
     }
     resultModalOpen.value = true;
@@ -1008,6 +1066,13 @@ watch(
   { immediate: true },
 );
 
+watch(diseaseSearchTerm, (newTerm) => {
+  if (diseaseSearchTimer) clearTimeout(diseaseSearchTimer);
+  diseaseSearchTimer = setTimeout(() => {
+    void loadDiseaseOptions(newTerm);
+  }, 300);
+});
+
 onBeforeUnmount(() => {
   if (serviceSearchTimer) {
     clearTimeout(serviceSearchTimer);
@@ -1151,8 +1216,9 @@ onMounted(() => {
                 @click="openEditClinicalModal"
                 class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-600 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700"
               >
-                Chỉnh sửa
+                Chỉnh sửa dịch vụ
               </button>
+
             </div>
 
           <div class="space-y-4">
@@ -1171,7 +1237,17 @@ onMounted(() => {
             </div>
 
             <div>
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Chẩn đoán chính</p>
+              <div class="flex items-center justify-between">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Chẩn đoán chính</p>
+                <button
+                  v-if="canModifyClinical"
+                  type="button"
+                  @click="openDiagnosisModal"
+                  class="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 shadow-sm transition hover:bg-blue-100"
+                >
+                  Cập nhật
+                </button>
+              </div>
               <div class="mt-1 flex flex-wrap gap-2">
                 <template v-if="visit.diseases && visit.diseases.length">
                   <span
@@ -1226,11 +1302,101 @@ onMounted(() => {
                       {{ getServiceOrderStatusLabel(order.status) }}
                     </span>
                   </div>
+                  <div class="mt-2 flex items-center justify-end">
+                    <button
+                      type="button"
+                      @click="openResultModal(order)"
+                      class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                      </svg>
+                      {{ order.status === 'COMPLETED_WITH_RESULT' ? 'Sửa chỉ số' : 'Nhập chỉ số' }}
+                    </button>
+                    <button
+                      type="button"
+                      @click="toggleResultVisibility(order.id)"
+                      class="ml-2 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-700 shadow-sm transition hover:bg-slate-50"
+                    >
+                       <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-3.5 w-3.5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          :d="expandedResultOrders.has(order.id ?? 0) ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6'"
+                        />
+                      </svg>
+                      {{ expandedResultOrders.has(order.id ?? 0) ? 'Thu gọn' : 'Xem chỉ số' }}
+                    </button>
+                  </div>
+                <div v-if="expandedResultOrders.has(order.id ?? 0)" class="mt-3 overflow-x-auto px-1">
+                  <table class="w-full text-sm">
+                    <thead class="bg-slate-50">
+                      <tr>
+                        <th class="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">
+                          Chỉ số
+                        </th>
+                        <th class="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">
+                          Kết quả
+                        </th>
+                        <th class="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">
+                          Đơn vị
+                        </th>
+                        <th class="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">
+                          Ngưỡng
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200">
+                      <tr
+                        v-for="result in serviceOrderResults.get(order.id ?? 0) ?? []"
+                        :key="result.id"
+                      >
+                        <td class="px-3 py-2 font-medium text-slate-900">
+                          {{ result.indicatorNameSnapshot ?? result.indicatorTemplate?.name ?? 'N/A' }}
+                        </td>
+                        <td class="px-3 py-2">
+                          <div class="flex items-center gap-2">
+                            <span class="text-slate-900">{{ result.measuredValue ?? 'N/A' }}</span>
+                            <span
+                              v-if="result.evaluation"
+                              :class="getEvaluationBadgeClass(result.evaluation)"
+                              class="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold"
+                            >
+                              {{ getEvaluationLabel(result.evaluation) }}
+                            </span>
+                          </div>
+                        </td>
+                        <td class="px-3 py-2 text-slate-600">
+                          {{ result.unitSnapshot ?? result.indicatorTemplate?.unit ?? 'N/A' }}
+                        </td>
+                        <td class="px-3 py-2 text-slate-600">
+                          <span
+                            v-if="
+                              result.indicatorTemplate &&
+                              result.indicatorTemplate.normalMin !== null &&
+                              result.indicatorTemplate.normalMax !== null
+                            "
+                          >
+                            {{ result.indicatorTemplate.normalMin }} - {{ result.indicatorTemplate.normalMax }}
+                          </span>
+                          <span v-else>N/A</span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
           </div>
         </div>
+      </div>
 
           <!-- Khu vực 3: Chỉ định Dịch vụ Cận lâm sàng (CLS) -->
           <div class="rounded-2xl border border-emerald-100 bg-white/90 p-6 shadow-sm">
@@ -1679,9 +1845,10 @@ onMounted(() => {
                     class="flex items-start gap-3 rounded-lg px-2 py-1.5 hover:bg-slate-50"
                   >
                     <input
-                      v-model="selectedClinicalServiceIds"
+                      v-model="selectedClinicalServiceId"
                       :value="svc.id"
-                      type="checkbox"
+                      type="radio"
+                      name="clinicalServiceParams"
                       class="mt-1 h-4 w-4 text-emerald-600 focus:ring-emerald-500"
                     />
                     <div>
@@ -1699,7 +1866,56 @@ onMounted(() => {
                 Chọn dịch vụ khám lâm sàng, ghi chú sẽ dùng chẩn đoán tạm thời/ghi chú lâm sàng làm note phiếu.
               </p>
             </div>
-            <div class="space-y-1.5">
+            </div>
+
+          <div class="mt-6 flex items-center justify-end gap-3 border-t border-slate-200 pt-4">
+            <button
+              type="button"
+              @click="editClinicalModalOpen = false"
+              class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+            >
+              Hủy
+            </button>
+            <button
+              type="button"
+              @click="saveClinicalInfo"
+              :disabled="clinicalSubmitting"
+              class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-600 px-5 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <span v-if="clinicalSubmitting">Đang lưu...</span>
+              <span v-else>Lưu</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+
+    <!-- Diagnosis Modal -->
+    <Transition name="fade">
+      <div
+        v-if="diagnosisModalOpen"
+        class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm px-4"
+        @click.self="diagnosisModalOpen = false"
+      >
+        <div class="w-full max-w-xl max-h-[85vh] overflow-y-auto rounded-3xl border border-emerald-100 bg-white p-6 shadow-xl">
+          <div class="flex items-start justify-between">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.35em] text-emerald-500">Cập nhật chẩn đoán chính</p>
+              <h2 class="mt-1 text-xl font-semibold text-slate-900">Cập nhật Chẩn đoán Chính</h2>
+            </div>
+            <button
+              type="button"
+              class="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+              @click="diagnosisModalOpen = false"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m16 8-8 8m0-8 8 8" />
+              </svg>
+            </button>
+          </div>
+          <div class="mt-6 space-y-4">
+             <div class="space-y-1.5">
               <div class="flex items-center justify-between">
                 <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Chẩn đoán chính</label>
                 <span v-if="loadingDiseases" class="text-[11px] text-slate-500">Đang tải danh mục...</span>
@@ -1755,19 +1971,19 @@ onMounted(() => {
           <div class="mt-6 flex items-center justify-end gap-3 border-t border-slate-200 pt-4">
             <button
               type="button"
-              @click="editClinicalModalOpen = false"
+              @click="diagnosisModalOpen = false"
               class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
             >
               Hủy
             </button>
             <button
               type="button"
-              @click="saveClinicalInfo"
-              :disabled="clinicalSubmitting"
+              @click="saveDiagnosis"
+              :disabled="diagnosisSubmitting"
               class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-600 px-5 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <span v-if="clinicalSubmitting">Đang lưu...</span>
-              <span v-else>Lưu</span>
+              <span v-if="diagnosisSubmitting">Đang lưu...</span>
+              <span v-else>Lưu chẩn đoán</span>
             </button>
           </div>
         </div>

@@ -90,6 +90,7 @@ const formState = reactive<MedicalServicePayload>({
   description: null,
   category: null,
   status: null,
+  type: 'SUB_CLINICAL', // Default to SUB_CLINICAL or null, but SUB_CLINICAL is safer for existing logic if we want to default
   estimatedDuration: null,
 });
 const selectedService = ref<MedicalService | null>(null);
@@ -404,6 +405,7 @@ const openCreateModal = async () => {
   formState.description = null;
   formState.category = null;
   formState.status = null;
+  formState.type = 'SUB_CLINICAL';
   formState.estimatedDuration = null;
   resetMappingsList();
   await loadClinicRooms();
@@ -421,6 +423,7 @@ const openEditModal = async (service: MedicalService) => {
   formState.description = service.description ?? null;
   formState.category = service.category ?? null;
   formState.status = service.status ?? null;
+  formState.type = service.type ?? null;
   formState.estimatedDuration = service.estimatedDuration ?? null;
   await loadClinicRooms();
   await loadMappingsForEdit(service.id);
@@ -444,6 +447,7 @@ const submitForm = async () => {
     description: formState.description?.trim() || null,
     category: formState.category?.trim() || null,
     status: formState.status?.trim() || null,
+    type: formState.type || null,
     estimatedDuration: formState.estimatedDuration ?? null,
   };
 
@@ -858,6 +862,21 @@ onMounted(() => {
                     <option v-for="room in clinicRooms" :key="room.id" :value="room.id">
                       {{ room.name }} ({{ room.code }})
                     </option>
+                  </select>
+                </div>
+              </div>
+              <div class="grid gap-4 sm:grid-cols-2 mt-4">
+                <div class="space-y-1.5">
+                  <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="service-type">
+                    Loại dịch vụ *
+                  </label>
+                  <select
+                    id="service-type"
+                    v-model="formState.type"
+                    class="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+                  >
+                    <option value="CLINICAL">Khám lâm sàng</option>
+                    <option value="SUB_CLINICAL">Cận lâm sàng</option>
                   </select>
                 </div>
               </div>
