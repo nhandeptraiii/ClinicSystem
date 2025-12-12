@@ -43,10 +43,10 @@ public class Patient {
 
     @NotBlank(message = "Số điện thoại không được để trống")
     @Pattern(regexp = "^\\d{10}$", message = "Số điện thoại phải gồm đúng 10 chữ số")
-    @Column(length = 10, nullable = false, unique = true)
+    // @Column(length = 10, nullable = false, unique = true)
     private String phone;
 
-    @Column(length = 80, unique = true)
+    // @Column(length = 80, unique = true)
     private String email;
 
     @Column(length = 255)

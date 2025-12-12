@@ -481,7 +481,7 @@ onMounted(async () => {
               <thead class="bg-slate-100/70 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
                 <tr>
                   <th class="px-4 py-3">#</th>
-                  <th class="px-4 py-3">Bệnh (vi / en)</th>
+                  <th class="px-4 py-3">Bệnh</th>
                   <th class="px-4 py-3">Xác suất</th>
                   <th class="px-4 py-3">Mức độ</th>
                   <th class="px-4 py-3">Ghi chú</th>
