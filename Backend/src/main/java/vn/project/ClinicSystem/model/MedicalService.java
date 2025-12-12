@@ -10,6 +10,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -23,6 +25,7 @@ import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.Setter;
+import vn.project.ClinicSystem.model.enums.ServiceType;
 
 @Getter
 @Setter
@@ -45,8 +48,9 @@ public class MedicalService {
     @Column(nullable = false)
     private Long basePrice; // đơn vị: đồng
 
-    @Column(name = "requires_indicator", nullable = false, columnDefinition = "boolean default true")
-    private Boolean requiresIndicator = true;
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private ServiceType type;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "clinic_room_id")
@@ -65,16 +69,10 @@ public class MedicalService {
         Instant now = Instant.now();
         this.createdAt = now;
         this.updatedAt = now;
-        if (this.requiresIndicator == null) {
-            this.requiresIndicator = true;
-        }
     }
 
     @PreUpdate
     public void handleBeforeUpdate() {
-        if (this.requiresIndicator == null) {
-            this.requiresIndicator = true;
-        }
         this.updatedAt = Instant.now();
     }
 }

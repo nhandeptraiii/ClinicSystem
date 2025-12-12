@@ -64,16 +64,20 @@ public class ServiceOrderResultService {
             throw new IllegalStateException("Không thể nhập kết quả cho phiếu dịch vụ đã hủy.");
         }
 
-        boolean requiresIndicator = Boolean.TRUE.equals(medicalService.getRequiresIndicator());
+        // Check if service has indicator mappings configured
+        List<ServiceIndicatorMapping> mappings = mappingRepository
+                .findByMedicalServiceIdOrderByDisplayOrderAsc(medicalService.getId());
+        boolean hasIndicatorMappings = !mappings.isEmpty();
         boolean hasIndicatorEntries = request.getIndicators() != null && !request.getIndicators().isEmpty();
 
-        // Chỉ validate/ghi kết quả chỉ số khi dịch vụ yêu cầu
-        if (requiresIndicator) {
+        // Validate and save indicator results if service has mappings configured
+        if (hasIndicatorMappings) {
             if (!hasIndicatorEntries) {
                 throw new IllegalArgumentException("Cần nhập ít nhất một chỉ số kết quả");
             }
 
-            Map<Long, IndicatorTemplate> templatesById = loadTemplatesMap(medicalService.getId(), request.getIndicators());
+            Map<Long, IndicatorTemplate> templatesById = loadTemplatesMap(medicalService.getId(),
+                    request.getIndicators());
             ensureRequiredTemplatesFilled(medicalService.getId(), request.getIndicators());
 
             order.clearIndicatorResults();
@@ -83,7 +87,7 @@ public class ServiceOrderResultService {
                 order.addIndicatorResult(result);
             });
         } else {
-            // Dịch vụ lâm sàng không yêu cầu chỉ số: luôn xoá kết quả cũ (nếu có)
+            // Service doesn't have indicator mappings: clear any old results
             order.clearIndicatorResults();
         }
 
@@ -98,7 +102,7 @@ public class ServiceOrderResultService {
         }
 
         order.setPerformedAt(request.getPerformedAt() != null ? request.getPerformedAt() : LocalDateTime.now());
-        order.setStatus(requiresIndicator ? ServiceOrderStatus.COMPLETED_WITH_RESULT : ServiceOrderStatus.COMPLETED);
+        order.setStatus(hasIndicatorMappings ? ServiceOrderStatus.COMPLETED_WITH_RESULT : ServiceOrderStatus.COMPLETED);
 
         return serviceOrderRepository.save(order);
     }

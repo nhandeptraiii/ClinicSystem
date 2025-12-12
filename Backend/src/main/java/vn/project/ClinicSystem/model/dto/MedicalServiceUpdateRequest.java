@@ -15,5 +15,5 @@ public class MedicalServiceUpdateRequest {
 
     private Long clinicRoomId;
 
-    private Boolean requiresIndicator;
+    private vn.project.ClinicSystem.model.enums.ServiceType type;
 }
