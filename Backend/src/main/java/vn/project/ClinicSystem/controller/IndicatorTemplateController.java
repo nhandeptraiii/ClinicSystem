@@ -34,14 +34,20 @@ public class IndicatorTemplateController {
     @GetMapping
     public ResponseEntity<IndicatorTemplatePageResponse> getAllIndicatorTemplates(
             @RequestParam(value = "keyword", required = false) String keyword,
+            @RequestParam(value = "category", required = false) String category,
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "10") int size) {
         int safePage = Math.max(page, 0);
         int safeSize = Math.min(Math.max(size, 1), 50);
         Pageable pageable = PageRequest.of(safePage, safeSize);
 
-        IndicatorTemplatePageResponse response = templateService.findAll(keyword, pageable);
+        IndicatorTemplatePageResponse response = templateService.findAll(keyword, category, pageable);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/categories")
+    public ResponseEntity<java.util.List<String>> getCategories() {
+        return ResponseEntity.ok(templateService.getDistinctCategories());
     }
 
     @GetMapping("/{id}")

@@ -36,8 +36,7 @@ public class ServiceIndicatorMapping {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @JsonIgnore
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "medical_service_id", nullable = false)
     private MedicalService medicalService;
 

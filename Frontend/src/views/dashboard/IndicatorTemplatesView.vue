@@ -13,6 +13,7 @@ import {
   type IndicatorTemplate,
   type IndicatorTemplatePayload,
   type ServiceIndicatorMapping,
+  fetchCategories,
 } from '@/services/indicatorTemplate.service';
 
 const authStore = useAuthStore();
@@ -71,6 +72,8 @@ const hasNext = ref(false);
 const hasPrevious = ref(false);
 
 const searchTerm = ref('');
+const categoryFilter = ref('');
+const availableCategories = ref<string[]>([]);
 
 let filterTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -149,9 +152,10 @@ const loadTemplates = async () => {
   loading.value = true;
   error.value = null;
   const keyword = searchTerm.value.trim();
+  const category = categoryFilter.value.trim();
   const pageIndex = Math.max(currentPage.value - 1, 0);
   try {
-    const response = await fetchIndicatorTemplates(pageIndex, PAGE_SIZE, keyword || undefined);
+    const response = await fetchIndicatorTemplates(pageIndex, PAGE_SIZE, keyword || undefined, category || undefined);
     templates.value = response.items ?? [];
     totalElements.value = response.totalElements ?? templates.value.length;
     const derivedTotalPages = response.totalPages && response.totalPages > 0 ? response.totalPages : 1;
@@ -169,6 +173,15 @@ const loadTemplates = async () => {
     hasPrevious.value = false;
   } finally {
     loading.value = false;
+  }
+};
+
+const loadCategories = async () => {
+  try {
+    availableCategories.value = await fetchCategories();
+  } catch (err) {
+    console.error('Failed to load categories:', err);
+    availableCategories.value = [];
   }
 };
 
@@ -284,11 +297,13 @@ const openDetailModal = async (template: IndicatorTemplate) => {
   try {
     const mappings = await fetchMappingsByTemplateId(template.id);
     detailMappings.value = mappings || [];
+    console.log('Loaded mappings:', mappings);
   } catch (err) {
     console.error('Failed to load mappings:', err);
     detailMappings.value = [];
   } finally {
     loadingMappings.value = false;
+    console.log('Loading complete, loadingMappings set to false');
   }
 };
 
@@ -337,6 +352,16 @@ watch(searchTerm, () => {
   }, 350);
 });
 
+watch(categoryFilter, () => {
+  if (filterTimer) {
+    clearTimeout(filterTimer);
+  }
+  filterTimer = setTimeout(() => {
+    currentPage.value = 1;
+    loadTemplates();
+  }, 350);
+});
+
 onBeforeUnmount(() => {
   if (filterTimer) {
     clearTimeout(filterTimer);
@@ -350,6 +375,7 @@ const handleSignOut = async () => {
 
 onMounted(() => {
   loadTemplates();
+  loadCategories();
 });
 </script>
 
@@ -379,7 +405,7 @@ onMounted(() => {
           </button>
         </div>
 
-        <div class="mt-6">
+        <div class="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div class="relative w-full sm:max-w-md">
             <svg class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35m0 0A7.35 7.35 0 1 0 6.3 6.3a7.35 7.35 0 0 0 10.35 10.35Z" />
@@ -390,6 +416,17 @@ onMounted(() => {
               class="w-full rounded-full border border-emerald-100 bg-white py-2.5 pl-9 pr-4 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
               placeholder="Tìm theo mã hoặc tên chỉ số..."
             />
+          </div>
+          <div class="relative w-full sm:w-64">
+            <select
+              v-model.trim="categoryFilter"
+              class="w-full rounded-full border border-emerald-100 bg-white py-2.5 px-4 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
+            >
+              <option value="">Tất cả danh mục</option>
+              <option v-for="cat in availableCategories" :key="cat" :value="cat">
+                {{ cat }}
+              </option>
+            </select>
           </div>
         </div>
 
@@ -805,8 +842,8 @@ onMounted(() => {
                 :key="mapping.id"
                 class="rounded-xl border border-slate-200 bg-slate-50/30 px-4 py-2.5 text-sm text-slate-700"
               >
-                <span class="font-semibold text-slate-900">{{ mapping.medicalService.name }}</span>
-                <span class="text-slate-500"> ({{ mapping.medicalService.code }})</span>
+                <span class="font-semibold text-slate-900">{{ mapping.medicalService?.name || 'N/A' }}</span>
+                <span class="text-slate-500"> ({{ mapping.medicalService?.code || 'N/A' }})</span>
               </li>
             </ul>
           </div>

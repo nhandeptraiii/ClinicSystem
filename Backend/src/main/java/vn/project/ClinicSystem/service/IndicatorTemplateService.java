@@ -28,9 +28,10 @@ public class IndicatorTemplateService {
     }
 
     @Transactional(readOnly = true)
-    public IndicatorTemplatePageResponse findAll(String keyword, Pageable pageable) {
+    public IndicatorTemplatePageResponse findAll(String keyword, String category, Pageable pageable) {
         String normalizedKeyword = (keyword != null && !keyword.isBlank()) ? keyword.trim() : null;
-        Page<IndicatorTemplate> page = templateRepository.search(normalizedKeyword, pageable);
+        String normalizedCategory = (category != null && !category.isBlank()) ? category.trim() : null;
+        Page<IndicatorTemplate> page = templateRepository.search(normalizedKeyword, normalizedCategory, pageable);
 
         IndicatorTemplatePageResponse response = new IndicatorTemplatePageResponse();
         response.setItems(page.getContent());
@@ -42,6 +43,10 @@ public class IndicatorTemplateService {
         response.setHasPrevious(page.hasPrevious());
 
         return response;
+    }
+
+    public java.util.List<String> getDistinctCategories() {
+        return templateRepository.findDistinctCategories();
     }
 
     public IndicatorTemplate getById(Long id) {

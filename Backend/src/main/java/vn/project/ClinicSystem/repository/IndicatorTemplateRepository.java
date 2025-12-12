@@ -21,7 +21,12 @@ public interface IndicatorTemplateRepository extends JpaRepository<IndicatorTemp
     @Query("""
                 SELECT it FROM IndicatorTemplate it
                 WHERE (:keyword IS NULL OR LOWER(it.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(it.code) LIKE LOWER(CONCAT('%', :keyword, '%')))
+                  AND (:category IS NULL OR it.category = :category)
                 ORDER BY it.name ASC
             """)
-    Page<IndicatorTemplate> search(@Param("keyword") String keyword, Pageable pageable);
+    Page<IndicatorTemplate> search(@Param("keyword") String keyword, @Param("category") String category,
+            Pageable pageable);
+
+    @Query("SELECT DISTINCT it.category FROM IndicatorTemplate it WHERE it.category IS NOT NULL ORDER BY it.category ASC")
+    java.util.List<String> findDistinctCategories();
 }

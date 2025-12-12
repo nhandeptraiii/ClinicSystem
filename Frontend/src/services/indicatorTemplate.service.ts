@@ -98,6 +98,7 @@ export const fetchIndicatorTemplates = async (
   page: number,
   size: number,
   keyword?: string,
+  category?: string,
 ) => {
   const { data } = await http.get<
     RestResponse<IndicatorTemplatePageResponse> | IndicatorTemplatePageResponse
@@ -106,6 +107,7 @@ export const fetchIndicatorTemplates = async (
       page,
       size,
       keyword: keyword || undefined,
+      category: category || undefined,
     },
   });
   const unwrapped = unwrap(data);
@@ -113,6 +115,11 @@ export const fetchIndicatorTemplates = async (
     ...unwrapped,
     items: unwrapped.items.map(normalizeTemplate),
   };
+};
+
+export const fetchCategories = async () => {
+  const { data } = await http.get<RestResponse<string[]> | string[]>('/indicator-templates/categories');
+  return unwrap(data);
 };
 
 export const fetchIndicatorTemplateById = async (id: number) => {
