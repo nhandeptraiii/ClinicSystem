@@ -1140,6 +1140,17 @@ onMounted(() => {
               <span class="font-semibold text-emerald-600">{{ formatCurrency(detailService.basePrice) }}</span>
             </div>
             <div class="flex items-start gap-3">
+              <span class="w-32 shrink-0 text-xs font-semibold uppercase tracking-wide text-slate-500">Loại dịch vụ</span>
+              <span 
+                class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide"
+                :class="detailService.type === 'CLINICAL' 
+                  ? 'bg-blue-100 text-blue-700 border border-blue-200' 
+                  : 'bg-purple-100 text-purple-700 border border-purple-200'"
+              >
+                {{ detailService.type === 'CLINICAL' ? 'Khám lâm sàng' : 'Cận lâm sàng' }}
+              </span>
+            </div>
+            <div class="flex items-start gap-3">
               <span class="w-32 shrink-0 text-xs font-semibold uppercase tracking-wide text-slate-500">Phòng thực hiện</span>
               <span>{{ detailService.clinicRoom?.name || '—' }}</span>
             </div>
