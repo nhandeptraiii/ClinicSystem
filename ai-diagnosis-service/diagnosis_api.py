@@ -16,6 +16,7 @@ from typing import Any, Dict, List
 
 import joblib
 import numpy as np
+import pandas as pd
 from fastapi import FastAPI, HTTPException, Request
 import json
 
@@ -126,13 +127,15 @@ class DiagnosisResponse(BaseModel):
     predictions: List[DiseasePrediction]
 
 
-def build_feature_vector(symptoms: List[str]) -> np.ndarray:
+def build_feature_vector(symptoms: List[str]) -> pd.DataFrame:
+    """Build feature vector as DataFrame to match training format."""
     vector = np.zeros(len(FEATURE_NAMES), dtype=np.float32)
     for symptom in symptoms:
         idx = FEATURE_INDEX.get(symptom.lower())
         if idx is not None:
             vector[idx] = 1.0
-    return vector
+    # Return as DataFrame with column names to match training
+    return pd.DataFrame([vector], columns=FEATURE_NAMES)
 
 
 def determine_severity(disease: str, probability: float) -> str:
@@ -153,20 +156,21 @@ def should_book_visit(severity: str, probability: float) -> bool:
     return False
 
 
+from disease_mapping import DISEASE_MAPPING
+
 @app.post("/predict", response_model=DiagnosisResponse)
 async def predict(request: Request) -> DiagnosisResponse:
     body_bytes = await request.body()
-    print("RAW BODY:", body_bytes)
+    # print("RAW BODY:", body_bytes) # Reduced logging
     if not body_bytes:
         raise HTTPException(
             status_code=400,
             detail="Payload không hợp lệ, vui lòng gửi JSON đúng định dạng.",
         )
-    logger.info("Raw request body bytes: %s", body_bytes)
+    # logger.info("Raw request body bytes: %s", body_bytes)
     try:
         raw_payload: Any = json.loads(body_bytes)
     except Exception as exc:
-        # Thử thêm một lần với giải mã chuỗi (phòng trường hợp double-encode)
         try:
             raw_text = body_bytes.decode("utf-8", errors="ignore")
             raw_payload = json.loads(raw_text)
@@ -177,7 +181,6 @@ async def predict(request: Request) -> DiagnosisResponse:
             ) from exc
 
     if isinstance(raw_payload, list):
-        # Trường hợp RestTemplate nào đó wrap payload thành mảng một phần tử
         if len(raw_payload) == 1 and isinstance(raw_payload[0], dict):
             raw_payload = raw_payload[0]
         else:
@@ -201,7 +204,8 @@ async def predict(request: Request) -> DiagnosisResponse:
         )
 
     feature_vector = build_feature_vector(diagnosis_req.symptoms)
-    if not feature_vector.any():
+    # Check if DataFrame contains any non-zero values
+    if not feature_vector.values.any():
         raise HTTPException(
             status_code=400,
             detail=(
@@ -211,28 +215,73 @@ async def predict(request: Request) -> DiagnosisResponse:
         )
 
     try:
-        probabilities = MODEL.predict_proba([feature_vector])[0]
-    except Exception as exc:  # pragma: no cover - defensive guard
+        # feature_vector is already a DataFrame with shape (1, 164) and column names
+        probabilities = MODEL.predict_proba(feature_vector)[0]
+    except Exception as exc:
         raise HTTPException(status_code=500, detail="Không thể chạy mô hình AI, vui lòng thử lại sau.") from exc
 
-    top_limit = min(diagnosis_req.top_k, len(probabilities))
-    top_indices = np.argsort(probabilities)[::-1][:top_limit]
-
-    predictions: List[Dict[str, object]] = []
-    for idx in top_indices:
-        disease_name = LABEL_ENCODER.inverse_transform([idx])[0]
+    # Lấy nhiều hơn top_k một chút để phòng trường hợp gộp nhóm bị giảm số lượng
+    fetch_k = min(diagnosis_req.top_k * 2, len(probabilities))
+    top_indices = np.argsort(probabilities)[::-1][:fetch_k]
+    
+    # Debug: Log top 10 predictions before filtering
+    logger.info("Top 10 raw predictions:")
+    for i, idx in enumerate(top_indices[:10], 1):
+        disease = LABEL_ENCODER.inverse_transform([idx])[0]
         prob = float(probabilities[idx])
-        severity = determine_severity(disease_name, prob)
-        predictions.append(
-            {
-                "disease": disease_name,
-                "probability": round(prob, 6),
-                "severity": severity,
-                "should_book_appointment": should_book_visit(severity, prob),
-            }
-        )
+        logger.info(f"  {i}. {disease}: {prob:.4f}")
 
-    return DiagnosisResponse(predictions=predictions)
+    final_predictions: List[Dict[str, object]] = []
+    seen_groups = set()
+
+    for idx in top_indices:
+        original_name = LABEL_ENCODER.inverse_transform([idx])[0]
+        prob = float(probabilities[idx])
+        
+        # Tra cứu trong từ điển (bao gồm cả dịch và gom nhóm)
+        key = original_name.lower()
+        mapping_info = DISEASE_MAPPING.get(key)
+        
+        if mapping_info:
+            display_name = mapping_info.get("name_vi", original_name)
+            # Ưu tiên severity trong map, nếu không thì tính toán lại
+            severity = mapping_info.get("severity") or determine_severity(original_name, prob)
+            warning = mapping_info.get("warning")
+        else:
+            # Fallback: Giữ nguyên tên gốc (Title Case)
+            display_name = original_name.title()
+            severity = determine_severity(original_name, prob)
+            warning = None
+        
+        # Deduplication (Gộp trùng dựa trên tên hiển thị)
+        if display_name in seen_groups:
+            continue
+            
+        seen_groups.add(display_name)
+        
+        # Cảnh báo độ tin cậy thấp - giảm xuống 1% để có kết quả hữu ích
+        if prob < 0.01:
+             continue
+
+        pred_entry = {
+            "disease": display_name,
+            "probability": round(prob, 6),
+            "severity": severity,
+            "should_book_appointment": should_book_visit(severity, prob),
+        }
+        
+        # Nếu có cảnh báo đặc thù, nối vào tên bệnh hoặc trả về trường riêng (tuỳ FE)
+        # Ở đây mình nối vào tên bệnh để hiển thị ngay
+        if warning:
+             pred_entry["disease"] = f"{display_name} ({warning})"
+             
+        final_predictions.append(pred_entry)
+        
+        if len(final_predictions) >= diagnosis_req.top_k:
+            break
+
+    logger.info(f"Returning {len(final_predictions)} predictions to client")
+    return DiagnosisResponse(predictions=final_predictions)
 
 
 @app.get("/health")
@@ -241,9 +290,10 @@ def health() -> Dict[str, str]:
 
 
 @app.get("/symptoms")
-def list_symptoms() -> Dict[str, Any]:
+def list_symptoms() -> List[str]:
+    """Return list of symptom names supported by the model."""
     try:
-        return {"items": FEATURE_NAMES, "count": len(FEATURE_NAMES)}
+        return FEATURE_NAMES
     except Exception as exc:  # pragma: no cover - defensive
         logger.error("Cannot load feature names: %s", exc, exc_info=True)
         raise HTTPException(status_code=500, detail="Không thể đọc danh sách triệu chứng từ mô hình.") from exc

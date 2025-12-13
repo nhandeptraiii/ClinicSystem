@@ -5,7 +5,6 @@ import PublicHeader from '@/components/PublicHeader.vue';
 import PublicFooter from '@/components/PublicFooter.vue';
 import { analyzeSymptoms, fetchModelSymptoms, type DiagnosisResponse, type DiseasePrediction } from '@/services/diagnosis.service';
 import { symptomGroups } from '@/config/diagnosisSymptoms';
-import { diseaseDictionary } from '@/config/diseaseTranslations';
 import { useToast, type ToastType } from '@/composables/useToast';
 
 type DecoratedPrediction = DiseasePrediction & {
@@ -139,7 +138,8 @@ const handleAnalyze = async () => {
     };
     const response = await analyzeSymptoms(payload);
     diagnosisResult.value = response;
-    showResultsModal.value = Boolean(response?.predictions?.length);
+    // Always show modal to display results or "no confident predictions" message
+    showResultsModal.value = true;
   } catch (err: unknown) {
     const maybeError = err as { response?: { data?: { detail?: string; message?: string } } };
     const message =
@@ -166,16 +166,15 @@ const filteredPredictions = computed<DiseasePrediction[]>(() => {
 });
 
 const decoratedPredictions = computed<DecoratedPrediction[]>(() => {
-  const makeTitle = (text: string) => text.replace(/\w\S*/g, (word) => word.charAt(0).toUpperCase() + word.slice(1));
+  // API already returns Vietnamese names, so we use them directly
   return filteredPredictions.value.map((p) => {
-    const info = diseaseDictionary[p.disease] ?? diseaseDictionary[p.disease.toLowerCase()];
-    const severity = normalizeSeverity(info?.severity ?? p.severity);
+    const severity = normalizeSeverity(p.severity);
     return {
       ...p,
       severity,
-      nameVi: info?.nameVi ?? makeTitle(p.disease),
-      nameEn: info?.nameEn ?? makeTitle(p.disease),
-      noteVi: info?.noteVi,
+      nameVi: p.disease, // API already returns Vietnamese
+      nameEn: p.disease, // Keep same for display consistency
+      noteVi: undefined, // Warnings are already embedded in disease name from API
     };
   });
 });

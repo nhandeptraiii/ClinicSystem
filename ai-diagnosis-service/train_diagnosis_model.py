@@ -34,13 +34,13 @@ BASE_DIR = Path(__file__).resolve().parent
 
 # ⚠️ Đảm bảo bạn copy file CSV này vào thư mục:
 # ai-diagnosis-service/data/Reduced_Dataset_136diseases_200symptoms.csv
-DATA_PATH = BASE_DIR / "data" / "Reduced_Dataset_136diseases_164symptoms_v2.csv"
+DATA_PATH = BASE_DIR / "data" / "Specialized_Training_Dataset.csv"
 
 MODEL_PATH = BASE_DIR / "diagnosis_model.pkl"
 LABEL_ENCODER_PATH = BASE_DIR / "label_encoder.pkl"
 FEATURE_NAMES_PATH = BASE_DIR / "feature_names.pkl"
 
-TARGET_COLUMN = "diseases_clean"
+TARGET_COLUMN = "diseases"
 REMOVED_FEATURES = {"diseases", TARGET_COLUMN}  # "diseases" không có cũng không sao
 RANDOM_SEED = 42
 
