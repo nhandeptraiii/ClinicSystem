@@ -55,6 +55,7 @@ export interface MedicalServiceQuery {
   keyword?: string;
   category?: string;
   clinicRoomId?: number;
+  type?: 'CLINICAL' | 'SUB_CLINICAL';
   page?: number;
   size?: number;
 }

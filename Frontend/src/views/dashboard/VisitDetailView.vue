@@ -173,7 +173,7 @@ const selectedClinicalServiceId = computed({
 
 // Service Order Modal
 const serviceOrderModalOpen = ref(false);
-const SERVICE_PAGE_SIZE = 8;
+const SERVICE_PAGE_SIZE = 100; // Large size to load all services and filter on frontend
 const selectedServices = ref<number[]>([]);
 const serviceOrderNote = ref('');
 const availableServices = ref<MedicalService[]>([]);
@@ -207,15 +207,17 @@ const resultNeedsIndicators = computed(() => {
   return (isClinical || isSubClinical) && hasMappings;
 });
 
-const filteredServices = computed(() => availableServices.value);
+const filteredServices = computed(() => 
+  availableServices.value.filter(service => service.type === 'SUB_CLINICAL')
+);
 
 const servicePaginationLabel = computed(() => {
-  const total = serviceTotalElements.value ?? 0;
-  const current = availableServices.value.length;
-  if (!total) {
-    return `Đang hiển thị ${current} dịch vụ`;
+  const totalFromApi = serviceTotalElements.value ?? 0;
+  const filteredCount = filteredServices.value.length;
+  if (!totalFromApi) {
+    return `Đang hiển thị ${filteredCount} dịch vụ cận lâm sàng`;
   }
-  return `Đang hiển thị ${current} / ${total} dịch vụ`;
+  return `Đang hiển thị ${filteredCount} dịch vụ cận lâm sàng`;
 });
 
 // Prescription Modal
@@ -749,6 +751,22 @@ const submitResults = async () => {
     showToast('error', errorMessage);
   } finally {
     resultSubmitting.value = false;
+  }
+};
+
+const deleteServiceOrder = async (order: ServiceOrder) => {
+  if (!order.id) return;
+  
+  const confirmed = confirm(`Bạn có chắc chắn muốn hủy dịch vụ "${order.medicalService?.name ?? 'N/A'}"?`);
+  if (!confirmed) return;
+  
+  try {
+    await updateServiceOrderStatus(order.id, { status: 'CANCELLED', resultNote: null });
+    showToast('success', 'Đã hủy dịch vụ CLS.');
+    await loadServiceOrders();
+  } catch (err: any) {
+    const errorMessage = err?.response?.data?.message ?? err?.message ?? 'Không thể hủy dịch vụ.';
+    showToast('error', errorMessage);
   }
 };
 
@@ -1469,6 +1487,17 @@ onMounted(() => {
                       {{ order.status === 'COMPLETED_WITH_RESULT' ? 'Sửa kết quả' : 'Nhập kết quả' }}
                     </button>
                     <button
+                      v-if="canModifyClinical && order.status !== 'CANCELLED' && order.status !== 'COMPLETED_WITH_RESULT'"
+                      type="button"
+                      @click="deleteServiceOrder(order)"
+                      class="inline-flex items-center justify-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-rose-700 shadow-sm transition hover:bg-rose-100"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      Hủy dịch vụ
+                    </button>
+                    <button
                       type="button"
                       @click="printServiceOrder(order)"
                       class="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-700 shadow-sm transition hover:bg-slate-50"
@@ -1590,10 +1619,10 @@ onMounted(() => {
                             </span>
                           </div>
                         </td>
-                        <td class="px-4 py-2 text-slate-600">
+                        <td class="px-7 py-2 text-slate-600 ">
                           {{ result.unitSnapshot ?? result.indicatorTemplate?.unit ?? 'N/A' }}
                         </td>
-                        <td class="px-4 py-2 text-slate-600">
+                        <td class="px-16 py-2 text-slate-600">
                           <span
                             v-if="
                               result.indicatorTemplate &&
@@ -2214,7 +2243,7 @@ onMounted(() => {
                           ({{ indicatorMappings.find((m) => m.indicatorTemplate.id === item.indicatorId)?.indicatorTemplate.unit }})
                         </span>
                       </div>
-                      <button
+                      <!-- <button
                         type="button"
                         @click="removeIndicatorFromResult(item.indicatorId)"
                         class="flex h-6 w-6 items-center justify-center rounded-full border border-rose-200 text-rose-600 transition hover:border-rose-300 hover:bg-rose-50"
@@ -2222,7 +2251,7 @@ onMounted(() => {
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                           <path stroke-linecap="round" stroke-linejoin="round" d="m15 9-6 6m0-6 6 6M3 6h18" />
                         </svg>
-                      </button>
+                      </button> -->
                     </div>
 
                     <div class="grid gap-3 sm:grid-cols-2">
