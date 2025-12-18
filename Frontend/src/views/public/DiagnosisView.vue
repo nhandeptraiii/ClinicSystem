@@ -482,7 +482,7 @@ onMounted(async () => {
                   <th class="px-4 py-3">#</th>
                   <th class="px-4 py-3">Bệnh</th>
                   <th class="px-4 py-3">Xác suất</th>
-                  <th class="px-4 py-3">Mức độ</th>
+                  <th class="px-9 py-3">Mức độ</th>
                   <th class="px-4 py-3">Ghi chú</th>
                 </tr>
               </thead>
@@ -491,9 +491,8 @@ onMounted(async () => {
                   <td class="px-4 py-3 text-slate-600">{{ idx + 1 }}</td>
                   <td class="px-4 py-3">
                     <p class="font-semibold text-slate-900">{{ prediction.nameVi }}</p>
-                    <p class="text-xs text-slate-500">{{ prediction.nameEn }}</p>
                   </td>
-                  <td class="px-4 py-3 text-slate-800">{{ formatPercent(prediction.probability) }}</td>
+                  <td class="px-8 py-3 text-slate-800">{{ formatPercent(prediction.probability) }}</td>
                   <td class="px-4 py-3">
                     <span
                       class="rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide"
@@ -502,7 +501,7 @@ onMounted(async () => {
                       {{ severityLabelVi(prediction.severity) }}
                     </span>
                   </td>
-                  <td class="px-4 py-3 text-slate-700">
+                  <td class="px-8 py-3 text-slate-700">
                     <span v-if="prediction.noteVi">{{ prediction.noteVi }}</span>
                     <span v-else class="text-slate-400">—</span>
                   </td>

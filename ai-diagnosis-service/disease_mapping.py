@@ -1,24 +1,9 @@
-# Auto-generated disease mapping for 157 diseases
+# Auto-generated disease mapping for 160 diseases (Hybrid Dataset)
 # Only weak diseases (F1 < 0.5) are grouped
 
 DISEASE_MAPPING = {
-    "abdominal hernia": {
-        "name_vi": "Thoát vị bụng",
-        "severity": "medium",
-        "warning": None
-    },
-    "abscess of nose": {
-        "name_vi": "Áp xe mũi",
-        "severity": "medium",
-        "warning": None
-    },
-    "abscess of the pharynx": {
-        "name_vi": "Áp xe họng",
-        "severity": "medium",
-        "warning": None
-    },
-    "acne": {
-        "name_vi": "Mụn trứng cá",
+    "acute bronchiolitis": {
+        "name_vi": "Viêm tiểu phế quản cấp",
         "severity": "medium",
         "warning": None
     },
@@ -26,6 +11,11 @@ DISEASE_MAPPING = {
         "name_vi": "Viêm phế quản cấp",
         "severity": "medium",
         "warning": None
+    },
+    "acute bronchospasm": {
+        "name_vi": "Co thắt phế quản cấp (cần khám chuyên khoa)",
+        "severity": "medium",
+        "warning": "cần khám chuyên khoa"
     },
     "acute kidney injury": {
         "name_vi": "Tổn thương thận cấp",
@@ -47,28 +37,23 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
-    "alcoholic liver disease": {
-        "name_vi": "Bệnh gan do rượu",
+    "adhesive capsulitis of the shoulder": {
+        "name_vi": "Viêm bao khớp vai dính",
         "severity": "medium",
         "warning": None
     },
-    "alopecia": {
-        "name_vi": "Rụng tóc",
+    "allergy": {
+        "name_vi": "Dị ứng",
         "severity": "medium",
         "warning": None
     },
-    "alzheimer disease": {
-        "name_vi": "Bệnh Alzheimer",
+    "ankylosing spondylitis": {
+        "name_vi": "Viêm cột sống dính khớp",
         "severity": "medium",
         "warning": None
     },
-    "anal fissure": {
-        "name_vi": "Nứt kẽ hậu môn",
-        "severity": "medium",
-        "warning": None
-    },
-    "anemia": {
-        "name_vi": "Thiếu máu",
+    "anxiety": {
+        "name_vi": "Lo âu",
         "severity": "medium",
         "warning": None
     },
@@ -77,8 +62,18 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
+    "appendicitis": {
+        "name_vi": "Viêm ruột thừa",
+        "severity": "medium",
+        "warning": None
+    },
     "arthritis of the hip": {
         "name_vi": "Viêm khớp háng",
+        "severity": "medium",
+        "warning": None
+    },
+    "ascending cholangitis": {
+        "name_vi": "Viêm đường mật lên",
         "severity": "medium",
         "warning": None
     },
@@ -87,18 +82,23 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
-    "athlete's foot": {
-        "name_vi": "Nấm chân vận động viên",
+    "atrial flutter": {
+        "name_vi": "Rung nhĩ",
         "severity": "medium",
         "warning": None
     },
-    "atrophic skin condition": {
-        "name_vi": "Teo da",
+    "atrophic vaginitis": {
+        "name_vi": "Viêm âm đạo teo",
         "severity": "medium",
         "warning": None
     },
-    "benign kidney cyst": {
-        "name_vi": "Nang thận lành tính",
+    "autism": {
+        "name_vi": "Tự kỷ",
+        "severity": "medium",
+        "warning": None
+    },
+    "balanitis": {
+        "name_vi": "Viêm quy đầu",
         "severity": "medium",
         "warning": None
     },
@@ -107,23 +107,13 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
-    "bladder disorder": {
-        "name_vi": "Rối loạn bàng quang",
+    "blepharitis": {
+        "name_vi": "Viêm mi mắt",
         "severity": "medium",
         "warning": None
     },
-    "bladder obstruction": {
-        "name_vi": "Tắc nghẽn bàng quang",
-        "severity": "medium",
-        "warning": None
-    },
-    "bone disorder": {
-        "name_vi": "Rối loạn xương",
-        "severity": "medium",
-        "warning": None
-    },
-    "brain cancer": {
-        "name_vi": "Ung thư não",
+    "brachial neuritis": {
+        "name_vi": "Viêm thần kinh cánh tay",
         "severity": "medium",
         "warning": None
     },
@@ -132,18 +122,43 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
-    "cardiac arrest": {
-        "name_vi": "Ngừng tim",
+    "bursitis": {
+        "name_vi": "Viêm bao hoạt dịch",
+        "severity": "medium",
+        "warning": None
+    },
+    "cellulitis or abscess of mouth": {
+        "name_vi": "Viêm mô tế bào hoặc áp xe miệng",
+        "severity": "medium",
+        "warning": None
+    },
+    "cervicitis": {
+        "name_vi": "Viêm cổ tử cung",
         "severity": "medium",
         "warning": None
     },
     "cholecystitis": {
-        "name_vi": "Bệnh lý mật (cần xét nghiệm chuyên sâu)",
+        "name_vi": "Viêm túi mật (cần khám chuyên khoa)",
         "severity": "medium",
         "warning": "cần khám chuyên khoa"
     },
+    "chorioretinitis": {
+        "name_vi": "Viêm màng mạch - võng mạc",
+        "severity": "medium",
+        "warning": None
+    },
     "chronic back pain": {
         "name_vi": "Đau lưng mạn tính",
+        "severity": "medium",
+        "warning": None
+    },
+    "chronic constipation": {
+        "name_vi": "Táo bón mạn tính",
+        "severity": "medium",
+        "warning": None
+    },
+    "chronic knee pain": {
+        "name_vi": "Đau đầu gối mạn tính",
         "severity": "medium",
         "warning": None
     },
@@ -157,8 +172,18 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
+    "chronic pain disorder": {
+        "name_vi": "Rối loạn đau mạn tính",
+        "severity": "medium",
+        "warning": None
+    },
     "chronic pancreatitis": {
         "name_vi": "Viêm tụy mạn tính",
+        "severity": "medium",
+        "warning": None
+    },
+    "chronic rheumatic fever": {
+        "name_vi": "Sốt thấp khớp mạn tính",
         "severity": "medium",
         "warning": None
     },
@@ -167,23 +192,38 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
-    "cirrhosis": {
-        "name_vi": "Xơ gan",
-        "severity": "medium",
-        "warning": None
-    },
     "cold sore": {
         "name_vi": "Herpes môi",
         "severity": "medium",
         "warning": None
     },
-    "colonic polyp": {
-        "name_vi": "Polyp đại tràng",
+    "common cold": {
+        "name_vi": "Cảm lạnh thông thường (cần khám chuyên khoa)",
+        "severity": "medium",
+        "warning": "cần khám chuyên khoa"
+    },
+    "complex regional pain syndrome": {
+        "name_vi": "Hội chứng đau vùng phức hợp",
         "severity": "medium",
         "warning": None
     },
-    "conductive hearing loss": {
-        "name_vi": "Điếc dẫn truyền",
+    "conjunctivitis": {
+        "name_vi": "Viêm kết mạc",
+        "severity": "medium",
+        "warning": None
+    },
+    "conjunctivitis due to allergy": {
+        "name_vi": "Viêm kết mạc dị ứng",
+        "severity": "medium",
+        "warning": None
+    },
+    "conjunctivitis due to bacteria": {
+        "name_vi": "Viêm kết mạc do vi khuẩn (cần khám chuyên khoa)",
+        "severity": "medium",
+        "warning": "cần khám chuyên khoa"
+    },
+    "conjunctivitis due to virus": {
+        "name_vi": "Viêm kết mạc do virus",
         "severity": "medium",
         "warning": None
     },
@@ -207,11 +247,6 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
-    "dementia": {
-        "name_vi": "Chứng mất trí",
-        "severity": "medium",
-        "warning": None
-    },
     "dental caries": {
         "name_vi": "Sâu răng",
         "severity": "medium",
@@ -222,23 +257,13 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
-    "deviated nasal septum": {
-        "name_vi": "Lệch vách ngăn mũi",
-        "severity": "medium",
-        "warning": None
-    },
-    "diabetic peripheral neuropathy": {
-        "name_vi": "Bệnh thần kinh ngoại biên do tiểu đường",
-        "severity": "medium",
-        "warning": None
-    },
     "diaper rash": {
         "name_vi": "Hăm tã",
         "severity": "medium",
         "warning": None
     },
-    "drug poisoning due to medication": {
-        "name_vi": "Ngộ độc thuốc",
+    "diverticulitis": {
+        "name_vi": "Viêm túi thừa",
         "severity": "medium",
         "warning": None
     },
@@ -247,8 +272,8 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
-    "ear wax impaction": {
-        "name_vi": "Ù tai do ráy",
+    "ectopic pregnancy": {
+        "name_vi": "Thai ngoài tử cung",
         "severity": "medium",
         "warning": None
     },
@@ -257,8 +282,28 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
-    "erectile dysfunction": {
-        "name_vi": "Rối loạn cương dương",
+    "encephalitis": {
+        "name_vi": "Viêm não",
+        "severity": "medium",
+        "warning": None
+    },
+    "endocarditis": {
+        "name_vi": "Viêm nội tâm mạc",
+        "severity": "medium",
+        "warning": None
+    },
+    "endophthalmitis": {
+        "name_vi": "Viêm nội nhãn",
+        "severity": "medium",
+        "warning": None
+    },
+    "epididymitis": {
+        "name_vi": "Viêm mào tinh",
+        "severity": "medium",
+        "warning": None
+    },
+    "esophagitis": {
+        "name_vi": "Viêm thực quản",
         "severity": "medium",
         "warning": None
     },
@@ -272,38 +317,23 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
-    "fibromyalgia": {
-        "name_vi": "Đau cơ xơ hóa",
+    "flu": {
+        "name_vi": "Cúm",
         "severity": "medium",
         "warning": None
     },
-    "fracture of the arm": {
-        "name_vi": "Gãy xương cánh tay",
+    "fluid overload": {
+        "name_vi": "Quá tải dịch",
         "severity": "medium",
         "warning": None
     },
-    "fracture of the facial bones": {
-        "name_vi": "Gãy xương mặt",
+    "food allergy": {
+        "name_vi": "Dị ứng thực phẩm",
         "severity": "medium",
         "warning": None
     },
-    "fracture of the leg": {
-        "name_vi": "Gãy xương chân",
-        "severity": "medium",
-        "warning": None
-    },
-    "fracture of the pelvis": {
-        "name_vi": "Gãy xương chậu",
-        "severity": "medium",
-        "warning": None
-    },
-    "fracture of the rib": {
-        "name_vi": "Gãy xương sườn",
-        "severity": "medium",
-        "warning": None
-    },
-    "fracture of the vertebra": {
-        "name_vi": "Gãy đốt sống",
+    "foreign body in the gastrointestinal tract": {
+        "name_vi": "Dị vật đường tiêu hóa",
         "severity": "medium",
         "warning": None
     },
@@ -322,11 +352,6 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
-    "ganglion cyst": {
-        "name_vi": "U hạch",
-        "severity": "medium",
-        "warning": None
-    },
     "gastritis": {
         "name_vi": "Viêm dạ dày",
         "severity": "medium",
@@ -342,13 +367,23 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
+    "gastrointestinal hemorrhage": {
+        "name_vi": "Xuất huyết tiêu hóa",
+        "severity": "medium",
+        "warning": None
+    },
+    "gastroparesis": {
+        "name_vi": "Liệt dạ dày",
+        "severity": "medium",
+        "warning": None
+    },
     "gout": {
         "name_vi": "Gout (Bệnh gút)",
         "severity": "medium",
         "warning": None
     },
-    "gum disease": {
-        "name_vi": "Bệnh nướu răng",
+    "headache after lumbar puncture": {
+        "name_vi": "Đau đầu sau chọc tủy sống",
         "severity": "medium",
         "warning": None
     },
@@ -357,18 +392,8 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
-    "heart block": {
-        "name_vi": "Blốc tim",
-        "severity": "medium",
-        "warning": None
-    },
     "heart failure": {
         "name_vi": "Suy tim",
-        "severity": "medium",
-        "warning": None
-    },
-    "hemiplegia": {
-        "name_vi": "Liệt nửa người",
         "severity": "medium",
         "warning": None
     },
@@ -377,8 +402,13 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
-    "hepatitis due to a toxin": {
-        "name_vi": "Viêm gan do độc tố",
+    "hidradenitis suppurativa": {
+        "name_vi": "Viêm tuyến mồ hôi mủ",
+        "severity": "medium",
+        "warning": None
+    },
+    "hypertension of pregnancy": {
+        "name_vi": "Tăng huyết áp thai kỳ",
         "severity": "medium",
         "warning": None
     },
@@ -387,13 +417,13 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
-    "ingrown toe nail": {
-        "name_vi": "Móng chân mọc ngược",
+    "idiopathic painful menstruation": {
+        "name_vi": "Đau bụng kinh không rõ nguyên nhân",
         "severity": "medium",
         "warning": None
     },
-    "injury of the ankle": {
-        "name_vi": "Chấn thương mắt cá chân",
+    "infectious gastroenteritis": {
+        "name_vi": "Viêm dạ dày ruột nhiễm trùng",
         "severity": "medium",
         "warning": None
     },
@@ -407,18 +437,8 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
-    "injury to the shoulder": {
-        "name_vi": "Chấn thương vai",
-        "severity": "medium",
-        "warning": None
-    },
-    "interstitial lung disease": {
-        "name_vi": "Bệnh phổi kẽ",
-        "severity": "medium",
-        "warning": None
-    },
-    "iron deficiency anemia": {
-        "name_vi": "Thiếu máu do thiếu sắt",
+    "iridocyclitis": {
+        "name_vi": "Viêm mống mắt - thể mi",
         "severity": "medium",
         "warning": None
     },
@@ -427,28 +447,18 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
-    "ischemia of the bowel": {
-        "name_vi": "Thiếu máu ruột",
-        "severity": "medium",
-        "warning": None
-    },
-    "ischemic heart disease": {
-        "name_vi": "Bệnh tim thiếu máu cục bộ",
-        "severity": "medium",
-        "warning": None
-    },
-    "joint effusion": {
-        "name_vi": "Tràn dịch khớp",
-        "severity": "medium",
-        "warning": None
-    },
-    "kidney failure": {
-        "name_vi": "Suy thận",
-        "severity": "medium",
-        "warning": None
-    },
     "kidney stone": {
         "name_vi": "Sỏi thận",
+        "severity": "medium",
+        "warning": None
+    },
+    "labyrinthitis": {
+        "name_vi": "Viêm tiền đình",
+        "severity": "medium",
+        "warning": None
+    },
+    "laryngitis": {
+        "name_vi": "Viêm thanh quản",
         "severity": "medium",
         "warning": None
     },
@@ -462,8 +472,23 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
-    "malignant hypertension": {
-        "name_vi": "Tăng huyết áp ác tính",
+    "lymphadenitis": {
+        "name_vi": "Viêm hạch bạch huyết",
+        "severity": "medium",
+        "warning": None
+    },
+    "male genitalia infection": {
+        "name_vi": "Nhiễm trùng cơ quan sinh dục nam",
+        "severity": "medium",
+        "warning": None
+    },
+    "mastoiditis": {
+        "name_vi": "Viêm xương chũm",
+        "severity": "medium",
+        "warning": None
+    },
+    "meningitis": {
+        "name_vi": "Viêm màng não",
         "severity": "medium",
         "warning": None
     },
@@ -472,18 +497,23 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
-    "muscle spasm": {
-        "name_vi": "Co thắt cơ",
+    "mononeuritis": {
+        "name_vi": "Viêm đơn dây thần kinh",
         "severity": "medium",
         "warning": None
     },
-    "nasal polyp": {
-        "name_vi": "Polyp mũi",
+    "mucositis": {
+        "name_vi": "Viêm niêm mạc",
         "severity": "medium",
         "warning": None
     },
-    "nerve impingement near the shoulder": {
-        "name_vi": "Chèn ép dây thần kinh gần vai",
+    "myositis": {
+        "name_vi": "Viêm cơ",
+        "severity": "medium",
+        "warning": None
+    },
+    "noninfectious gastroenteritis": {
+        "name_vi": "Viêm dạ dày ruột không nhiễm trùng",
         "severity": "medium",
         "warning": None
     },
@@ -497,13 +527,18 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
+    "orbital cellulitis": {
+        "name_vi": "Viêm mô tế bào hốc mắt",
+        "severity": "medium",
+        "warning": None
+    },
     "osteoarthritis": {
         "name_vi": "Thoái hóa khớp",
         "severity": "medium",
         "warning": None
     },
-    "osteoporosis": {
-        "name_vi": "Loãng xương",
+    "osteomyelitis": {
+        "name_vi": "Viêm xương tủy",
         "severity": "medium",
         "warning": None
     },
@@ -522,13 +557,28 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
-    "overflow incontinence": {
-        "name_vi": "Tiểu không tự chủ do tràn",
+    "ovarian torsion": {
+        "name_vi": "Xoắn buồng trứng",
         "severity": "medium",
         "warning": None
     },
-    "parkinson disease": {
-        "name_vi": "Bệnh Parkinson",
+    "pain after an operation": {
+        "name_vi": "Đau sau phẫu thuật",
+        "severity": "medium",
+        "warning": None
+    },
+    "pain disorder affecting the neck": {
+        "name_vi": "Rối loạn đau ảnh hưởng cổ",
+        "severity": "medium",
+        "warning": None
+    },
+    "pericarditis": {
+        "name_vi": "Viêm màng ngoài tim",
+        "severity": "medium",
+        "warning": None
+    },
+    "perirectal infection": {
+        "name_vi": "Nhiễm trùng quanh trực tràng",
         "severity": "medium",
         "warning": None
     },
@@ -537,13 +587,13 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
-    "peritonsillar abscess": {
-        "name_vi": "Áp xe quanh amidan",
+    "pinworm infection": {
+        "name_vi": "Nhiễm giun kim",
         "severity": "medium",
         "warning": None
     },
-    "pilonidal cyst": {
-        "name_vi": "Nang lông mi",
+    "plantar fasciitis": {
+        "name_vi": "Viêm cân gan bàn chân",
         "severity": "medium",
         "warning": None
     },
@@ -552,28 +602,33 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
-    "poisoning due to gas": {
-        "name_vi": "Ngộ độc khí",
-        "severity": "medium",
-        "warning": None
-    },
-    "polycystic kidney disease": {
-        "name_vi": "Bệnh thận đa nang",
-        "severity": "medium",
-        "warning": None
-    },
     "polycystic ovarian syndrome (pcos)": {
         "name_vi": "Hội chứng buồng trứng đa nang (PCOS)",
         "severity": "medium",
         "warning": None
     },
-    "psoriasis": {
-        "name_vi": "Bệnh vảy nến",
+    "postoperative infection": {
+        "name_vi": "Nhiễm trùng sau phẫu thuật",
         "severity": "medium",
         "warning": None
     },
-    "pulmonary hypertension": {
-        "name_vi": "Tăng áp phổi",
+    "primary insomnia": {
+        "name_vi": "Mất ngủ nguyên phát",
+        "severity": "medium",
+        "warning": None
+    },
+    "problem during pregnancy": {
+        "name_vi": "Vấn đề trong thai kỳ",
+        "severity": "medium",
+        "warning": None
+    },
+    "prostatitis": {
+        "name_vi": "Viêm tuyến tiền liệt",
+        "severity": "medium",
+        "warning": None
+    },
+    "psoriasis": {
+        "name_vi": "Bệnh vảy nến",
         "severity": "medium",
         "warning": None
     },
@@ -592,23 +647,18 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
-    "restless leg syndrome": {
-        "name_vi": "Hội chứng chân không yên",
-        "severity": "medium",
-        "warning": None
-    },
     "rheumatoid arthritis": {
         "name_vi": "Viêm khớp dạng thấp",
         "severity": "medium",
         "warning": None
     },
-    "rosacea": {
-        "name_vi": "Bệnh hồng ban",
+    "scarlet fever": {
+        "name_vi": "Sốt ban đỏ",
         "severity": "medium",
         "warning": None
     },
-    "scabies": {
-        "name_vi": "Ghẻ",
+    "scleritis": {
+        "name_vi": "Viêm củng mạc",
         "severity": "medium",
         "warning": None
     },
@@ -627,18 +677,18 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
-    "sensorineural hearing loss": {
-        "name_vi": "Điếc thần kinh cảm giác",
-        "severity": "medium",
-        "warning": None
-    },
     "sepsis": {
         "name_vi": "Nhiễm trùng huyết",
         "severity": "medium",
         "warning": None
     },
-    "sickle cell anemia": {
-        "name_vi": "Thiếu máu hồng cầu hình liềm",
+    "sialoadenitis": {
+        "name_vi": "Viêm tuyến nước bọt",
+        "severity": "medium",
+        "warning": None
+    },
+    "sick sinus syndrome": {
+        "name_vi": "Hội chứng xoang bệnh",
         "severity": "medium",
         "warning": None
     },
@@ -647,25 +697,20 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
-    "skin cancer": {
-        "name_vi": "Ung thư da",
-        "severity": "medium",
-        "warning": None
-    },
-    "skin disorder": {
-        "name_vi": "Bệnh lý da (cần khám trực tiếp)",
-        "severity": "medium",
-        "warning": "cần khám chuyên khoa"
-    },
     "skin pigmentation disorder": {
-        "name_vi": "Bệnh lý da (cần khám trực tiếp)",
+        "name_vi": "Rối loạn sắc tố da (cần khám chuyên khoa)",
         "severity": "medium",
         "warning": "cần khám chuyên khoa"
     },
     "skin polyp": {
-        "name_vi": "Bệnh lý da (cần khám trực tiếp)",
+        "name_vi": "Polyp da (cần khám chuyên khoa)",
         "severity": "medium",
         "warning": "cần khám chuyên khoa"
+    },
+    "spondylitis": {
+        "name_vi": "Viêm đốt sống",
+        "severity": "medium",
+        "warning": None
     },
     "spondylosis": {
         "name_vi": "Thoái hóa cột sống",
@@ -677,23 +722,8 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
-    "stress incontinence": {
-        "name_vi": "Tiểu không tự chủ do stress",
-        "severity": "medium",
-        "warning": None
-    },
-    "stroke": {
-        "name_vi": "Đột quỵ",
-        "severity": "medium",
-        "warning": None
-    },
-    "temporary or benign blood in urine": {
-        "name_vi": "Máu trong nước tiểu lành tính",
-        "severity": "medium",
-        "warning": None
-    },
-    "temporomandibular joint disorder": {
-        "name_vi": "Rối loạn khớp thái dương hàm",
+    "tendinitis": {
+        "name_vi": "Viêm gân",
         "severity": "medium",
         "warning": None
     },
@@ -702,18 +732,13 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
-    "thyroid nodule": {
-        "name_vi": "Nốt giáp",
+    "threatened pregnancy": {
+        "name_vi": "Thai kỳ bị đe dọa",
         "severity": "medium",
         "warning": None
     },
-    "tinnitus of unknown cause": {
-        "name_vi": "Ù tai nguyên nhân không rõ",
-        "severity": "medium",
-        "warning": None
-    },
-    "tonsillar hypertrophy": {
-        "name_vi": "Phì đại amidan",
+    "thrombophlebitis": {
+        "name_vi": "Viêm tắc tĩnh mạch",
         "severity": "medium",
         "warning": None
     },
@@ -722,13 +747,8 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
-    "tooth abscess": {
-        "name_vi": "Áp xe răng",
-        "severity": "medium",
-        "warning": None
-    },
-    "tooth disorder": {
-        "name_vi": "Rối loạn răng",
+    "tracheitis": {
+        "name_vi": "Viêm khí quản",
         "severity": "medium",
         "warning": None
     },
@@ -742,28 +762,13 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
-    "urethral disorder": {
-        "name_vi": "Rối loạn niệu đạo",
-        "severity": "medium",
-        "warning": None
-    },
-    "urethral stricture": {
-        "name_vi": "Hẹp niệu đạo",
-        "severity": "medium",
-        "warning": None
-    },
-    "urge incontinence": {
-        "name_vi": "Tiểu không tự chủ cấp bách",
+    "urethritis": {
+        "name_vi": "Viêm niệu đạo",
         "severity": "medium",
         "warning": None
     },
     "urinary tract infection": {
         "name_vi": "Nhiễm trùng đường tiết niệu",
-        "severity": "medium",
-        "warning": None
-    },
-    "urinary tract obstruction": {
-        "name_vi": "Tắc nghẽn đường tiết niệu",
         "severity": "medium",
         "warning": None
     },
@@ -777,8 +782,18 @@ DISEASE_MAPPING = {
         "severity": "medium",
         "warning": None
     },
-    "viral warts": {
-        "name_vi": "Mụn cóc do virus",
+    "vaginismus": {
+        "name_vi": "Co thắt âm đạo",
+        "severity": "medium",
+        "warning": None
+    },
+    "vaginitis": {
+        "name_vi": "Viêm âm đạo",
+        "severity": "medium",
+        "warning": None
+    },
+    "vasculitis": {
+        "name_vi": "Viêm mạch máu",
         "severity": "medium",
         "warning": None
     },

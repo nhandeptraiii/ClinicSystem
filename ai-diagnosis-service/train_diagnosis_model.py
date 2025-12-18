@@ -34,7 +34,7 @@ BASE_DIR = Path(__file__).resolve().parent
 
 # ⚠️ Đảm bảo bạn copy file CSV này vào thư mục:
 # ai-diagnosis-service/data/Reduced_Dataset_136diseases_200symptoms.csv
-DATA_PATH = BASE_DIR / "data" / "Specialized_Training_Dataset.csv"
+DATA_PATH = BASE_DIR / "data" / "Hybrid_Dataset_balanced.csv"
 
 MODEL_PATH = BASE_DIR / "diagnosis_model.pkl"
 LABEL_ENCODER_PATH = BASE_DIR / "label_encoder.pkl"
