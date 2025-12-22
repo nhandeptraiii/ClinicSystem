@@ -18,6 +18,10 @@ public interface MedicationRepository extends JpaRepository<Medication, Long> {
 
     boolean existsByNameIgnoreCase(String name);
 
+    Optional<Medication> findByBatchNoIgnoreCase(String batchNo);
+
+    boolean existsByBatchNoIgnoreCase(String batchNo);
+
     @Query("""
             SELECT m FROM Medication m
             WHERE (:keyword IS NULL OR LOWER(m.name) LIKE LOWER(CONCAT('%', :keyword, '%'))

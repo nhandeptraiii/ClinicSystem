@@ -67,7 +67,7 @@ public class MedicationService {
         medication.setExpiryDate(request.getExpiryDate());
         medication.setStockQuantity(request.getStockQuantity() != null ? request.getStockQuantity() : 0);
 
-        ensureNameUnique(medication.getName(), null);
+        ensureBatchNoUnique(medication.getBatchNo(), null);
         validateBean(medication);
         return medicationRepository.save(medication);
     }
@@ -78,9 +78,6 @@ public class MedicationService {
 
         if (request.getName() != null) {
             String normalized = normalizeName(request.getName());
-            if (!normalized.equalsIgnoreCase(medication.getName())) {
-                ensureNameUnique(normalized, medication.getId());
-            }
             medication.setName(normalized);
         }
         if (request.getActiveIngredient() != null) {
@@ -90,7 +87,11 @@ public class MedicationService {
             medication.setStrength(normalizeText(request.getStrength()));
         }
         if (request.getBatchNo() != null) {
-            medication.setBatchNo(normalizeName(request.getBatchNo()));
+            String normalized = normalizeName(request.getBatchNo());
+            if (!normalized.equalsIgnoreCase(medication.getBatchNo())) {
+                ensureBatchNoUnique(normalized, medication.getId());
+            }
+            medication.setBatchNo(normalized);
         }
         if (request.getUnit() != null) {
             medication.setUnit(normalizeText(request.getUnit()));
@@ -124,11 +125,11 @@ public class MedicationService {
         medicationRepository.delete(medication);
     }
 
-    private void ensureNameUnique(String name, Long currentMedicationId) {
-        medicationRepository.findByNameIgnoreCase(name).ifPresent(existing -> {
+    private void ensureBatchNoUnique(String batchNo, Long currentMedicationId) {
+        medicationRepository.findByBatchNoIgnoreCase(batchNo).ifPresent(existing -> {
             boolean same = currentMedicationId != null && existing.getId().equals(currentMedicationId);
             if (!same) {
-                throw new EntityExistsException("Đã tồn tại thuốc với tên: " + name);
+                throw new EntityExistsException("Đã tồn tại thuốc với mã lô: " + batchNo);
             }
         });
     }

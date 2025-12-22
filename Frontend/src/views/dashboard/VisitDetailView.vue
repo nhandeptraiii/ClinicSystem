@@ -943,6 +943,15 @@ const submitPrescription = async () => {
       showToast('error', 'Vui lòng nhập đầy đủ liều dùng và tần suất cho tất cả các mục.');
       return;
     }
+    
+    // Validate stock quantity for medications in inventory
+    if (item.medicationId) {
+      const medication = availableMedications.value.find(m => m.id === item.medicationId);
+      if (medication && medication.stockQuantity < (item.quantity ?? 0)) {
+        showToast('error', `Thuốc "${medication.name}" không đủ trong kho. Số lượng hiện có: ${medication.stockQuantity} ${medication.unit ?? ''}.`);
+        return;
+      }
+    }
   }
 
   try {
@@ -2430,7 +2439,10 @@ onMounted(() => {
                       "
                       class="w-full px-3 py-2 text-left text-sm transition hover:bg-emerald-50"
                     >
-                      {{ med.name }} ({{ med.batchNo }})
+                      <div class="flex flex-col">
+                        <span class="font-semibold text-slate-900">{{ med.name }} - {{ med.batchNo }} - {{ new Date(med.expiryDate).toLocaleDateString('vi-VN') }}</span>
+                        <span class="text-xs text-slate-500">Tồn kho: {{ med.stockQuantity }} {{ med.unit ?? '' }}</span>
+                      </div>
                     </button>
                   </div>
                 </div>

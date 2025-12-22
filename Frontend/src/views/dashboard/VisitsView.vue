@@ -165,6 +165,18 @@ const filteredVisits = computed(() => {
     result = result.filter((visit) => getVisitLocalDate(visit) === filterDate);
   }
 
+  // Sort by appointment time (newest first)
+  result.sort((a, b) => {
+    const dateA = a.primaryAppointment?.scheduledAt ?? a.createdAt;
+    const dateB = b.primaryAppointment?.scheduledAt ?? b.createdAt;
+    
+    if (!dateA && !dateB) return 0;
+    if (!dateA) return 1;
+    if (!dateB) return -1;
+    
+    return new Date(dateB).getTime() - new Date(dateA).getTime();
+  });
+
   return result;
 });
 

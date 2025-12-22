@@ -36,7 +36,7 @@ public class Medication {
 
     @NotBlank(message = "Tên thuốc không được để trống")
     @Size(max = 150, message = "Tên thuốc tối đa 150 ký tự")
-    // @Column(nullable = false, length = 150, unique = true)
+    @Column(nullable = false, length = 150)
     private String name;
 
     @Size(max = 150, message = "Hoạt chất tối đa 150 ký tự")
@@ -49,7 +49,7 @@ public class Medication {
 
     @NotBlank(message = "Mã lô không được để trống")
     @Size(max = 50, message = "Mã lô tối đa 50 ký tự")
-    @Column(nullable = false, length = 50)
+    @Column(nullable = false, length = 50, unique = true)
     private String batchNo;
 
     @Size(max = 30, message = "Đơn vị tối đa 30 ký tự")
