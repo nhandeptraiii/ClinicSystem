@@ -350,11 +350,6 @@ const openHistoryModal = async (patient: Patient) => {
   historyModalOpen.value = true;
 };
 
-const closeHistoryModal = () => {
-  historyModalOpen.value = false;
-  historyPatient.value = null;
-};
-
 const confirmDelete = (patient: Patient) => {
   deleteTarget.value = patient;
 };

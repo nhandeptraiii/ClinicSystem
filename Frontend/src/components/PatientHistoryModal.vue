@@ -5,7 +5,6 @@ import {
   fetchVisitPage,
   fetchServiceOrders,
   type PatientVisit,
-  type ServiceOrder,
 } from '@/services/visit.service';
 import { fetchPrescriptions } from '@/services/prescription.service';
 
@@ -54,17 +53,7 @@ const visitStatusLabel = (status?: string | null) => {
   return status ? map[status] ?? 'Không rõ' : 'Không rõ';
 };
 
-const serviceOrderStatusLabel = (status?: string | null) => {
-  const map: Record<string, string> = {
-    PENDING: 'Chờ xử lý',
-    SCHEDULED: 'Đã lên lịch',
-    IN_PROGRESS: 'Đang thực hiện',
-    COMPLETED_WITH_RESULT: 'Hoàn tất (có kết quả)',
-    COMPLETED: 'Hoàn tất',
-    CANCELLED: 'Đã hủy',
-  };
-  return status ? map[status] ?? 'Không rõ' : 'Không rõ';
-};
+
 
 const prescriptionStatusLabel = (status?: string | null) => {
   const map: Record<string, string> = {
@@ -100,17 +89,6 @@ const indicatorEvaluationLabel = (evaluation?: string | null) => {
     LOW: 'Thấp',
   };
   return map[level] ?? evaluation;
-};
-
-const serviceOrderResultSummary = (svc: ServiceOrder) => {
-  const first = svc?.indicatorResults && svc.indicatorResults.length > 0 ? svc.indicatorResults[0] : null;
-  if (!first) {
-    return serviceOrderStatusLabel(svc.status);
-  }
-  const unit = displayValue(first.unitSnapshot || first.indicatorTemplate?.unit);
-  const evalLabel = indicatorEvaluationLabel(first.evaluation);
-  const evalText = evalLabel ? ` (${evalLabel})` : '';
-  return `Giá trị: ${first.measuredValue ?? 'Không có'} ${unit}${evalText}`;
 };
 
 const loadVisitHistory = async (patientId: number) => {

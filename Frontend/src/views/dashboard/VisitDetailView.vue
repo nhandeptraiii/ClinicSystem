@@ -694,13 +694,6 @@ const addIndicatorToResult = (mapping: ServiceIndicatorMapping) => {
   }
 };
 
-const removeIndicatorFromResult = (indicatorId: number) => {
-  const index = resultFormState.value.indicators.findIndex((item) => item.indicatorId === indicatorId);
-  if (index > -1) {
-    resultFormState.value.indicators.splice(index, 1);
-  }
-};
-
 const submitResults = async () => {
   if (!currentServiceOrderForResult.value?.id) return;
   const needsIndicators = resultNeedsIndicators.value;
