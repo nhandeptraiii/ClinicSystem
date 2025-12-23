@@ -142,7 +142,7 @@ const handleSubmit = async () => {
               required
               autocomplete="username"
               class="w-full rounded-xl border border-emerald-100 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
-              placeholder="example@clinicsystem.com"
+              placeholder="example@clinic.local"
             />
           </div>
 
