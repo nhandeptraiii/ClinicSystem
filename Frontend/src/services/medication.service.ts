@@ -38,6 +38,7 @@ export interface MedicationQuery {
   keyword?: string;
   page?: number;
   size?: number;
+  expiryFilter?: string;
 }
 
 export interface MedicationPage {

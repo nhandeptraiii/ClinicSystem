@@ -1,5 +1,6 @@
 package vn.project.ClinicSystem.repository;
 
+import java.time.LocalDate;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
@@ -27,6 +28,11 @@ public interface MedicationRepository extends JpaRepository<Medication, Long> {
             WHERE (:keyword IS NULL OR LOWER(m.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
                 OR LOWER(m.activeIngredient) LIKE LOWER(CONCAT('%', :keyword, '%'))
                 OR LOWER(m.manufacturer) LIKE LOWER(CONCAT('%', :keyword, '%')))
+            AND (:minExpiry IS NULL OR m.expiryDate >= :minExpiry)
+            AND (:maxExpiry IS NULL OR m.expiryDate <= :maxExpiry)
             """)
-    Page<Medication> search(@Param("keyword") String keyword, Pageable pageable);
+    Page<Medication> search(@Param("keyword") String keyword,
+            @Param("minExpiry") LocalDate minExpiry,
+            @Param("maxExpiry") LocalDate maxExpiry,
+            Pageable pageable);
 }

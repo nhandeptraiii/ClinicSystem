@@ -70,6 +70,7 @@ const hasNext = ref(false);
 const hasPrevious = ref(false);
 
 const searchTerm = ref('');
+const expiryFilter = ref('ALL'); // 'ALL' | 'EXPIRING_SOON' | 'EXPIRED'
 let filterTimer: ReturnType<typeof setTimeout> | null = null;
 
 const formModalOpen = ref(false);
@@ -159,8 +160,8 @@ const getExpiryStatus = (expiryDate?: string | null): { text: string; className:
   if (days < 0) {
     return { text: 'Đã hết hạn', className: 'text-rose-600 font-semibold bg-rose-50 px-2 py-0.5 rounded-full' };
   }
-  if (days <= 30) {
-    return { text: `Còn ${days} ngày`, className: 'text-amber-600 font-semibold bg-amber-50 px-2 py-0.5 rounded-full' };
+  if (days <= 90) {
+    return { text: `Sắp hết hạn (${days} ngày)`, className: 'text-amber-600 font-semibold bg-amber-50 px-2 py-0.5 rounded-full' };
   }
   return { text: '', className: '' };
 };
@@ -203,6 +204,7 @@ const loadMedications = async () => {
       page: pageIndex,
       size: PAGE_SIZE,
       keyword: keyword ? keyword : undefined,
+      expiryFilter: expiryFilter.value !== 'ALL' ? expiryFilter.value : undefined,
     });
     medications.value = response.items ?? [];
     totalElements.value = response.totalElements ?? medications.value.length;
@@ -438,6 +440,11 @@ watch(
   },
 );
 
+watch(expiryFilter, () => {
+  currentPage.value = 1;
+  loadMedications();
+});
+
 onBeforeUnmount(() => {
   if (filterTimer) {
     clearTimeout(filterTimer);
@@ -491,6 +498,17 @@ onMounted(() => {
               class="w-full rounded-full border border-emerald-100 bg-white py-2.5 pl-9 pr-4 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80"
               placeholder="Tìm theo tên thuốc..."
             />
+          </div>
+          
+          <div class="w-full sm:w-auto">
+            <select
+              v-model="expiryFilter"
+              class="w-full rounded-full border border-emerald-100 bg-white py-2.5 pl-4 pr-10 text-sm text-slate-700 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100/80 cursor-pointer"
+            >
+              <option value="ALL">Tất cả thuốc</option>
+              <option value="EXPIRING_SOON">Hết hạn dưới 3 tháng</option>
+              <option value="EXPIRED">Đã hết hạn</option>
+            </select>
           </div>
         </div>
 

@@ -2,6 +2,7 @@ package vn.project.ClinicSystem.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
@@ -36,16 +37,29 @@ public class MedicationService {
         return medicationRepository.findAll();
     }
 
-    public MedicationPageResponse getPaged(String keyword, Pageable pageable) {
+    public MedicationPageResponse getPaged(String keyword, String expiryFilter, Pageable pageable) {
+        LocalDate minExpiry = null;
+        LocalDate maxExpiry = null;
+        LocalDate today = LocalDate.now();
+
+        if ("EXPIRED".equals(expiryFilter)) {
+            maxExpiry = today.minusDays(1);
+        } else if ("EXPIRING_SOON".equals(expiryFilter)) {
+            minExpiry = today;
+            maxExpiry = today.plusMonths(3);
+        }
+
         Page<Medication> page = medicationRepository.search(
                 normalizeKeyword(keyword),
+                minExpiry,
+                maxExpiry,
                 pageable);
         return MedicationPageResponse.from(page);
     }
 
     public List<Medication> search(String keyword) {
         return medicationRepository
-                .search(normalizeKeyword(keyword), Pageable.unpaged())
+                .search(normalizeKeyword(keyword), null, null, Pageable.unpaged())
                 .getContent();
     }
 
