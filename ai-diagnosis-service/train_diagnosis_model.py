@@ -101,14 +101,13 @@ def train_model() -> None:
         random_state=RANDOM_SEED,
     )
 
-    # 4) Define model (tối ưu hơn nhưng vẫn vừa sức với 16GB RAM)
     model = RandomForestClassifier(
-        n_estimators=300,              # nhiều cây hơn -> ổn định hơn
-        max_depth=25,                 # đủ sâu nhưng không quá overfit
-        min_samples_leaf=2,           # giảm noise
-        n_jobs=-1,                    # dùng full CPU
+        n_estimators=300,             # Giảm số lượng cây
+        max_depth=25,                 # Giới hạn độ sâu để tiết kiệm RAM
+        min_samples_leaf=2,           # Tăng min sample để giảm node
+        n_jobs=2,                     # Giảm số luồng CPU để giảm overhead RAM
         random_state=RANDOM_SEED,
-        class_weight="balanced_subsample",
+        class_weight="balanced",
     )
 
     # 5) Cross-Validation trên toàn bộ dữ liệu (trước khi fit chính)
@@ -153,7 +152,7 @@ def train_model() -> None:
     print(f"Recall    (macro): {rec_macro:.4f}")
     print(f"F1-score  (macro): {f1_macro:.4f}")
 
-    print("\n=== Weighted-averaged metrics (theo tần suất lớp) ===")
+    print("\n=== Weighted-averaged metrics (weighted by class frequency) ===")
     print(f"Precision (weighted): {prec_weighted:.4f}")
     print(f"Recall    (weighted): {rec_weighted:.4f}")
     print(f"F1-score  (weighted): {f1_weighted:.4f}")

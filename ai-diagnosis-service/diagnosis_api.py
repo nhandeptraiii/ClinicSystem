@@ -129,11 +129,18 @@ class DiagnosisResponse(BaseModel):
 
 def build_feature_vector(symptoms: List[str]) -> pd.DataFrame:
     """Build feature vector as DataFrame to match training format."""
+    matched = []
+    unmatched = []
     vector = np.zeros(len(FEATURE_NAMES), dtype=np.float32)
     for symptom in symptoms:
         idx = FEATURE_INDEX.get(symptom.lower())
         if idx is not None:
             vector[idx] = 1.0
+            matched.append(symptom)
+        else:
+            unmatched.append(symptom)
+            
+    logger.info(f"Build vector: matched={matched}, unmatched={unmatched}")
     # Return as DataFrame with column names to match training
     return pd.DataFrame([vector], columns=FEATURE_NAMES)
 
