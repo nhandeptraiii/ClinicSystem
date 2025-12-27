@@ -161,7 +161,7 @@ const getExpiryStatus = (expiryDate?: string | null): { text: string; className:
     return { text: 'Đã hết hạn', className: 'text-rose-600 font-semibold bg-rose-50 px-2 py-0.5 rounded-full' };
   }
   if (days <= 90) {
-    return { text: `Sắp hết hạn (${days} ngày)`, className: 'text-amber-600 font-semibold bg-amber-50 px-2 py-0.5 rounded-full' };
+    return { text: `Sắp hết hạn `, className: 'text-amber-600 font-semibold bg-amber-50 px-2 py-0.5 rounded-full' };
   }
   return { text: '', className: '' };
 };

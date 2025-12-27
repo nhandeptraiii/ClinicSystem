@@ -12,19 +12,33 @@ import org.springframework.transaction.annotation.Transactional;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
 import jakarta.persistence.EntityNotFoundException;
+import vn.project.ClinicSystem.model.Appointment;
 import vn.project.ClinicSystem.model.AppointmentRequest;
 import vn.project.ClinicSystem.model.Patient;
+import vn.project.ClinicSystem.model.PatientVisit;
 import vn.project.ClinicSystem.model.dto.PatientPageResponse;
+import vn.project.ClinicSystem.repository.AppointmentRepository;
+import vn.project.ClinicSystem.repository.AppointmentRequestRepository;
 import vn.project.ClinicSystem.repository.PatientRepository;
 
 @Service
 @Transactional(readOnly = true)
 public class PatientService {
     private final PatientRepository patientRepository;
+    private final AppointmentRepository appointmentRepository;
+    private final AppointmentRequestRepository appointmentRequestRepository;
+    private final VisitService visitService;
     private final Validator validator;
 
-    public PatientService(PatientRepository patientRepository, Validator validator) {
+    public PatientService(PatientRepository patientRepository,
+            AppointmentRepository appointmentRepository,
+            AppointmentRequestRepository appointmentRequestRepository,
+            VisitService visitService,
+            Validator validator) {
         this.patientRepository = patientRepository;
+        this.appointmentRepository = appointmentRepository;
+        this.appointmentRequestRepository = appointmentRequestRepository;
+        this.visitService = visitService;
         this.validator = validator;
     }
 
@@ -160,6 +174,29 @@ public class PatientService {
         if (!patientRepository.existsById(id)) {
             throw new EntityNotFoundException("Không tìm thấy bệnh nhân với id: " + id);
         }
+
+        // 1. Xóa tất cả hồ sơ khám (sẽ kiểm tra logic billing bên trong)
+        List<PatientVisit> visits = visitService.findByPatient(id);
+        for (PatientVisit visit : visits) {
+            visitService.deleteVisit(visit.getId());
+        }
+
+        // 2. Xóa tất cả lịch hẹn
+        List<Appointment> appointments = appointmentRepository.findByPatientIdOrderByScheduledAtDesc(id);
+        // Ngắt liên kết request trong appointment trước khi xóa để tránh lỗi FK
+        for (Appointment appt : appointments) {
+            if (appt.getRequest() != null) {
+                appt.setRequest(null);
+                appointmentRepository.save(appt);
+            }
+        }
+        appointmentRepository.deleteAll(appointments);
+
+        // 3. Xóa các yêu cầu đặt lịch (AppointmentRequest) liên quan đến bệnh nhân
+        List<AppointmentRequest> requests = appointmentRequestRepository.findByPatientId(id);
+        appointmentRequestRepository.deleteAll(requests);
+
+        // 4. Xóa bệnh nhân
         patientRepository.deleteById(id);
     }
 

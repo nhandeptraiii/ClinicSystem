@@ -13,6 +13,7 @@ import org.springframework.util.StringUtils;
 
 import jakarta.persistence.EntityNotFoundException;
 import vn.project.ClinicSystem.model.Appointment;
+import vn.project.ClinicSystem.model.Billing;
 import vn.project.ClinicSystem.model.ClinicRoom;
 import vn.project.ClinicSystem.model.Doctor;
 import vn.project.ClinicSystem.model.Disease;
@@ -46,6 +47,7 @@ public class VisitService {
     private final DiseaseRepository diseaseRepository;
     private final MedicalServiceRepository medicalServiceRepository;
     private final DoctorRepository doctorRepository;
+    private final vn.project.ClinicSystem.repository.BillingRepository billingRepository;
 
     public VisitService(PatientVisitRepository patientVisitRepository,
             ServiceOrderRepository serviceOrderRepository,
@@ -53,7 +55,8 @@ public class VisitService {
             AppointmentRepository appointmentRepository,
             DiseaseRepository diseaseRepository,
             MedicalServiceRepository medicalServiceRepository,
-            DoctorRepository doctorRepository) {
+            DoctorRepository doctorRepository,
+            vn.project.ClinicSystem.repository.BillingRepository billingRepository) {
         this.patientVisitRepository = patientVisitRepository;
         this.serviceOrderRepository = serviceOrderRepository;
         this.appointmentService = appointmentService;
@@ -61,6 +64,7 @@ public class VisitService {
         this.diseaseRepository = diseaseRepository;
         this.medicalServiceRepository = medicalServiceRepository;
         this.doctorRepository = doctorRepository;
+        this.billingRepository = billingRepository;
     }
 
     public PatientVisit getById(Long id) {
@@ -326,7 +330,31 @@ public class VisitService {
 
     @Transactional
     public void deleteVisit(Long id) {
-        ensureVisitExists(id);
-        patientVisitRepository.deleteById(id);
+        PatientVisit visit = getById(id);
+
+        // 1. Check & Delete Billing
+        // Use repository to delete billing manually as there is no cascade from Visit
+        // side
+        Billing billing = visit.getBilling();
+        if (billing != null) {
+            if (billing.getStatus() == vn.project.ClinicSystem.model.enums.BillingStatus.PAID) {
+                throw new IllegalStateException("Không thể xóa hồ sơ khám đã thanh toán/hoàn tất tài chính.");
+            }
+            billingRepository.delete(billing);
+        }
+
+        // 2. Reset Appointment Status
+        // When deleting a visit, the appointment should probably go back to CONFIRMED
+        // (ready for check-in)
+        // or PENDING. CONFIRMED makes sense if we assume they are still at the clinic.
+        if (visit.getPrimaryAppointment() != null) {
+            Appointment appt = visit.getPrimaryAppointment();
+            appt.setStatus(AppointmentLifecycleStatus.CONFIRMED);
+            appointmentRepository.save(appt);
+        }
+
+        // 3. Delete Visit
+        // CascadeType.ALL on serviceOrders and prescriptions will handle them.
+        patientVisitRepository.delete(visit);
     }
 }

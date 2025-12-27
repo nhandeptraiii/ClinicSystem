@@ -35,4 +35,11 @@ public interface MedicationRepository extends JpaRepository<Medication, Long> {
             @Param("minExpiry") LocalDate minExpiry,
             @Param("maxExpiry") LocalDate maxExpiry,
             Pageable pageable);
+
+    @Query("SELECT COUNT(p) FROM PrescriptionItem p WHERE p.medication.id = :medicationId")
+    long countPrescriptionItemsUsingMedication(@Param("medicationId") Long medicationId);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("DELETE FROM Medication m WHERE m.id = :id")
+    void deleteMedicationById(@Param("id") Long id);
 }

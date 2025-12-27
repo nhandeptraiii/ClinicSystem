@@ -267,7 +267,7 @@ async def predict(request: Request) -> DiagnosisResponse:
         seen_groups.add(display_name)
         
         # Cảnh báo độ tin cậy thấp - giảm xuống 1% để có kết quả hữu ích
-        if prob < 0.01:
+        if prob < 0.1:
              continue
 
         pred_entry = {

@@ -132,11 +132,10 @@ public class MedicationService {
 
     @Transactional
     public void delete(Long id) {
-        Medication medication = getById(id);
-        if (medication.getPrescriptionItems() != null && !medication.getPrescriptionItems().isEmpty()) {
+        if (medicationRepository.countPrescriptionItemsUsingMedication(id) > 0) {
             throw new IllegalStateException("Không thể xóa thuốc đã được kê trong đơn thuốc.");
         }
-        medicationRepository.delete(medication);
+        medicationRepository.deleteMedicationById(id);
     }
 
     private void ensureBatchNoUnique(String batchNo, Long currentMedicationId) {
